@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Transfer>
+  <TransferInfo>
+    <FileSequenceNumber>1</FileSequenceNumber>
+    <RecordCount>5</RecordCount>
+    <ExtractTime>2026-06-28T00:00:00</ExtractTime>
+  </TransferInfo>
+  <ABR recordLastUpdatedDate="20260601" replaced="N">
+    <ABN status="ACT" ABNStatusFromDate="19990301">51000000680</ABN>
+    <EntityType>
+      <EntityTypeInd>IND</EntityTypeInd>
+      <EntityTypeText>Individual/Sole Trader</EntityTypeText>
+    </EntityType>
+    <LegalEntity>
+      <IndividualName type="LGL">
+        <GivenName>JOHN</GivenName>
+        <GivenName>PETER</GivenName>
+        <FamilyName>SMITH</FamilyName>
+      </IndividualName>
+      <BusinessAddress>
+        <AddressDetails>
+          <State>NSW</State>
+          <Postcode>2000</Postcode>
+        </AddressDetails>
+      </BusinessAddress>
+    </LegalEntity>
+  </ABR>
+  <ABR recordLastUpdatedDate="20260515" replaced="N">
+    <ABN status="ACT" ABNStatusFromDate="20010615">51000000761</ABN>
+    <EntityType>
+      <EntityTypeInd>PRV</EntityTypeInd>
+      <EntityTypeText>Australian Private Company</EntityTypeText>
+    </EntityType>
+    <MainEntity>
+      <NonIndividualName type="MN">
+        <NonIndividualNameText>ACME PRIVATE PTY LTD</NonIndividualNameText>
+      </NonIndividualName>
+      <BusinessAddress>
+        <AddressDetails>
+          <State>VIC</State>
+          <Postcode>3000</Postcode>
+        </AddressDetails>
+      </BusinessAddress>
+    </MainEntity>
+    <ASICNumber ASICNumberType="ACN">000000761</ASICNumber>
+    <GST status="ACT" GSTStatusFromDate="20010701" />
+    <OtherEntity>
+      <NonIndividualName type="BN">
+        <NonIndividualNameText>ACME</NonIndividualNameText>
+      </NonIndividualName>
+    </OtherEntity>
+  </ABR>
+  <ABR recordLastUpdatedDate="20260601" replaced="N">
+    <ABN status="ACT" ABNStatusFromDate="20120101">51000000923</ABN>
+    <EntityType>
+      <EntityTypeInd>PRV</EntityTypeInd>
+      <EntityTypeText>Australian Private Company</EntityTypeText>
+    </EntityType>
+    <MainEntity>
+      <NonIndividualName type="MN">
+        <NonIndividualNameText>GIVING CO PTY LTD</NonIndividualNameText>
+      </NonIndividualName>
+      <BusinessAddress>
+        <AddressDetails>
+          <State>VIC</State>
+          <Postcode>3001</Postcode>
+        </AddressDetails>
+      </BusinessAddress>
+    </MainEntity>
+    <ASICNumber ASICNumberType="ACN">000000923</ASICNumber>
+    <GST status="ACT" GSTStatusFromDate="20120101" />
+    <DGR DGRStatusFromDate="20120101">
+      <NonIndividualName type="DGR">
+        <NonIndividualNameText>GIVING CO DGR FUND</NonIndividualNameText>
+      </NonIndividualName>
+    </DGR>
+    <OtherEntity>
+      <NonIndividualName type="TRD">
+        <NonIndividualNameText>TRADE CO</NonIndividualNameText>
+      </NonIndividualName>
+    </OtherEntity>
+  </ABR>
+  <ABR recordLastUpdatedDate="20260601" replaced="N">
+    <ABN status="ACT" ABNStatusFromDate="20090101">51000001765</ABN>
+    <EntityType>
+      <EntityTypeInd>IND</EntityTypeInd>
+      <EntityTypeText>Individual/Sole Trader</EntityTypeText>
+    </EntityType>
+    <LegalEntity>
+      <IndividualName type="LGL">
+        <FamilyName>MONONYM</FamilyName>
+      </IndividualName>
+      <BusinessAddress>
+        <AddressDetails>
+          <State>SA</State>
+          <Postcode>5001</Postcode>
+        </AddressDetails>
+      </BusinessAddress>
+    </LegalEntity>
+  </ABR>
+  <ABR recordLastUpdatedDate="20260601" replaced="N">
+    <ABN status="ACT" ABNStatusFromDate="20080101">51000000955</ABN>
+    <EntityType>
+      <EntityTypeInd>PUB</EntityTypeInd>
+      <EntityTypeText>Australian Public Company</EntityTypeText>
+    </EntityType>
+    <MainEntity>
+      <NonIndividualName type="MN">
+        <NonIndividualNameText>MULTI DGR LIMITED</NonIndividualNameText>
+      </NonIndividualName>
+      <BusinessAddress>
+        <AddressDetails>
+          <State></State>
+          <Postcode>4001</Postcode>
+        </AddressDetails>
+      </BusinessAddress>
+    </MainEntity>
+    <ASICNumber ASICNumberType="ARBN">000000955</ASICNumber>
+    <DGR DGRStatusFromDate="20110101">
+      <NonIndividualName type="DGR"><NonIndividualNameText>DGR FUND A</NonIndividualNameText></NonIndividualName>
+    </DGR>
+    <DGR DGRStatusFromDate="20130601">
+      <NonIndividualName type="DGR"><NonIndividualNameText>DGR FUND B</NonIndividualNameText></NonIndividualName>
+    </DGR>
+  </ABR>
+</Transfer>

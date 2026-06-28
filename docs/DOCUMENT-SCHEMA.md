@@ -1,6 +1,6 @@
 # Document Schema Reference — long-black
 
-> **Schema version:** 0.1.0
+> **Schema version:** 0.2.0
 > **Runtime validation:** `src/schema.ts` (`AbnDocumentSchema`, Zod)
 > **Breaking changes:** require a major version bump.
 
@@ -33,7 +33,7 @@ are nullable and stay `null` until those sources are wired (P3).
 | `tradingNames`      | string[]                              | no       | Trading names (TRD)                                              | ABR `OtherEntity[@type=TRD]`                          |
 | `otherNames`        | string[]                              | no       | Other names (OTN)                                                | ABR `OtherEntity[@type=OTN]`                          |
 | `dgr`               | `Dgr[]`                               | no       | Deductible Gift Recipient endorsements                           | ABR `DGR` (0..N)                                      |
-| `company`           | `Company`\|null                       | yes      | ASIC Company enrichment (null until P3.01)                       | ASIC Company                                          |
+| `company`           | `Company`\|null                       | yes      | ASIC Company enrichment (populated when matched on ABN; P3.01)   | ASIC Company                                          |
 | `charity`           | `Charity`\|null                       | yes      | ACNC charity enrichment (null until P3.03)                       | ACNC                                                  |
 
 ## Nested: `Dgr`

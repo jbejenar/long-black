@@ -74,4 +74,21 @@ describe("expected-output.ndjson regression", () => {
   it("treats GST status CAN as not registered", () => {
     expect(docs.find((d) => d._id === "51000000987")?.gstRegistered).toBe(false);
   });
+
+  it("populates company{} for an ASIC-matched ABN (the join seam)", () => {
+    const c = docs.find((d) => d._id === "51000000761")?.company;
+    expect(c?.name).toBe("ACME PRIVATE PTY LTD");
+    expect(c?.status).toBe("Registered");
+    expect(c?.acn).toBe("000000761");
+  });
+
+  it("leaves company null for an ABN with no ASIC match", () => {
+    expect(docs.find((d) => d._id === "51000000680")?.company).toBeNull();
+  });
+
+  it("captures deregistration for a deregistered company", () => {
+    const c = docs.find((d) => d._id === "51000001846")?.company;
+    expect(c?.status).toBe("Deregistered");
+    expect(c?.deregistrationDate).toBe("2024-05-01");
+  });
 });

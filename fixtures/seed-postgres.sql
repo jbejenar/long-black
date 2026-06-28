@@ -91,3 +91,18 @@ INSERT INTO abn___SCHEMA_VERSION__.abn (
 ('51000001846','ACT',DATE '2019-01-01','PRV','Australian Private Company',
  'TRADING ONLY PTY LTD',NULL,NULL,'000001846','ACN','ACT',DATE '2019-07-01','QLD','4002',
  NULL,'["JUST TRADING"]'::jsonb,NULL,NULL,20260601);
+
+-- ASIC Company enrichment fixtures (1:1 on ABN). Populate company{} for a few
+-- entities; all other ABNs keep company:null (proving the LEFT JOIN seam).
+-- Deregistered company (1846) exercises the deregistration_date path.
+INSERT INTO abn___SCHEMA_VERSION__.asic_company (
+  abn, acn, company_name, current_name, type, class, sub_class, status,
+  registration_date, deregistration_date, previous_state, state_registration_number,
+  current_name_start_date
+) VALUES
+('51000000761','000000761','ACME PRIVATE PTY LTD','ACME PRIVATE PTY LTD','APTY','LMSH','PROP',
+ 'Registered',DATE '2001-06-15',NULL,NULL,NULL,DATE '2001-06-15'),
+('51000000793','000000793','BIGCORP LIMITED','BIGCORP LIMITED','APUB','LMPL',NULL,
+ 'Registered',DATE '1995-01-01',NULL,'VIC','C12345',DATE '2005-03-01'),
+('51000001846','000001846','TRADING ONLY PTY LTD','TRADING ONLY PTY LTD','APTY','LMSH','PROP',
+ 'Deregistered',DATE '2019-01-01',DATE '2024-05-01',NULL,NULL,DATE '2019-01-01');

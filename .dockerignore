@@ -1,0 +1,9 @@
+# NOTE: the Docker build context is the PARENT directory (so crema/ is available).
+# Place this content at the context root (address/.dockerignore) for it to apply.
+**/node_modules
+**/dist
+**/output
+**/data
+**/.git
+**/.tmp-test-*
+**/*.ndjson.gz

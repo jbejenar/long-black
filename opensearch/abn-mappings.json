@@ -1,0 +1,86 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  },
+  "mappings": {
+    "properties": {
+      "_version": { "type": "keyword" },
+      "abnStatus": { "type": "keyword" },
+      "abnStatusFromDate": { "type": "date", "format": "yyyy-MM-dd", "ignore_malformed": true },
+      "entityName": {
+        "type": "text",
+        "fields": { "keyword": { "type": "keyword", "ignore_above": 256 } }
+      },
+      "entityTypeCode": { "type": "keyword" },
+      "entityTypeText": { "type": "keyword" },
+      "givenName": { "type": "text" },
+      "familyName": { "type": "text" },
+      "acn": { "type": "keyword" },
+      "acnType": { "type": "keyword" },
+      "gstRegistered": { "type": "boolean" },
+      "gstStatusFromDate": { "type": "date", "format": "yyyy-MM-dd", "ignore_malformed": true },
+      "recordLastUpdated": { "type": "date", "format": "yyyy-MM-dd", "ignore_malformed": true },
+      "state": { "type": "keyword" },
+      "postcode": { "type": "keyword" },
+      "businessNames": { "type": "text" },
+      "tradingNames": { "type": "text" },
+      "otherNames": { "type": "text" },
+      "dgr": {
+        "type": "nested",
+        "properties": {
+          "name": { "type": "text" },
+          "statusFromDate": { "type": "date", "format": "yyyy-MM-dd", "ignore_malformed": true }
+        }
+      },
+      "registeredBusinessNames": {
+        "type": "nested",
+        "properties": {
+          "name": {
+            "type": "text",
+            "fields": { "keyword": { "type": "keyword", "ignore_above": 256 } }
+          },
+          "status": { "type": "keyword" },
+          "registrationDate": { "type": "date", "format": "yyyy-MM-dd", "ignore_malformed": true },
+          "cancellationDate": { "type": "date", "format": "yyyy-MM-dd", "ignore_malformed": true }
+        }
+      },
+      "company": {
+        "type": "object",
+        "properties": {
+          "acn": { "type": "keyword" },
+          "name": {
+            "type": "text",
+            "fields": { "keyword": { "type": "keyword", "ignore_above": 256 } }
+          },
+          "currentName": { "type": "text" },
+          "type": { "type": "keyword" },
+          "class": { "type": "keyword" },
+          "subClass": { "type": "keyword" },
+          "status": { "type": "keyword" },
+          "registrationDate": { "type": "date", "format": "yyyy-MM-dd", "ignore_malformed": true },
+          "deregistrationDate": {
+            "type": "date",
+            "format": "yyyy-MM-dd",
+            "ignore_malformed": true
+          },
+          "previousState": { "type": "keyword" },
+          "stateRegistrationNumber": { "type": "keyword" }
+        }
+      },
+      "charity": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "text",
+            "fields": { "keyword": { "type": "keyword", "ignore_above": 256 } }
+          },
+          "status": { "type": "keyword" },
+          "size": { "type": "keyword" },
+          "subtype": { "type": "keyword" },
+          "registrationDate": { "type": "date", "format": "yyyy-MM-dd", "ignore_malformed": true }
+        }
+      }
+    }
+  }
+}

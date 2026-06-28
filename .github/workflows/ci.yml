@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: abn
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 3s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: long-black
+      # crema is a sibling dependency (file:../crema). Check it out + build it.
+      - uses: actions/checkout@v4
+        with:
+          repository: jbejenar/crema
+          path: crema
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Build crema
+        working-directory: crema
+        run: npm ci && npm run build
+      - name: Install long-black
+        working-directory: long-black
+        run: npm ci
+      - name: Lint + typecheck + test
+        working-directory: long-black
+        run: |
+          npm run lint
+          npm run typecheck
+          npm test
+      - name: Fixture build (seed → flatten → verify → byte-for-byte)
+        working-directory: long-black
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5433/abn
+          LONG_BLACK_VERSION: "2026.06.28"
+        run: |
+          SV=20260628
+          psql() { PGPASSWORD=postgres command psql -h localhost -p 5433 -U postgres -d abn -v ON_ERROR_STOP=1 -q "$@"; }
+          npm run build
+          echo "DROP SCHEMA IF EXISTS abn_${SV} CASCADE;" | psql
+          sed "s/__SCHEMA_VERSION__/${SV}/g" sql/staging-schema.sql | psql
+          sed "s/__SCHEMA_VERSION__/${SV}/g" fixtures/seed-postgres.sql | psql
+          sed "s/__SCHEMA_VERSION__/${SV}/g" sql/abn-finalize.sql | psql
+          mkdir -p output
+          node dist/cli.js output/fixture.ndjson
+          diff -q output/fixture.ndjson fixtures/expected-output.ndjson

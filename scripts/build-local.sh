@@ -52,4 +52,7 @@ sed_ver sql/abn-finalize.sql | runsql
 echo "[build-local] flatten + verify..."
 DATABASE_URL="$DB" LONG_BLACK_VERSION="$VERSION" node dist/cli.js "$OUTPUT"
 
+echo "[build-local] output (split per-state + gzip + metadata)..."
+LONG_BLACK_VERSION="$VERSION" node dist/output-cli.js "$OUTPUT" "$PROJECT_DIR/output"
+
 echo "[build-local] ABR core green → $OUTPUT ($(wc -l < "$OUTPUT" | tr -d ' ') documents)"

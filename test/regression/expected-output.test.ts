@@ -103,4 +103,26 @@ describe("expected-output.ndjson regression", () => {
     expect(d?.businessNames).toEqual(["ACME"]); // from ABR OtherEntity
     expect(d?.registeredBusinessNames.map((n) => n.name)).toEqual(["ACME BRANDS"]); // from ASIC
   });
+
+  it("populates charity{} for an ACNC-matched ABN", () => {
+    const ch = docs.find((d) => d._id === "51000000923")?.charity;
+    expect(ch?.name).toBe("GIVING CO CHARITABLE FOUNDATION");
+    expect(ch?.status).toBe("Registered");
+    expect(ch?.subtype).toBe("Advancing education");
+  });
+
+  it("leaves charity null for a non-charity ABN", () => {
+    expect(docs.find((d) => d._id === "51000000761")?.charity).toBeNull();
+  });
+
+  it("can carry all four sources at once (ABR + company + business names + charity)", () => {
+    // 51000000761: ABR core + ASIC company + ASIC business name (no charity)
+    const d = docs.find((x) => x._id === "51000000761");
+    expect(d?.company).not.toBeNull();
+    expect(d?.registeredBusinessNames.length).toBeGreaterThan(0);
+    // 51000000923: ABR core + DGR + charity
+    const e = docs.find((x) => x._id === "51000000923");
+    expect(e?.dgr.length).toBeGreaterThan(0);
+    expect(e?.charity).not.toBeNull();
+  });
 });

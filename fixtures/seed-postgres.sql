@@ -116,3 +116,11 @@ INSERT INTO abn___SCHEMA_VERSION__.asic_business_name (
 ('51000001571','MANY NAMES CONSULTING','Registered',DATE '2017-03-01',NULL,'BN1000002','NSW'),
 ('51000001571','MANY NAMES TRADING','Registered',DATE '2016-02-01',NULL,'BN1000001','NSW'),
 ('51000000761','ACME BRANDS','Cancelled',DATE '2002-01-01',DATE '2010-01-01','BN1000003','VIC');
+
+-- ACNC charity enrichment fixtures (1:0..1 on ABN). 2 charities; all other ABNs
+-- keep charity:null. (51000000923 also has a DGR — the common charity shape.)
+INSERT INTO abn___SCHEMA_VERSION__.acnc_charity (
+  abn, charity_name, status, size, subtype, registration_date
+) VALUES
+('51000000923','GIVING CO CHARITABLE FOUNDATION','Registered','Medium','Advancing education',DATE '2012-06-01'),
+('51000000810','THE SMITH FAMILY CHARITABLE TRUST','Registered','Small','Advancing social or public welfare',DATE '2011-01-01');

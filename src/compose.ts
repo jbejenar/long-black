@@ -11,6 +11,7 @@ import type {
   AbnDocument,
   DgrEndorsement,
   CompanyEnrichment,
+  CharityEnrichment,
   RegisteredBusinessName,
 } from "./schema.js";
 
@@ -84,6 +85,6 @@ export function composeAbnDocument(row: Record<string, unknown>, version: string
       ? (row.registered_business_names as RegisteredBusinessName[])
       : [],
     company: (row.company as CompanyEnrichment | null) ?? null,
-    charity: null, // wired in P3.03
+    charity: (row.charity as CharityEnrichment | null) ?? null,
   };
 }

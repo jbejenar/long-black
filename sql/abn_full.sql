@@ -65,8 +65,16 @@ SELECT
     'deregistrationDate', c.deregistration_date::text,
     'previousState', c.previous_state,
     'stateRegistrationNumber', c.state_registration_number
-  ) END                                                AS company
+  ) END                                                AS company,
+  CASE WHEN ch.abn IS NULL THEN NULL ELSE json_build_object(
+    'name', ch.charity_name,
+    'status', ch.status,
+    'size', ch.size,
+    'subtype', ch.subtype,
+    'registrationDate', ch.registration_date::text
+  ) END                                                AS charity
 FROM abn___SCHEMA_VERSION__.abn a
 LEFT JOIN company c ON c.abn = a.abn
 LEFT JOIN business_names_agg bn ON bn.abn = a.abn
+LEFT JOIN abn___SCHEMA_VERSION__.acnc_charity ch ON ch.abn = a.abn
 ORDER BY a.abn;

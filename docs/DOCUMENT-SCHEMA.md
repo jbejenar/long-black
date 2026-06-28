@@ -1,6 +1,6 @@
 # Document Schema Reference — long-black
 
-> **Schema version:** 0.3.0
+> **Schema version:** 0.4.0
 > **Runtime validation:** `src/schema.ts` (`AbnDocumentSchema`, Zod)
 > **Breaking changes:** require a major version bump.
 
@@ -35,7 +35,7 @@ are nullable and stay `null` until those sources are wired (P3).
 | `dgr`                     | `Dgr[]`                               | no       | Deductible Gift Recipient endorsements                           | ABR `DGR` (0..N)                                      |
 | `registeredBusinessNames` | `RegBN[]`                             | no       | ASIC registered business names (authoritative; P3.02)            | ASIC Business Names                                   |
 | `company`                 | `Company`\|null                       | yes      | ASIC Company enrichment (populated when matched on ABN; P3.01)   | ASIC Company                                          |
-| `charity`                 | `Charity`\|null                       | yes      | ACNC charity enrichment (null until P3.03)                       | ACNC                                                  |
+| `charity`                 | `Charity`\|null                       | yes      | ACNC charity enrichment (populated when matched; P3.03)          | ACNC                                                  |
 
 ## Nested: `Dgr`
 
@@ -46,7 +46,7 @@ are nullable and stay `null` until those sources are wired (P3).
 
 ## Nested: `company` (P3.01) / `charity` (P3.03)
 
-Null until those sources are wired. Shapes: `CompanyEnrichmentSchema` /
+Populated when matched on ABN. Shapes: `CompanyEnrichmentSchema` /
 `CharityEnrichmentSchema` in `src/schema.ts`.
 
 ## Enums

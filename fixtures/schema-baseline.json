@@ -1,0 +1,427 @@
+{
+  "generatedAt": "2026-06-28",
+  "schemas": {
+    "AbnDocument": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "_id": {
+          "type": "string"
+        },
+        "_version": {
+          "type": "string"
+        },
+        "abnStatus": {
+          "type": "string",
+          "enum": ["ACT", "CAN"]
+        },
+        "abnStatusFromDate": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "entityName": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "entityTypeCode": {
+          "type": "string"
+        },
+        "entityTypeText": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "givenName": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "familyName": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "acn": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "acnType": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": ["ACN", "ARBN", "ARSN", "ARFN"]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "gstRegistered": {
+          "type": "boolean"
+        },
+        "gstStatusFromDate": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recordLastUpdated": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "postcode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "businessNames": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "tradingNames": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "otherNames": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "dgr": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "statusFromDate": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["name", "statusFromDate"],
+            "additionalProperties": false
+          }
+        },
+        "registeredBusinessNames": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "status": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "registrationDate": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "cancellationDate": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["name", "status", "registrationDate", "cancellationDate"],
+            "additionalProperties": false
+          }
+        },
+        "company": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "acn": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                },
+                "currentName": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "class": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "subClass": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "status": {
+                  "type": "string"
+                },
+                "registrationDate": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "deregistrationDate": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "previousState": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "stateRegistrationNumber": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "acn",
+                "name",
+                "currentName",
+                "type",
+                "class",
+                "subClass",
+                "status",
+                "registrationDate",
+                "deregistrationDate",
+                "previousState",
+                "stateRegistrationNumber"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "charity": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "size": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "subtype": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "registrationDate": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": ["name", "status", "size", "subtype", "registrationDate"],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "_id",
+        "_version",
+        "abnStatus",
+        "abnStatusFromDate",
+        "entityName",
+        "entityTypeCode",
+        "entityTypeText",
+        "givenName",
+        "familyName",
+        "acn",
+        "acnType",
+        "gstRegistered",
+        "gstStatusFromDate",
+        "recordLastUpdated",
+        "state",
+        "postcode",
+        "businessNames",
+        "tradingNames",
+        "otherNames",
+        "dgr",
+        "registeredBusinessNames",
+        "company",
+        "charity"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

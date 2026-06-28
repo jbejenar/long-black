@@ -1,0 +1,12 @@
+node_modules/
+dist/
+output/
+data/
+*.ndjson
+!fixtures/expected-output.ndjson
+*.ndjson.gz
+.tmp-test-*/
+.env
+.DS_Store
+.claude/worktrees/
+.claude-loop/

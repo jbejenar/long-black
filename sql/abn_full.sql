@@ -17,6 +17,17 @@ WITH company AS (
     registration_date, deregistration_date, previous_state, state_registration_number
   FROM abn___SCHEMA_VERSION__.asic_company
   ORDER BY abn, current_name_start_date DESC NULLS LAST
+),
+-- 1:N — aggregate ASIC registered business names per ABN (never direct-join).
+business_names_agg AS (
+  SELECT abn, json_agg(json_build_object(
+    'name', business_name,
+    'status', status,
+    'registrationDate', registration_date::text,
+    'cancellationDate', cancellation_date::text
+  ) ORDER BY business_name, registration_date) AS names
+  FROM abn___SCHEMA_VERSION__.asic_business_name
+  GROUP BY abn
 )
 SELECT
   a.abn                                                AS _id,
@@ -41,6 +52,7 @@ SELECT
   COALESCE(a.trading_names,  '[]'::jsonb)              AS trading_names,
   COALESCE(a.other_names,    '[]'::jsonb)              AS other_names,
   COALESCE(a.dgr,            '[]'::jsonb)              AS dgr,
+  COALESCE(bn.names,         '[]'::json)              AS registered_business_names,
   CASE WHEN c.abn IS NULL THEN NULL ELSE json_build_object(
     'acn', c.acn,
     'name', c.company_name,
@@ -56,4 +68,5 @@ SELECT
   ) END                                                AS company
 FROM abn___SCHEMA_VERSION__.abn a
 LEFT JOIN company c ON c.abn = a.abn
+LEFT JOIN business_names_agg bn ON bn.abn = a.abn
 ORDER BY a.abn;

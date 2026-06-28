@@ -32,6 +32,14 @@ export const CompanyEnrichmentSchema = z.object({
   stateRegistrationNumber: z.string().nullable(),
 });
 
+/** A registered business name from ASIC (1:N on ABN; authoritative, distinct from ABR's). */
+export const RegisteredBusinessNameSchema = z.object({
+  name: z.string(),
+  status: z.string().nullable(),
+  registrationDate: z.string().nullable(),
+  cancellationDate: z.string().nullable(),
+});
+
 /** ACNC charity enrichment (1:0..1 on ABN). Null until the source is wired. */
 export const CharityEnrichmentSchema = z.object({
   name: z.string(),
@@ -65,11 +73,13 @@ export const AbnDocumentSchema = z.object({
   tradingNames: z.array(z.string()),
   otherNames: z.array(z.string()),
   dgr: z.array(DgrSchema),
+  registeredBusinessNames: z.array(RegisteredBusinessNameSchema),
   company: CompanyEnrichmentSchema.nullable(),
   charity: CharityEnrichmentSchema.nullable(),
 });
 
 export type AbnDocument = z.infer<typeof AbnDocumentSchema>;
 export type DgrEndorsement = z.infer<typeof DgrSchema>;
+export type RegisteredBusinessName = z.infer<typeof RegisteredBusinessNameSchema>;
 export type CompanyEnrichment = z.infer<typeof CompanyEnrichmentSchema>;
 export type CharityEnrichment = z.infer<typeof CharityEnrichmentSchema>;

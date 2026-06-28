@@ -1,6 +1,6 @@
 # Document Schema Reference — long-black
 
-> **Schema version:** 0.2.0
+> **Schema version:** 0.3.0
 > **Runtime validation:** `src/schema.ts` (`AbnDocumentSchema`, Zod)
 > **Breaking changes:** require a major version bump.
 
@@ -11,30 +11,31 @@ are nullable and stay `null` until those sources are wired (P3).
 
 ## Top-level fields
 
-| Field               | Type                                  | Nullable | Description                                                      | Source                                                |
-| ------------------- | ------------------------------------- | -------- | ---------------------------------------------------------------- | ----------------------------------------------------- |
-| `_id`               | string                                | no       | The ABN — 11 digits, always a string                             | ABR `ABN`                                             |
-| `_version`          | string                                | no       | Data version (ABR `TransferInfo/ExtractTime`, e.g. `2026.06.28`) | build                                                 |
-| `abnStatus`         | `"ACT"`\|`"CAN"`                      | no       | ABN status                                                       | ABR `ABN/@status`                                     |
-| `abnStatusFromDate` | string (ISO date)                     | yes      | ABN status start date                                            | ABR `ABN/@ABNStatusFromDate`                          |
-| `entityName`        | string                                | yes      | Entity name (non-individual) or composed individual name         | `MainEntity` MN / `concat_ws(givenNames, familyName)` |
-| `entityTypeCode`    | string                                | no       | Entity type code (130-value enum, e.g. `IND`,`PRV`,`PUB`)        | ABR `EntityType/EntityTypeInd`                        |
-| `entityTypeText`    | string                                | yes      | Entity type label                                                | ABR `EntityType/EntityTypeText`                       |
-| `givenName`         | string                                | yes      | Individual given name(s), 1–2 joined                             | `LegalEntity/IndividualName/GivenName`                |
-| `familyName`        | string                                | yes      | Individual family name                                           | `LegalEntity/IndividualName/FamilyName`               |
-| `acn`               | string                                | yes      | ACN/ARBN/ARSN/ARFN number (regardless of type)                   | ABR `ASICNumber`                                      |
-| `acnType`           | `"ACN"`\|`"ARBN"`\|`"ARSN"`\|`"ARFN"` | yes      | Which kind of ASIC number `acn` is                               | ABR `ASICNumber/@ASICNumberType`                      |
-| `gstRegistered`     | boolean                               | no       | `true` iff GST status is `ACT`                                   | ABR `GST/@status`                                     |
-| `gstStatusFromDate` | string (ISO date)                     | yes      | GST status start date                                            | ABR `GST/@GSTStatusFromDate`                          |
-| `recordLastUpdated` | string (ISO date)                     | yes      | When the ABR record was last updated                             | ABR `ABR/@recordLastUpdatedDate`                      |
-| `state`             | string                                | yes      | Main business location state (`''` → `null`); incl. `AAT`        | ABR `BusinessAddress/.../State`                       |
-| `postcode`          | string                                | yes      | Main business location postcode                                  | ABR `BusinessAddress/.../Postcode`                    |
-| `businessNames`     | string[]                              | no       | Registered business names (BN)                                   | ABR `OtherEntity[@type=BN]`                           |
-| `tradingNames`      | string[]                              | no       | Trading names (TRD)                                              | ABR `OtherEntity[@type=TRD]`                          |
-| `otherNames`        | string[]                              | no       | Other names (OTN)                                                | ABR `OtherEntity[@type=OTN]`                          |
-| `dgr`               | `Dgr[]`                               | no       | Deductible Gift Recipient endorsements                           | ABR `DGR` (0..N)                                      |
-| `company`           | `Company`\|null                       | yes      | ASIC Company enrichment (populated when matched on ABN; P3.01)   | ASIC Company                                          |
-| `charity`           | `Charity`\|null                       | yes      | ACNC charity enrichment (null until P3.03)                       | ACNC                                                  |
+| Field                     | Type                                  | Nullable | Description                                                      | Source                                                |
+| ------------------------- | ------------------------------------- | -------- | ---------------------------------------------------------------- | ----------------------------------------------------- |
+| `_id`                     | string                                | no       | The ABN — 11 digits, always a string                             | ABR `ABN`                                             |
+| `_version`                | string                                | no       | Data version (ABR `TransferInfo/ExtractTime`, e.g. `2026.06.28`) | build                                                 |
+| `abnStatus`               | `"ACT"`\|`"CAN"`                      | no       | ABN status                                                       | ABR `ABN/@status`                                     |
+| `abnStatusFromDate`       | string (ISO date)                     | yes      | ABN status start date                                            | ABR `ABN/@ABNStatusFromDate`                          |
+| `entityName`              | string                                | yes      | Entity name (non-individual) or composed individual name         | `MainEntity` MN / `concat_ws(givenNames, familyName)` |
+| `entityTypeCode`          | string                                | no       | Entity type code (130-value enum, e.g. `IND`,`PRV`,`PUB`)        | ABR `EntityType/EntityTypeInd`                        |
+| `entityTypeText`          | string                                | yes      | Entity type label                                                | ABR `EntityType/EntityTypeText`                       |
+| `givenName`               | string                                | yes      | Individual given name(s), 1–2 joined                             | `LegalEntity/IndividualName/GivenName`                |
+| `familyName`              | string                                | yes      | Individual family name                                           | `LegalEntity/IndividualName/FamilyName`               |
+| `acn`                     | string                                | yes      | ACN/ARBN/ARSN/ARFN number (regardless of type)                   | ABR `ASICNumber`                                      |
+| `acnType`                 | `"ACN"`\|`"ARBN"`\|`"ARSN"`\|`"ARFN"` | yes      | Which kind of ASIC number `acn` is                               | ABR `ASICNumber/@ASICNumberType`                      |
+| `gstRegistered`           | boolean                               | no       | `true` iff GST status is `ACT`                                   | ABR `GST/@status`                                     |
+| `gstStatusFromDate`       | string (ISO date)                     | yes      | GST status start date                                            | ABR `GST/@GSTStatusFromDate`                          |
+| `recordLastUpdated`       | string (ISO date)                     | yes      | When the ABR record was last updated                             | ABR `ABR/@recordLastUpdatedDate`                      |
+| `state`                   | string                                | yes      | Main business location state (`''` → `null`); incl. `AAT`        | ABR `BusinessAddress/.../State`                       |
+| `postcode`                | string                                | yes      | Main business location postcode                                  | ABR `BusinessAddress/.../Postcode`                    |
+| `businessNames`           | string[]                              | no       | Registered business names (BN)                                   | ABR `OtherEntity[@type=BN]`                           |
+| `tradingNames`            | string[]                              | no       | Trading names (TRD)                                              | ABR `OtherEntity[@type=TRD]`                          |
+| `otherNames`              | string[]                              | no       | Other names (OTN)                                                | ABR `OtherEntity[@type=OTN]`                          |
+| `dgr`                     | `Dgr[]`                               | no       | Deductible Gift Recipient endorsements                           | ABR `DGR` (0..N)                                      |
+| `registeredBusinessNames` | `RegBN[]`                             | no       | ASIC registered business names (authoritative; P3.02)            | ASIC Business Names                                   |
+| `company`                 | `Company`\|null                       | yes      | ASIC Company enrichment (populated when matched on ABN; P3.01)   | ASIC Company                                          |
+| `charity`                 | `Charity`\|null                       | yes      | ACNC charity enrichment (null until P3.03)                       | ACNC                                                  |
 
 ## Nested: `Dgr`
 

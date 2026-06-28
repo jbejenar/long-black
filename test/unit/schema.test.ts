@@ -27,6 +27,7 @@ function validDoc(overrides: Partial<AbnDocument> = {}): AbnDocument {
     tradingNames: [],
     otherNames: [],
     dgr: [],
+    registeredBusinessNames: [],
     company: null,
     charity: null,
     ...overrides,

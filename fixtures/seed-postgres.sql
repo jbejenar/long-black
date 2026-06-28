@@ -106,3 +106,13 @@ INSERT INTO abn___SCHEMA_VERSION__.asic_company (
  'Registered',DATE '1995-01-01',NULL,'VIC','C12345',DATE '2005-03-01'),
 ('51000001846','000001846','TRADING ONLY PTY LTD','TRADING ONLY PTY LTD','APTY','LMSH','PROP',
  'Deregistered',DATE '2019-01-01',DATE '2024-05-01',NULL,NULL,DATE '2019-01-01');
+
+-- ASIC Business Names enrichment fixtures (1:N on ABN; authoritative, distinct
+-- from ABR's OtherEntity business names). 51000001571 has TWO (the 1:N aggregation
+-- guard); 51000000761 has one cancelled name.
+INSERT INTO abn___SCHEMA_VERSION__.asic_business_name (
+  abn, business_name, status, registration_date, cancellation_date, bn_number, state
+) VALUES
+('51000001571','MANY NAMES CONSULTING','Registered',DATE '2017-03-01',NULL,'BN1000002','NSW'),
+('51000001571','MANY NAMES TRADING','Registered',DATE '2016-02-01',NULL,'BN1000001','NSW'),
+('51000000761','ACME BRANDS','Cancelled',DATE '2002-01-01',DATE '2010-01-01','BN1000003','VIC');

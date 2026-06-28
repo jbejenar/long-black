@@ -7,7 +7,12 @@
  * converted here. Empty/whitespace state & postcode are coerced to null.
  */
 
-import type { AbnDocument, DgrEndorsement, CompanyEnrichment } from "./schema.js";
+import type {
+  AbnDocument,
+  DgrEndorsement,
+  CompanyEnrichment,
+  RegisteredBusinessName,
+} from "./schema.js";
 
 function emptyToNull(value: unknown): string | null {
   if (value === null || value === undefined) return null;
@@ -74,7 +79,10 @@ export function composeAbnDocument(row: Record<string, unknown>, version: string
     tradingNames: stringArray(row.trading_names),
     otherNames: stringArray(row.other_names),
     dgr: dgrArray(row.dgr),
-    // SQL builds the nested object (camelCase) or null; Zod validates it.
+    // SQL builds these nested shapes (camelCase) or null/[]; Zod validates them.
+    registeredBusinessNames: Array.isArray(row.registered_business_names)
+      ? (row.registered_business_names as RegisteredBusinessName[])
+      : [],
     company: (row.company as CompanyEnrichment | null) ?? null,
     charity: null, // wired in P3.03
   };

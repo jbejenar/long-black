@@ -91,4 +91,16 @@ describe("expected-output.ndjson regression", () => {
     expect(c?.status).toBe("Deregistered");
     expect(c?.deregistrationDate).toBe("2024-05-01");
   });
+
+  it("aggregates multiple ASIC registered business names (1:N, ordered)", () => {
+    const rbn = docs.find((d) => d._id === "51000001571")?.registeredBusinessNames;
+    expect(rbn?.map((n) => n.name)).toEqual(["MANY NAMES CONSULTING", "MANY NAMES TRADING"]);
+    expect(rbn?.every((n) => n.status === "Registered")).toBe(true);
+  });
+
+  it("keeps ABR business names separate from ASIC registered ones", () => {
+    const d = docs.find((x) => x._id === "51000000761");
+    expect(d?.businessNames).toEqual(["ACME"]); // from ABR OtherEntity
+    expect(d?.registeredBusinessNames.map((n) => n.name)).toEqual(["ACME BRANDS"]); // from ASIC
+  });
 });

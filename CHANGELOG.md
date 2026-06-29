@@ -14,6 +14,47 @@ The NDJSON document is the contract (`docs/DOCUMENT-SCHEMA.md`).
 
 ### Added
 
+- **0.8.0** — **Data-completeness gates** ("all four sources of truth must be
+  complete before shipping"). Enrichment was proven on the real 2026.06.24 extract
+  — 2,341,897 ASIC companies, 1,977,574 business-name holders, 65,265 charities
+  joined across 20,295,936 ABNs, 0 composition errors (`docs/PERFORMANCE.md`) —
+  and the pipeline now refuses to ship anything less:
+  - `enrich-cli` fails a source whose load falls below a per-source floor
+    (`minRows`: 1,000,000 / 1,000,000 / 20,000), catching an empty/truncated CSV
+    or the wrong resource.
+  - `cli.js` adds an enrichment-coverage gate after verify (`src/coverage.ts`,
+    `LONG_BLACK_COVERAGE_PROFILE`): the build fails unless each nested source
+    populated documents at its floor. The fixture loop runs it at fixture scale.
+  - `build.yml` / `build-local.sh` make enrichment **required** (no more
+    best-effort "warning + ship null") — a failure aborts the build unless a
+    deliberate `allow_partial_enrichment=true` override.
+  - `build.yml` wires the `compare-cli` anomaly gate: it diffs the build against
+    the prior published release and holds anomalous builds as drafts for review
+    (`compare_threshold`, default 0.25), uploading the reports as an artifact.
+  - manifest-cli now treats `metadata.version` as canonical (validates
+    `LONG_BLACK_VERSION` matches) and verifies the shard set bidirectionally
+    against `metadata.counts`, so a stale/partial output dir can't yield a
+    plausible-but-wrong manifest.
+  - `catalogue.yml` skip path now gates downstream steps + the deploy job via a
+    `should_generate` output (a bare `exit 0` only ended the check step, so a
+    draft/empty state could still deploy a stale catalogue).
+- **0.7.0** — **Release catalogue + manifest + comparison tooling** (re-lifted
+  into crema as generic, branding/product-injected engines and consumed here):
+  - `manifest-cli.js` writes `output/manifest.json` every release — per-shard
+    sha256 + record counts + build provenance (repo/commit/run) via crema's
+    `buildManifestV2` (product `abn`, no index). The per-state NDJSON.gz shards
+    are the manifest source files; the all-ABN Parquet is excluded so
+    `total_records` isn't double-counted.
+  - `catalogue-cli.js` + `src/catalogue.ts` (`ABN_BRANDING`) render a static
+    GitHub-release catalogue; `catalogue.yml` deploys it to GitHub Pages after
+    each successful Build (drafts/prereleases excluded — gated twice).
+  - `compare-cli.js` flags build-over-build anomalies (a per-state or total
+    count moving past the threshold, or a state appearing/retiring) for the
+    release manual-review gate.
+
+  Release notes now carry a jq-emitted `**<n>** businesses` line + per-state
+  table that the catalogue parses back. No document-schema change.
+
 - **0.6.0** — Optional **Parquet** output (`output-cli.js … --parquet`, emitted
   by the release builds): an all-ABN `long-black-<version>.parquet` alongside the
   per-state NDJSON.gz, via crema's generic `convertToParquet`. Scalars become

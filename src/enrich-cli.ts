@@ -50,6 +50,16 @@ async function main(): Promise<void> {
         source,
         file,
       });
+      // Completeness floor: a load far below the known volume means an empty/
+      // truncated CSV, the wrong resource, or a normalize that dropped rows.
+      // Treat it as a failure so the build can't ship a hollow source of truth.
+      if (inserted < source.minRows) {
+        failures++;
+        console.error(
+          `[enrich] ${source.label}: FAILED — only ${inserted} row(s), below floor ${source.minRows} (incomplete source)`,
+        );
+        continue;
+      }
       console.log(`[enrich] ${source.label}: ${inserted} row(s) → ${source.key}`);
     } catch (err) {
       failures++;

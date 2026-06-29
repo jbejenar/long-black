@@ -2,7 +2,8 @@ name: Build
 
 # Monthly production build: download the real ABR ABN Bulk Extract, run the full
 # pipeline (download → load → flatten → verify → split → compress), and publish
-# the per-state NDJSON(.gz) + metadata.json as a GitHub Release.
+# the per-state NDJSON(.gz) + all-ABN Parquet + metadata.json + manifest.json as a
+# GitHub Release.
 #
 # Mirrors scripts/build-local.sh, but against a postgres:16 service and on a
 # disk-freed runner (the extract is ~13 GB of XML). The fixture loop
@@ -19,6 +20,14 @@ on:
         description: "Publish the release (false → leave it as a draft)"
         type: boolean
         default: true
+      allow_partial_enrichment:
+        description: "DANGER: ship even if an enrichment source of truth is incomplete (default false)"
+        type: boolean
+        default: false
+      compare_threshold:
+        description: "Per-state/total move that flags a build for review (1.0 = 100%)"
+        required: false
+        default: "0.25"
   schedule:
     # 5th of each month, 03:00 UTC — the ABR refreshes weekly, so any week's
     # extract is fresh; a monthly cadence avoids 52 artifact sets/year.
@@ -36,7 +45,7 @@ env:
   # crema is pinned to a reviewed git tag, not its moving default branch, so a
   # release is reproducible and never changes underneath long-black. Bump this
   # (and re-test) when adopting a new crema — see docs/RELEASING.md.
-  CREMA_REF: v0.2.0
+  CREMA_REF: v0.3.0
 
 jobs:
   build:
@@ -122,6 +131,9 @@ jobs:
           LONG_BLACK_VERSION: ${{ steps.ver.outputs.version }}
           VERSION: ${{ steps.ver.outputs.version }}
           SV: ${{ steps.ver.outputs.sv }}
+          # Empty on the scheduled run → strict (required enrichment); `true` only
+          # via a deliberate manual dispatch.
+          ALLOW_PARTIAL: ${{ github.event.inputs.allow_partial_enrichment }}
         run: |
           set -euo pipefail
           # psql forwards "$@" for future call sites; current callers only pipe stdin.
@@ -142,19 +154,33 @@ jobs:
           sed "s/__SCHEMA_VERSION__/${SV}/g" sql/abn-finalize.sql | psql
           echo "::endgroup::"
 
-          echo "::group::enrichment (ASIC + ACNC, best-effort)"
-          # Additive + nullable: a transient data.gov.au failure leaves the nested
-          # object null rather than failing the whole monthly build.
-          DATA_DIR=data node dist/enrich-cli.js \
-            || echo "::warning::enrichment incomplete — continuing with partial/null enrichment"
+          echo "::group::enrichment (ASIC + ACNC — REQUIRED)"
+          # The data must be complete before shipping: every source of truth must
+          # load (and clear its per-source row floor in enrich-cli) or the build
+          # fails. A deliberate manual run can set allow_partial_enrichment=true to
+          # ship with a degraded source; the scheduled monthly build never does.
+          COVERAGE_PROFILE=production
+          if DATA_DIR=data node dist/enrich-cli.js; then
+            echo "enrichment complete — all sources loaded above floor"
+          elif [ "${ALLOW_PARTIAL:-}" = "true" ]; then
+            echo "::warning::enrichment incomplete, but allow_partial_enrichment=true — shipping degraded data"
+            COVERAGE_PROFILE=off
+          else
+            echo "::error::enrichment incomplete — refusing to ship partial data (override: allow_partial_enrichment=true)"
+            exit 1
+          fi
           echo "::endgroup::"
 
-          echo "::group::flatten + verify"
-          node dist/cli.js "output/long-black-${VERSION}.ndjson"
+          echo "::group::flatten + verify (+ enrichment coverage gate)"
+          LONG_BLACK_COVERAGE_PROFILE="$COVERAGE_PROFILE" node dist/cli.js "output/long-black-${VERSION}.ndjson"
           echo "::endgroup::"
 
           echo "::group::output (split + gzip + metadata)"
           node dist/output-cli.js "output/long-black-${VERSION}.ndjson" output --parquet
+          echo "::endgroup::"
+
+          echo "::group::manifest (per-shard checksums + provenance)"
+          node dist/manifest-cli.js output
           echo "::endgroup::"
 
       - name: Verify release assets
@@ -172,7 +198,59 @@ jobs:
           # The all-ABN Parquet (emitted with --parquet) must exist and be nonempty.
           pq=$(ls output/long-black-*.parquet 2>/dev/null | head -1)
           [ -s "$pq" ] || { echo "no Parquet output file"; exit 1; }
-          ls -lh output/long-black-*.ndjson.gz "$pq" output/metadata.json
+          # The release manifest (per-shard checksums + provenance) must exist and parse.
+          [ -s output/manifest.json ] || { echo "no manifest.json"; exit 1; }
+          jq -e '.manifest_version == 2 and (.files | length) >= 1' output/manifest.json > /dev/null
+          ls -lh output/long-black-*.ndjson.gz "$pq" output/metadata.json output/manifest.json
+
+      - name: Compare to prior release (anomaly gate)
+        id: compare
+        working-directory: long-black
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          VERSION: ${{ steps.ver.outputs.version }}
+          THRESHOLD: ${{ github.event.inputs.compare_threshold || '0.25' }}
+        run: |
+          set -euo pipefail
+          # Guard against a corrupt build silently going public: diff this build's
+          # per-state + total counts against the last PUBLISHED release. A move past
+          # THRESHOLD (or a state appearing/retiring) holds the release as a draft
+          # for human review rather than publishing automatically.
+          if ! gh release view --repo "$REPO" --json tagName --jq '.tagName' > /tmp/prior_tag 2>/dev/null; then
+            echo "no prior published release — skipping comparison (first release)"
+            echo "anomalies=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          PRIOR_TAG=$(cat /tmp/prior_tag)
+          mkdir -p prior
+          if ! gh release download "$PRIOR_TAG" --repo "$REPO" --pattern metadata.json --dir prior --clobber 2>/dev/null; then
+            echo "::warning::prior release $PRIOR_TAG has no metadata.json — skipping comparison"
+            echo "anomalies=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "comparing $VERSION against prior $PRIOR_TAG (threshold $THRESHOLD)"
+          set +e
+          node dist/compare-cli.js output/metadata.json prior/metadata.json --threshold "$THRESHOLD"
+          rc=$?
+          set -e
+          if [ "$rc" -eq 0 ]; then
+            echo "comparison clean — no anomalies"
+            echo "anomalies=false" >> "$GITHUB_OUTPUT"
+          elif [ "$rc" -eq 2 ]; then
+            echo "::warning::comparison flagged anomalies — release will be held as a DRAFT for review"
+            echo "anomalies=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::comparison tool failed (exit $rc)"; exit "$rc"
+          fi
+
+      - name: Upload comparison reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: comparison-reports
+          path: long-black/comparison-*.*
+          if-no-files-found: ignore
 
       - name: Publish GitHub Release
         working-directory: long-black
@@ -183,13 +261,32 @@ jobs:
           REPO: ${{ github.repository }}
           # Empty on the scheduled run → publishes; `false` on a manual run → draft.
           PUBLISH: ${{ github.event.inputs.publish }}
+          # `true` when the anomaly gate flagged a large move vs the prior release.
+          ANOMALIES: ${{ steps.compare.outputs.anomalies }}
         run: |
           set -euo pipefail
+          # Count + per-state table parsed from metadata.json via jq. The
+          # catalogue (catalogue.yml) reads these back from the release body, so
+          # the format — "**<n>** businesses" and "| <STATE> | <n> |" — is
+          # load-bearing (matches src/catalogue.ts ABN_BRANDING.keyPattern).
+          STATS=$(jq -r '
+            "**\(.totalCount)** businesses.",
+            "",
+            "| State | Businesses |",
+            "| --- | ---: |",
+            (.counts | to_entries | sort_by(.key)[] | "| \(.key | ascii_upcase) | \(.value) |")
+          ' output/metadata.json)
           {
             echo "Australian Business (ABN) data — one NDJSON document per ABN, split per state and gzip-compressed, plus an all-ABN Parquet file (\`long-black-${VERSION}.parquet\`)."
             echo "Source: ABR ABN Bulk Extract, extract ${VERSION}."
             echo ""
+            echo "${STATS}"
+            echo ""
+            echo "Schema: v$(node -p "require('./package.json').version")"
+            echo ""
             echo "**Licence:** CC-BY 3.0 AU. Contains data © Commonwealth of Australia (Australian Business Register). See \`docs/DATA-SOURCES.md\`."
+            echo ""
+            echo "Each release also ships \`manifest.json\` (per-shard sha256 + record counts + build provenance)."
             echo ""
             echo "Download a state file, e.g.:"
             echo '```'
@@ -199,7 +296,13 @@ jobs:
 
           WANT_DRAFT=false
           [ "${PUBLISH}" = "false" ] && WANT_DRAFT=true
-          ASSETS=(output/long-black-*.ndjson.gz output/long-black-*.parquet output/metadata.json)
+          # The anomaly gate holds a suspicious build as a draft for review even on
+          # an otherwise-publishing run — corrupt data must never auto-publish.
+          if [ "${ANOMALIES:-}" = "true" ]; then
+            echo "::warning::anomaly gate flagged this build — forcing draft for review"
+            WANT_DRAFT=true
+          fi
+          ASSETS=(output/long-black-*.ndjson.gz output/long-black-*.parquet output/metadata.json output/manifest.json)
 
           # Verify every expected asset is present on the release with a NONZERO
           # size before it is made public — by exact name, not just an aggregate

@@ -12,6 +12,15 @@
       `docs/PERFORMANCE.md`. Surfaced + fixed two real bugs: the verify Set
       blowing V8's 16.7M cap (crema `idsSorted`) and `build-local.sh`'s `mapfile`
       (bash 4+) on macOS bash 3.2.
+- [x] **Enrichment proven on real data** — downloaded + loaded all three real
+      sources against the 20.3M-ABN table: **2,341,897** ASIC companies,
+      **1,977,574** business-name holders, **65,265** charities joined, 0
+      composition errors. Coverage + load times in `docs/PERFORMANCE.md`. The
+      pipeline now enforces completeness (the data must be complete before
+      shipping): per-source `minRows` floors in enrich-cli, a post-verify
+      enrichment-coverage gate (`src/coverage.ts`), required enrichment in
+      build/build-local (no best-effort null-shipping), and a build-over-build
+      anomaly gate that drafts suspicious releases.
 
 ## Real enrichment loaders (verify-on-first-load)
 
@@ -33,13 +42,18 @@
 
 ## Just-in-time tooling (verbatim lifts from flat-white → crema, when needed)
 
-- [ ] `parquet` output (E1) — generalize the row-mapper into crema; wire a
-      `--parquet` output.
-- [ ] `compare-releases` / `generate-catalogue` / `manifest` — release/catalogue
-      tooling for `catalogue.yml` / build-over-build diffs / the release manifest.
-      (`manifest` was lifted into crema early but had no consumer, so it was
-      removed to keep crema's surface to exactly what's used — re-lift it here
-      when `catalogue.yml` lands.)
+- [x] **`parquet` output (E1)** — crema's generic `convertToParquet` (row-mapper
+      injected); long-black wires `--parquet` (`src/parquet-output.ts` +
+      `output-cli.js … --parquet`). The release builds emit an all-ABN
+      `long-black-<version>.parquet` alongside the per-state NDJSON.gz. (0.6.0)
+- [x] **`compare-releases` / `generate-catalogue` / `manifest`** — re-lifted into
+      crema as generic engines (product/branding injected) and consumed by
+      long-black. `manifest-cli.js` writes `output/manifest.json` (per-shard sha256 + record counts + build provenance) every release, with the all-ABN Parquet
+      excluded so `total_records` isn't doubled. `catalogue.ts` (`ABN_BRANDING`) +
+      `catalogue-cli.js` render the release catalogue, deployed to GitHub Pages by
+      `catalogue.yml` after each successful Build. `compare-cli.js` is the
+      build-over-build anomaly check (exit 2 on a per-state/total move past the
+      threshold or a new/retired state) for the release manual-review gate.
 
 ## Runtime image slimming (optional)
 

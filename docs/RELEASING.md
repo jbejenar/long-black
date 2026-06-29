@@ -17,11 +17,26 @@ document per ABN, split per state and gzip-compressed, plus `metadata.json`.
 ## What a release contains
 
 - `long-black-<version>-<state>.ndjson.gz` — one file per state (`nsw`, `vic`,
-  `qld`, `wa`, `sa`, `tas`, `act`, `nt`, plus `other` for null/empty/`AAT` state).
+  `qld`, `wa`, `sa`, `tas`, `act`, `nt`, plus `aat` for the Australian Antarctic
+  Territory, and `other` for null/empty state). The ABR `StateEnum` is closed, so
+  this bucket set is exhaustive.
+- `long-black-<version>.parquet` — the all-ABN dataset as a single Parquet file
+  (a derived convenience encoding; scalars are columns, nested fields are JSON
+  strings). Not a manifest source file — it duplicates the NDJSON records.
 - `metadata.json` — per-state counts, build timestamp, schema version, and the
   CC-BY 3.0 AU source attribution.
+- `manifest.json` — the release provenance document (crema `buildManifestV2`,
+  product `abn`): per-shard sha256 + record counts + the build pipeline
+  (repo/commit/run). Its source files are the per-state NDJSON.gz shards, whose
+  records sum to `total_records`; the Parquet is intentionally excluded so the
+  total is counted once.
 
 All assets are well under GitHub's 2 GB per-asset limit (largest state ≈ 308 MB).
+
+The release notes carry a machine-readable `**<n>** businesses` line and a
+per-state `| STATE | count |` table (emitted from `metadata.json` via `jq`). This
+format is load-bearing: the catalogue (`src/catalogue.ts` `ABN_BRANDING`) parses
+it back, so changing it requires updating the branding's `keyPattern`.
 
 ## Running a release
 
@@ -43,6 +58,44 @@ early rather than flowing into a privileged step.
 The build fails (and does **not** publish) if `verify` finds any issue — invalid
 ABN checksum, schema violation, duplicate or out-of-order `_id` — because
 `dist/cli.js` exits non-zero, aborting the `set -e` step before the release.
+
+### Data completeness (the data must be complete before shipping)
+
+A clean, schema-valid output is not sufficient: the join is across four sources of
+truth, and a silently-missing enrichment source would still produce valid (but
+hollow) documents. Three gates make incompleteness fatal rather than invisible:
+
+1. **Per-source load floor.** `enrich-cli` fails if any source loads fewer than
+   its `minRows` (company / business-names 1,000,000, charities 20,000 — ≈⅓ of the
+   real volumes in `docs/PERFORMANCE.md`). Catches an empty/truncated CSV or the
+   wrong resource being picked.
+2. **Enrichment required.** `build.yml` treats an enrichment failure as fatal — no
+   silent partial release. A deliberate manual run may set
+   `allow_partial_enrichment=true` to ship with a degraded source (which also
+   disables gate 3); the scheduled monthly build never does.
+3. **Output coverage gate.** After verify, `cli.js`
+   (`LONG_BLACK_COVERAGE_PROFILE=production`) streams the output and fails unless
+   each nested source populated at least its floor (`company` ≥ 1,000,000,
+   `registeredBusinessNames` ≥ 1,000,000, `charity` ≥ 20,000). Catches a broken
+   join even when the load itself succeeded.
+
+The fixture loop runs the same coverage gate at fixture scale
+(`LONG_BLACK_COVERAGE_PROFILE=fixture` → each source ≥ 1 document), so a broken
+join is caught in CI, not only in production.
+
+### Anomaly gate (build-over-build)
+
+Before publishing, `build.yml` downloads the prior published release's
+`metadata.json` and runs `compare-cli` against the new build. A per-state or total
+count that moved past the threshold (`compare_threshold`, default `0.25` = 25 %),
+or a state appearing/retiring, **holds the release as a draft** for human review
+(it does not block — the assets still upload, and the comparison reports are
+attached as a workflow artifact). The first release (no prior) is a no-op. Run it
+manually too:
+
+```bash
+node dist/compare-cli.js output/metadata.json prior-metadata.json --threshold 0.25
+```
 
 ### Release identity + atomicity (one contract)
 
@@ -91,16 +144,36 @@ gh workflow run docker-publish.yml -f tag=v2026.06.24
 # (optionally assert the source: -f expected_sha=<commit>)
 ```
 
+## Catalogue (GitHub Pages)
+
+`catalogue.yml` renders a static HTML catalogue of all published releases and
+deploys it to GitHub Pages. It runs on `workflow_run` after a successful **Build**
+(a `release: published` trigger would never fire — Actions suppresses release
+events from GITHUB_TOKEN-created releases), plus manual `workflow_dispatch` for
+backfills. Drafts and prereleases are excluded twice: the workflow exits early if
+the latest release is a draft, and crema's `processReleases` filters them from the
+API response. The page content (name, tagline, coffee accent, per-state counts) is
+driven by `ABN_BRANDING` in `src/catalogue.ts`.
+
+Regenerate manually (e.g. after editing a release):
+
+```bash
+gh workflow run catalogue.yml
+```
+
+The build-over-build comparison that gates publication is documented under
+[Anomaly gate](#anomaly-gate-build-over-build) above.
+
 ## crema dependency pin
 
-crema is a build dependency (`file:../crema`). Both `build.yml` and
-`docker-publish.yml` check it out at a **pinned git tag** via `env.CREMA_REF`
-(currently `v0.2.0` — adds `convertToParquet`), not its moving `main`, so a
-long-black release is reproducible and cannot change because crema's default
-branch moved. When adopting a new crema:
+crema is a build dependency (`file:../crema`). `build.yml`, `docker-publish.yml`,
+and `catalogue.yml` check it out at a **pinned git tag** via `env.CREMA_REF`
+(currently `v0.3.0` — adds the generic catalogue/manifest/compare engines), not its
+moving `main`, so a long-black release is reproducible and cannot change because
+crema's default branch moved. When adopting a new crema:
 
-1. Tag the reviewed crema commit (e.g. `git tag v0.2.0 && git push origin v0.2.0`).
-2. Bump `env.CREMA_REF` in **both** workflows to that tag in one PR.
+1. Tag the reviewed crema commit (e.g. `git tag v0.3.0 && git push origin v0.3.0`).
+2. Bump `env.CREMA_REF` in **all three** workflows to that tag in one PR.
 3. Let CI build long-black against the new crema before merging.
 
 ## Schema versioning

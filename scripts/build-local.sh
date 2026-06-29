@@ -52,12 +52,24 @@ DATABASE_URL="$DB" LONG_BLACK_VERSION="$VERSION" node dist/load-cli.js "${XML[@]
 echo "[build-local] finalizing (PK + indexes)..."
 sed_ver sql/abn-finalize.sql | runsql
 
-echo "[build-local] enrichment (ASIC Company/Business Names + ACNC, best-effort)..."
-DATA_DIR="$DATA_DIR" DATABASE_URL="$DB" LONG_BLACK_VERSION="$VERSION" node dist/enrich-cli.js \
-  || echo "[build-local] WARNING: enrichment incomplete — continuing with partial/null enrichment"
+# Enrichment is REQUIRED — the data must be complete before shipping. Each source
+# must load above its floor (enrich-cli) or this aborts. Set ALLOW_PARTIAL=true to
+# deliberately build with a degraded source (disables the coverage gate too).
+echo "[build-local] enrichment (ASIC Company/Business Names + ACNC — required)..."
+COVERAGE_PROFILE=production
+if DATA_DIR="$DATA_DIR" DATABASE_URL="$DB" LONG_BLACK_VERSION="$VERSION" node dist/enrich-cli.js; then
+  echo "[build-local] enrichment complete"
+elif [ "${ALLOW_PARTIAL:-}" = "true" ]; then
+  echo "[build-local] WARNING: enrichment incomplete, ALLOW_PARTIAL=true — shipping degraded data"
+  COVERAGE_PROFILE=off
+else
+  echo "[build-local] ERROR: enrichment incomplete — refusing to continue (ALLOW_PARTIAL=true to override)"
+  exit 1
+fi
 
-echo "[build-local] flatten + verify..."
-DATABASE_URL="$DB" LONG_BLACK_VERSION="$VERSION" node dist/cli.js "$OUTPUT"
+echo "[build-local] flatten + verify (+ enrichment coverage gate)..."
+DATABASE_URL="$DB" LONG_BLACK_VERSION="$VERSION" LONG_BLACK_COVERAGE_PROFILE="$COVERAGE_PROFILE" \
+  node dist/cli.js "$OUTPUT"
 
 echo "[build-local] output (split per-state + gzip + metadata)..."
 LONG_BLACK_VERSION="$VERSION" node dist/output-cli.js "$OUTPUT" "$PROJECT_DIR/output" --parquet

@@ -15,8 +15,21 @@ import { createInterface } from "node:readline";
 import { pipeline } from "node:stream/promises";
 import postgres from "postgres";
 
-/** Parse one delimited line into fields, honoring RFC-4180 double-quoted fields. */
-export function parseDelimitedLine(line: string, delimiter: string): string[] {
+/**
+ * Parse one delimited line into fields.
+ *
+ * With `quoting` (default) `"` is honored as an RFC-4180 field quote (embedded
+ * delimiters, `""` escapes) — correct for the ACNC comma CSV. With `quoting`
+ * false the line is split on the delimiter only and `"` is a literal character —
+ * required for the ASIC tab files, which are pure TSV: a tab never appears
+ * inside a value, but `"` and `\` DO (5500+ literal quotes in a 600 KB Business
+ * Names sample), so honoring quotes there would mis-split names and trip the
+ * unterminated-quote guard. This mirrors the COPY the loader runs (`FORMAT csv`
+ * with `QUOTE '"'` vs a never-occurring control byte) so the pre-flight
+ * field-count check sees exactly what Postgres will.
+ */
+export function parseDelimitedLine(line: string, delimiter: string, quoting = true): string[] {
+  if (!quoting) return line.split(delimiter);
   const fields: string[] = [];
   let cur = "";
   let inQuotes = false;
@@ -46,17 +59,68 @@ export function parseDelimitedLine(line: string, delimiter: string): string[] {
   return fields;
 }
 
-/** Read + parse the header row of a delimited file. */
-export async function sniffHeader(file: string, delimiter: string): Promise<string[]> {
-  const rl = createInterface({ input: createReadStream(file, { encoding: "utf-8" }) });
+/**
+ * Read + parse the header row of a delimited file. `createInterface` strips the
+ * trailing `\r` of a CRLF line (the ASIC files are CRLF), so the last column
+ * name arrives clean — matching how Postgres COPY recognizes CRLF terminators.
+ */
+export async function sniffHeader(
+  file: string,
+  delimiter: string,
+  quoting = true,
+): Promise<string[]> {
+  const rl = createInterface({
+    input: createReadStream(file, { encoding: "utf-8" }),
+    crlfDelay: Infinity,
+  });
   try {
     for await (const line of rl) {
-      if (line.trim()) return parseDelimitedLine(line, delimiter);
+      if (line.trim()) return parseDelimitedLine(line, delimiter, quoting);
     }
     return [];
   } finally {
     rl.close();
   }
+}
+
+/**
+ * Sanitize a raw header label into a safe, lowercase snake_case SQL identifier:
+ * drop a leading BOM, lowercase, collapse every run of non-alphanumerics to a
+ * single `_`, trim leading/trailing `_`, and prefix `_` if the result is empty
+ * or starts with a digit. Deterministic so the generated raw-table DDL and the
+ * hand-written normalize SQL agree on column names. Identifiers are still
+ * double-quoted at use sites because sanitized names can collide with SQL
+ * keywords (ASIC's `Type`/`Class` → `type`/`class`).
+ */
+export function sanitizeColumnName(raw: string): string {
+  const s = raw
+    .replace(/﻿/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return s === "" || /^[0-9]/.test(s) ? `_${s}` : s;
+}
+
+/**
+ * Build the `CREATE UNLOGGED TABLE` DDL for an all-`text` raw staging table with
+ * one column per sniffed header field (sanitized + double-quoted). Built from the
+ * REAL file header so the column count always matches the file — the invariant
+ * `loadDelimitedRaw` relies on to keep the COPY off the postgres@3 deadlock path.
+ * Duplicate sanitized names (e.g. two headers that collapse to the same token)
+ * are a hard error rather than a silently-dropped column.
+ */
+export function buildRawTableDdl(rawTable: string, headerColumns: string[]): string {
+  const names = headerColumns.map(sanitizeColumnName);
+  const seen = new Set<string>();
+  for (const n of names) {
+    if (seen.has(n)) {
+      throw new Error(`duplicate sanitized column name "${n}" building raw table ${rawTable}`);
+    }
+    seen.add(n);
+  }
+  const cols = names.map((n) => `  "${n}" text`).join(",\n");
+  return `CREATE UNLOGGED TABLE ${rawTable} (\n${cols}\n)`;
 }
 
 /**
@@ -95,12 +159,24 @@ function quoteBalanced(text: string): boolean {
 export async function* readDelimitedRecords(
   file: string,
   delimiter: string,
+  quoting = true,
 ): AsyncGenerator<{ fields: string[]; line: number }> {
   const rl = createInterface({
     input: createReadStream(file, { encoding: "utf-8" }),
     crlfDelay: Infinity,
   });
   try {
+    // Non-quoting mode (TSV): `"` is literal and a field never spans lines, so
+    // each physical line is exactly one record — no accumulation, no
+    // unterminated-quote class to reject.
+    if (!quoting) {
+      let lineNo = 0;
+      for await (const physical of rl) {
+        lineNo++;
+        yield { fields: parseDelimitedLine(physical, delimiter, false), line: lineNo };
+      }
+      return;
+    }
     let pending = "";
     let startLine = 0;
     let lineNo = 0;
@@ -113,7 +189,7 @@ export async function* readDelimitedRecords(
         pending += "\n" + physical;
       }
       if (quoteBalanced(pending)) {
-        yield { fields: parseDelimitedLine(pending, delimiter), line: startLine };
+        yield { fields: parseDelimitedLine(pending, delimiter, true), line: startLine };
         pending = "";
       }
     }
@@ -141,9 +217,13 @@ export async function* readDelimitedRecords(
  * unterminated quoted field — the other shape COPY rejects server-side — so both
  * COPY-error classes are caught here before the COPY opens.
  */
-export async function validateFieldCounts(file: string, delimiter: string): Promise<number> {
+export async function validateFieldCounts(
+  file: string,
+  delimiter: string,
+  quoting = true,
+): Promise<number> {
   let expected = -1;
-  for await (const { fields, line } of readDelimitedRecords(file, delimiter)) {
+  for await (const { fields, line } of readDelimitedRecords(file, delimiter, quoting)) {
     if (expected === -1) {
       expected = fields.length;
       continue;
@@ -166,6 +246,14 @@ export interface LoadDelimitedOptions {
   rawTable: string;
   /** Field delimiter (e.g. "\t" for ASIC, "," for ACNC). */
   delimiter: string;
+  /**
+   * Honor `"` as an RFC-4180 field quote (default true — the ACNC comma CSV). Set
+   * false for the ASIC tab files (pure TSV with literal `"`/`\` in values): the
+   * COPY then runs with its QUOTE set to a control byte that never appears, so no
+   * field is ever treated as quoted, and the pre-flight parser splits on the
+   * delimiter alone — the two stay in lock-step.
+   */
+  quoting?: boolean;
   /** Whether the file has a header row to skip. Default true. */
   hasHeader?: boolean;
   /**
@@ -201,11 +289,12 @@ export async function loadDelimitedRaw(options: LoadDelimitedOptions): Promise<v
     file,
     rawTable,
     delimiter,
+    quoting = true,
     hasHeader = true,
     validate = true,
   } = options;
   // Fail fast on a ragged file before opening the COPY (see above).
-  const fileWidth = validate ? await validateFieldCounts(file, delimiter) : -1;
+  const fileWidth = validate ? await validateFieldCounts(file, delimiter, quoting) : -1;
   const sql = postgres(connectionString, { max: 1, max_lifetime: null });
   try {
     // Closes the remaining deadlock path: a rectangular file whose width does not
@@ -234,7 +323,12 @@ export async function loadDelimitedRaw(options: LoadDelimitedOptions): Promise<v
     }
     const reserved = await sql.reserve();
     const header = hasHeader ? "HEADER true" : "HEADER false";
-    const copy = `COPY ${rawTable} FROM STDIN WITH (FORMAT csv, DELIMITER E'${delimiter === "\t" ? "\\t" : delimiter}', ${header}, QUOTE '"', NULL '')`;
+    // quoting=false ⇒ QUOTE set to a control byte (0x01) that cannot appear in
+    // registry text, which disables CSV quoting without leaving `FORMAT csv`: `"`
+    // and `\` stay literal, there is no `\.`-as-end-of-data hazard (that is
+    // `FORMAT text` only), CRLF is still recognized, and HEADER/NULL still work.
+    const quote = quoting ? `QUOTE '"'` : `QUOTE E'\\x01'`;
+    const copy = `COPY ${rawTable} FROM STDIN WITH (FORMAT csv, DELIMITER E'${delimiter === "\t" ? "\\t" : delimiter}', ${header}, ${quote}, NULL '')`;
     const writable = await reserved.unsafe(copy).writable();
     // One pipeline finalizes the COPY on success and propagates client-side
     // errors with backpressure handled automatically.

@@ -52,6 +52,10 @@ DATABASE_URL="$DB" LONG_BLACK_VERSION="$VERSION" node dist/load-cli.js "${XML[@]
 echo "[build-local] finalizing (PK + indexes)..."
 sed_ver sql/abn-finalize.sql | runsql
 
+echo "[build-local] enrichment (ASIC Company/Business Names + ACNC, best-effort)..."
+DATA_DIR="$DATA_DIR" DATABASE_URL="$DB" LONG_BLACK_VERSION="$VERSION" node dist/enrich-cli.js \
+  || echo "[build-local] WARNING: enrichment incomplete — continuing with partial/null enrichment"
+
 echo "[build-local] flatten + verify..."
 DATABASE_URL="$DB" LONG_BLACK_VERSION="$VERSION" node dist/cli.js "$OUTPUT"
 

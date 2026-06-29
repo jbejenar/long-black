@@ -142,6 +142,13 @@ jobs:
           sed "s/__SCHEMA_VERSION__/${SV}/g" sql/abn-finalize.sql | psql
           echo "::endgroup::"
 
+          echo "::group::enrichment (ASIC + ACNC, best-effort)"
+          # Additive + nullable: a transient data.gov.au failure leaves the nested
+          # object null rather than failing the whole monthly build.
+          DATA_DIR=data node dist/enrich-cli.js \
+            || echo "::warning::enrichment incomplete — continuing with partial/null enrichment"
+          echo "::endgroup::"
+
           echo "::group::flatten + verify"
           node dist/cli.js "output/long-black-${VERSION}.ndjson"
           echo "::endgroup::"

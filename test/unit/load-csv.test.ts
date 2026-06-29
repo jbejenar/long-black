@@ -12,6 +12,8 @@ import {
   sniffHeader,
   readDelimitedRecords,
   validateFieldCounts,
+  sanitizeColumnName,
+  buildRawTableDdl,
 } from "../../src/load-csv.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -43,6 +45,63 @@ describe("parseDelimitedLine", () => {
 
   it("keeps empty trailing fields", () => {
     expect(parseDelimitedLine("a,,", ",")).toEqual(["a", "", ""]);
+  });
+
+  it("treats quotes as literal when quoting is off (ASIC TSV)", () => {
+    // The ASIC Business Names file has 5500+ literal `"` in a 600 KB sample;
+    // quote-aware parsing would mis-split them. quoting:false = plain split.
+    expect(parseDelimitedLine('MANY NAMES "QUOTED" CO\t51000001571', "\t", false)).toEqual([
+      'MANY NAMES "QUOTED" CO',
+      "51000001571",
+    ]);
+    expect(parseDelimitedLine("C:\\PATH BRAND\tx", "\t", false)).toEqual(["C:\\PATH BRAND", "x"]);
+  });
+});
+
+describe("sanitizeColumnName", () => {
+  it("lowercases and snake-cases real headers", () => {
+    expect(sanitizeColumnName("Company Name")).toBe("company_name");
+    expect(sanitizeColumnName("Sub Class")).toBe("sub_class");
+    expect(sanitizeColumnName("Date of Registration")).toBe("date_of_registration");
+    expect(sanitizeColumnName("BN_ABN")).toBe("bn_abn");
+  });
+
+  it("strips a leading BOM and a trailing CR", () => {
+    expect(sanitizeColumnName("﻿Company Name")).toBe("company_name");
+    expect(sanitizeColumnName("Current Name Start Date\r")).toBe("current_name_start_date");
+    expect(sanitizeColumnName("﻿REGISTER_NAME")).toBe("register_name");
+  });
+
+  it("collapses runs and drops symbols (ACNC quirks)", () => {
+    // double-underscore in the source collapses to one; `+` is dropped.
+    expect(sanitizeColumnName("Promoting_reconciliation__mutual_respect")).toBe(
+      "promoting_reconciliation_mutual_respect",
+    );
+    expect(sanitizeColumnName("LGBTIQA+")).toBe("lgbtiqa");
+  });
+
+  it("prefixes `_` when the result is empty or starts with a digit", () => {
+    expect(sanitizeColumnName("2024")).toBe("_2024");
+    expect(sanitizeColumnName("---")).toBe("_");
+  });
+});
+
+describe("buildRawTableDdl", () => {
+  it("emits one quoted text column per header field", () => {
+    const ddl = buildRawTableDdl("s.raw_t", ["ABN", "Company Name", "Type"]);
+    expect(ddl).toBe(
+      'CREATE UNLOGGED TABLE s.raw_t (\n  "abn" text,\n  "company_name" text,\n  "type" text\n)',
+    );
+  });
+
+  it("quotes keyword-colliding names (type/class)", () => {
+    const ddl = buildRawTableDdl("s.raw_t", ["Type", "Class"]);
+    expect(ddl).toContain('"type" text');
+    expect(ddl).toContain('"class" text');
+  });
+
+  it("rejects headers that sanitize to a duplicate name", () => {
+    expect(() => buildRawTableDdl("s.raw_t", ["Sub Class", "Sub-Class"])).toThrow(/duplicate/);
   });
 });
 
@@ -147,5 +206,15 @@ describe("validateFieldCounts (the COPY-deadlock guard)", () => {
     // `x,y"z` has one quote (odd parity); live COPY rejects it as unterminated.
     writeFileSync(f, 'a,b\nx,y"z\n');
     await expect(validateFieldCounts(f, ",")).rejects.toThrow(/unterminated quoted field/);
+  });
+
+  it("accepts literal quotes/backslashes when quoting is off (the ASIC TSV path)", async () => {
+    const f = resolve(TMP, "asic-literal.tsv");
+    // A single (odd-parity) `"` in a name + a backslash + CRLF — the quote-aware
+    // path rejects it as "unterminated", but it is a valid 3-field TSV with
+    // quoting off, exactly how the ASIC files load.
+    writeFileSync(f, 'a\tb\tc\r\n1\tO"BRIEN PLUMBING\t3\r\nx\tC:\\path\tz\r\n');
+    expect(await validateFieldCounts(f, "\t", false)).toBe(3);
+    await expect(validateFieldCounts(f, "\t", true)).rejects.toThrow(/unterminated quoted field/);
   });
 });

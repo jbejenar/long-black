@@ -15,15 +15,21 @@
 
 ## Real enrichment loaders (verify-on-first-load)
 
-- [ ] **ASIC / ACNC CSV loaders** — wire `load-csv.ts` (`loadDelimitedRaw`) +
-      a per-source normalize `INSERT … SELECT` once the real file headers are
-      confirmed (`sniffHeader`). ASIC files are tab-delimited despite `.csv`.
-      Build the all-text raw table from the sniffed header so column counts
-      match. (The malformed-row COPY deadlock is now closed: `loadDelimitedRaw`
-      runs `validateFieldCounts` first — a single streaming pass that rejects a
-      ragged file with its line number _before_ any byte reaches the COPY, so the
-      postgres@3 server-side-error deadlock is unreachable. So the remaining work
-      here is purely wiring the real source configs + normalize SQL.)
+- [x] **ASIC / ACNC CSV loaders** — wired in `src/enrich.ts` (+ `enrich-cli.ts`)
+      and `sql/normalize-{asic-company,asic-business-name,acnc-charity}.sql`. The
+      real headers, delimiter, and quoting were confirmed by sampling the live
+      files: ASIC are **pure TSV** with LITERAL `"`/`\` in values (loaded with
+      quoting off — `FORMAT csv` + control-byte QUOTE), ACNC is a true comma CSV
+      (quoting on). The loader builds the all-text raw table from the sniffed
+      header (`buildRawTableDdl`), COPYs (deadlock-guarded), then normalizes →
+      typed staging → drops the raw table. Decisions: ASIC company loads only the
+      current-name rows (`Current Name Indicator = 'Y'`) so `company.name` is
+      current; `REGD`/`DRGD` → `Registered`/`Deregistered`, other codes raw; ACNC
+      `status` = constant `Registered` and `subtype` = priority projection of the
+      ~14 purpose flags. Best-effort in the build (a source 404 leaves the nested
+      object null). Column mappings: `docs/DATA-SOURCES.md`. Covered by
+      `test/integration/enrichment-load.test.ts` (live COPY + normalize) and
+      `test/unit/{load-csv,enrich}.test.ts`.
 
 ## Just-in-time tooling (verbatim lifts from flat-white → crema, when needed)
 

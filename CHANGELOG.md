@@ -14,6 +14,14 @@ The NDJSON document is the contract (`docs/DOCUMENT-SCHEMA.md`).
 
 ### Added
 
+- **0.5.0** — Real ASIC/ACNC CSV enrichment loaders (`src/enrich.ts`,
+  `enrich-cli.ts`, `sql/normalize-*.sql`): discover each source by stable package
+  id → COPY into an all-text raw table built from the sniffed header → normalize
+  into typed staging → drop the raw table. Confirmed the live file shapes
+  (verify-on-first-load): ASIC are pure TSV with literal `"`/`\` (loaded with
+  quoting disabled), ACNC a true comma CSV. No schema change — populates the
+  existing `company{}` / `registeredBusinessNames[]` / `charity{}` fields with
+  real data. Best-effort in the build (a source failure leaves the object null).
 - **0.4.0** — ACNC charity enrichment (`charity{}`), via `LEFT JOIN acnc_charity`.
 - **0.3.0** — ASIC Business Names enrichment (`registeredBusinessNames[]`, 1:N),
   via a `json_agg` CTE; kept separate from ABR's `businessNames`.

@@ -1,0 +1,269 @@
+name: Build
+
+# Monthly production build: download the real ABR ABN Bulk Extract, run the full
+# pipeline (download → load → flatten → verify → split → compress), and publish
+# the per-state NDJSON(.gz) + metadata.json as a GitHub Release.
+#
+# Mirrors scripts/build-local.sh, but against a postgres:16 service and on a
+# disk-freed runner (the extract is ~13 GB of XML). The fixture loop
+# (build-fixture-only.sh) and the real-data smoke (docs/PERFORMANCE.md) cover the
+# pipeline itself; this workflow is the release wrapper.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "ABR extract date YYYY.MM.DD (blank → auto-discover the current extract)"
+        required: false
+      publish:
+        description: "Publish the release (false → leave it as a draft)"
+        type: boolean
+        default: true
+  schedule:
+    # 5th of each month, 03:00 UTC — the ABR refreshes weekly, so any week's
+    # extract is fresh; a monthly cadence avoids 52 artifact sets/year.
+    - cron: "0 3 5 * *"
+
+permissions:
+  contents: write # create the GitHub Release
+  actions: write # dispatch docker-publish.yml for the resolved tag
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # crema is pinned to a reviewed git tag, not its moving default branch, so a
+  # release is reproducible and never changes underneath long-black. Bump this
+  # (and re-test) when adopting a new crema — see docs/RELEASING.md.
+  CREMA_REF: v0.1.0
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    services:
+      db:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: abn
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 3s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5433/abn
+    steps:
+      - name: Free disk space (the extract is ~13 GB of XML)
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android \
+            /usr/local/share/boost "$AGENT_TOOLSDIRECTORY" || true
+          df -h /
+
+      - uses: actions/checkout@v4
+        with:
+          path: long-black
+      - uses: actions/checkout@v4
+        with:
+          repository: jbejenar/crema
+          ref: ${{ env.CREMA_REF }} # pinned — see env.CREMA_REF above
+          path: crema
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build crema
+        working-directory: crema
+        run: npm ci && npm run build
+      - name: Install + build long-black
+        working-directory: long-black
+        run: npm ci && npm run build
+
+      - name: Resolve + validate version
+        id: ver
+        working-directory: long-black
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          set -euo pipefail
+          V="$INPUT_VERSION"
+          if [ -z "$V" ]; then
+            V=$(curl -s "https://data.gov.au/data/api/3/action/package_show?id=abn-bulk-extract" \
+              | python3 -c "import sys,json; r=json.load(sys.stdin)['result']; ds=[x['last_modified'] for x in r['resources'] if (x.get('format') or '').upper()=='ZIP']; print(max(ds)[:10].replace('-','.'))")
+          fi
+          # Validate BEFORE this value is reused in any privileged shell step, file
+          # name, schema name, or release tag. A strict YYYY.MM.DD is the single
+          # trusted canonical form; reject anything else (shell metacharacters,
+          # newlines, path separators, malformed CKAN data) up front. bash's
+          # [[ =~ ]] anchors the WHOLE string, so an embedded newline cannot smuggle
+          # a valid-looking first line past the check (grep -E matches per line).
+          if [[ ! "$V" =~ ^[0-9]{4}\.[0-9]{2}\.[0-9]{2}$ ]]; then
+            echo "::error::resolved version '$V' is not a valid YYYY.MM.DD extract date"
+            exit 1
+          fi
+          SV=$(printf '%s' "$V" | tr -d '.')
+          echo "Resolved version: $V (schema suffix $SV)"
+          {
+            echo "version=$V"
+            echo "tag=v$V"
+            echo "sv=$SV"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build (download → load → finalize → flatten → verify → output)
+        working-directory: long-black
+        env:
+          # All dynamic values reach the shell via env (validated above), never as
+          # ${{ }} interpolation inside the run body.
+          LONG_BLACK_VERSION: ${{ steps.ver.outputs.version }}
+          VERSION: ${{ steps.ver.outputs.version }}
+          SV: ${{ steps.ver.outputs.sv }}
+        run: |
+          set -euo pipefail
+          # psql forwards "$@" for future call sites; current callers only pipe stdin.
+          # shellcheck disable=SC2119,SC2120
+          psql() { PGPASSWORD=postgres command psql -h localhost -p 5433 -U postgres -d abn -v ON_ERROR_STOP=1 -q "$@"; }
+          mkdir -p data output
+
+          echo "::group::download"
+          XML=()
+          while IFS= read -r f; do [ -n "$f" ] && XML+=("$f"); done < <(DATA_DIR=data node dist/download-cli.js)
+          echo "${#XML[@]} XML files"
+          echo "::endgroup::"
+
+          echo "::group::schema + load"
+          echo "DROP SCHEMA IF EXISTS abn_${SV} CASCADE;" | psql
+          sed "s/__SCHEMA_VERSION__/${SV}/g" sql/staging-schema.sql | psql
+          node dist/load-cli.js "${XML[@]}"
+          sed "s/__SCHEMA_VERSION__/${SV}/g" sql/abn-finalize.sql | psql
+          echo "::endgroup::"
+
+          echo "::group::flatten + verify"
+          node dist/cli.js "output/long-black-${VERSION}.ndjson"
+          echo "::endgroup::"
+
+          echo "::group::output (split + gzip + metadata)"
+          node dist/output-cli.js "output/long-black-${VERSION}.ndjson" output
+          echo "::endgroup::"
+
+      - name: Verify release assets
+        working-directory: long-black
+        run: |
+          set -euo pipefail
+          test -f output/metadata.json
+          count=0
+          for f in output/long-black-*.ndjson.gz; do
+            gzip -t "$f"
+            count=$((count + 1))
+          done
+          [ "$count" -ge 1 ] || { echo "no per-state output files"; exit 1; }
+          echo "$count gzip files, all valid"
+          ls -lh output/long-black-*.ndjson.gz output/metadata.json
+
+      - name: Publish GitHub Release
+        working-directory: long-black
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.ver.outputs.version }}
+          TAG: ${{ steps.ver.outputs.tag }}
+          REPO: ${{ github.repository }}
+          # Empty on the scheduled run → publishes; `false` on a manual run → draft.
+          PUBLISH: ${{ github.event.inputs.publish }}
+        run: |
+          set -euo pipefail
+          {
+            echo "Australian Business (ABN) data — one NDJSON document per ABN, split per state and gzip-compressed."
+            echo "Source: ABR ABN Bulk Extract, extract ${VERSION}."
+            echo ""
+            echo "**Licence:** CC-BY 3.0 AU. Contains data © Commonwealth of Australia (Australian Business Register). See \`docs/DATA-SOURCES.md\`."
+            echo ""
+            echo "Download a state file, e.g.:"
+            echo '```'
+            echo "gh release download ${TAG} --repo ${REPO} --pattern 'long-black-*-nsw.ndjson.gz'"
+            echo '```'
+          } > RELEASE_NOTES.md
+
+          WANT_DRAFT=false
+          [ "${PUBLISH}" = "false" ] && WANT_DRAFT=true
+          ASSETS=(output/long-black-*.ndjson.gz output/metadata.json)
+
+          # Verify every expected asset is present on the release with a NONZERO
+          # size before it is made public — by exact name, not just an aggregate
+          # count (a clobber could leave a renamed/0-byte asset that a count misses).
+          verify_assets() {
+            local a base size missing=0
+            gh release view "$TAG" --json assets --jq '.assets[] | "\(.name)\t\(.size)"' > rel-assets.tsv
+            for a in "${ASSETS[@]}"; do
+              base=$(basename "$a")
+              size=$(awk -F'\t' -v n="$base" '$1 == n {print $2}' rel-assets.tsv)
+              if [ -z "$size" ]; then
+                echo "::error::asset $base missing on $TAG"; missing=1
+              elif [ "$size" -le 0 ]; then
+                echo "::error::asset $base is empty ($size bytes) on $TAG"; missing=1
+              fi
+            done
+            [ "$missing" = 0 ] || exit 1
+            echo "verified ${#ASSETS[@]} assets present with nonzero size on $TAG"
+          }
+
+          # Release identity + atomicity as ONE contract:
+          #   1. The release tag MUST point at THIS build commit ("$GITHUB_SHA"), so
+          #      the published source always matches the assets it produced (and the
+          #      image built from the tag is built from that same source).
+          #   2. A live PUBLISHED release is never mutated — corrected data gets a
+          #      NEW version tag — so consumers never see a partial/changing release.
+          #   3. New releases publish only from an invisible draft pinned to the
+          #      build commit, promoted only after every asset is verified.
+
+          # (1) A real (pushed) tag must already BE this build commit. Drafts carry
+          # no pushed tag yet, so this only fires for an existing published/manual tag.
+          TAG_SHA=""
+          TYPE=$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq '.object.type' 2>/dev/null) || TYPE=""
+          if [ "$TYPE" = "commit" ]; then
+            TAG_SHA=$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq '.object.sha')
+          elif [ "$TYPE" = "tag" ]; then # annotated tag → dereference to its commit
+            OBJ=$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq '.object.sha')
+            TAG_SHA=$(gh api "repos/$REPO/git/tags/$OBJ" --jq '.object.sha')
+          fi
+          if [ -n "$TAG_SHA" ] && [ "$TAG_SHA" != "$GITHUB_SHA" ]; then
+            echo "::error::tag $TAG already exists at $TAG_SHA, not this build commit $GITHUB_SHA — cut a NEW version for corrected data"
+            exit 1
+          fi
+
+          REL_DRAFT=$(gh release view "$TAG" --json isDraft --jq '.isDraft' 2>/dev/null) || REL_DRAFT="none"
+          if [ "$REL_DRAFT" = "false" ]; then
+            # (2) Refuse to mutate a live published dataset release.
+            echo "::error::release $TAG is already published — cut a NEW version tag for corrected data rather than mutating a live release"
+            exit 1
+          elif [ "$REL_DRAFT" = "true" ]; then
+            # Reuse the existing (invisible) draft: retarget it to this build commit,
+            # replace every asset, verify, then promote per PUBLISH.
+            gh release edit "$TAG" --target "$GITHUB_SHA" --title "long-black $TAG" --notes-file RELEASE_NOTES.md
+            gh release upload "$TAG" --clobber "${ASSETS[@]}"
+            verify_assets
+            [ "$WANT_DRAFT" = "false" ] && gh release edit "$TAG" --draft=false
+          else
+            # (3) Fresh: invisible draft pinned to the build commit, upload, verify,
+            # then promote. A mid-upload failure leaves a draft, never a partial
+            # public release.
+            gh release create "$TAG" --draft --target "$GITHUB_SHA" \
+              --title "long-black $TAG" --notes-file RELEASE_NOTES.md "${ASSETS[@]}"
+            verify_assets
+            [ "$WANT_DRAFT" = "false" ] && gh release edit "$TAG" --draft=false
+          fi
+
+          # The tag is now guaranteed == "$GITHUB_SHA", so always dispatch
+          # docker-publish with that expected SHA when the release is published;
+          # docker-publish re-asserts the tag resolves to it before pushing.
+          FINAL_DRAFT=$(gh release view "$TAG" --json isDraft --jq '.isDraft')
+          if [ "$FINAL_DRAFT" = "false" ]; then
+            echo "dispatching docker-publish for $TAG @ $GITHUB_SHA"
+            gh workflow run docker-publish.yml -f tag="$TAG" -f expected_sha="$GITHUB_SHA" \
+              || echo "::warning::could not dispatch docker-publish.yml; run it manually with -f tag=$TAG -f expected_sha=$GITHUB_SHA"
+          else
+            echo "release left as a draft → skipping docker-publish"
+          fi

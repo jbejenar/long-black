@@ -6,8 +6,7 @@
 
 import { runOutput } from "./output.js";
 import { VERSION as SCHEMA_VERSION } from "./index.js";
-
-const DEFAULT_VERSION = "2026.06.28";
+import { DEFAULT_VERSION } from "./cli.js";
 
 async function main(): Promise<void> {
   const ndjsonPath = process.argv[2];

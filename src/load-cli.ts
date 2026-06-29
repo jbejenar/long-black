@@ -9,10 +9,7 @@
  */
 
 import { loadAbnFiles } from "./load.js";
-import { deriveSchemaVersion } from "./cli.js";
-
-const DEFAULT_DB_URL = "postgres://postgres:postgres@localhost:5433/abn";
-const DEFAULT_VERSION = "2026.06.28";
+import { deriveSchemaVersion, DEFAULT_DB_URL, DEFAULT_VERSION } from "./cli.js";
 
 async function main(): Promise<void> {
   const connectionString = process.env.DATABASE_URL ?? DEFAULT_DB_URL;

@@ -20,8 +20,9 @@ import { abnChecks } from "./verify-checks.js";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SQL_PATH = resolve(__dirname, "..", "sql", "abn_full.sql");
 
-const DEFAULT_VERSION = "2026.06.28"; // frozen fixture version
-const DEFAULT_DB_URL = "postgres://postgres:postgres@localhost:5433/abn";
+/** Frozen fixture version + local DB URL — shared by the sub-CLIs. */
+export const DEFAULT_VERSION = "2026.06.28";
+export const DEFAULT_DB_URL = "postgres://postgres:postgres@localhost:5433/abn";
 
 /** Date version "2026.06.28" → 8-digit schema suffix "20260628". */
 export function deriveSchemaVersion(version: string): string {

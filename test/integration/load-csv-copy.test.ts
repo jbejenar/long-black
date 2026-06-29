@@ -108,4 +108,22 @@ describe.skipIf(!DB)("loadDelimitedRaw (live COPY)", () => {
     ).rejects.toThrow(/column-count mismatch/);
     expect(await rowCount()).toBe(0);
   }, 20_000);
+
+  it("rejects an unterminated quoted field before the COPY (no deadlock)", async () => {
+    await sql.unsafe(`TRUNCATE ${RAW}`); // no cursor needed — fixture reset
+    const f = join(tmp, "unterminated.csv");
+    // 3 fields each (matches the target width), but the last record's quote never
+    // closes — COPY would reject "unterminated CSV quoted field" server-side and
+    // deadlock. The quoting preflight must catch it first and load nothing.
+    writeFileSync(f, 'a,b,c\n1,2,3\n4,5,"oops\n');
+    await expect(
+      loadDelimitedRaw({
+        connectionString: DB as string,
+        file: f,
+        rawTable: RAW,
+        delimiter: ",",
+      }),
+    ).rejects.toThrow(/unterminated quoted field/);
+    expect(await rowCount()).toBe(0);
+  }, 20_000);
 });

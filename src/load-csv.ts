@@ -80,6 +80,17 @@ function quoteBalanced(text: string): boolean {
  * matching how Postgres COPY CSV parses the same bytes. Yields each record's
  * fields plus the 1-based physical line where it started. Constant memory bar a
  * single (pathologically large) quoted field.
+ *
+ * Throws on an **unterminated quoted field** (the input ends while a quote is
+ * still open). That is the one shape Postgres COPY CSV rejects on the quoting
+ * dimension — "unterminated CSV quoted field" — and it maps exactly to an odd
+ * total quote count in the logical record (verified against live COPY: any
+ * even-parity record is accepted, including mid-field quotes and data after a
+ * closing quote; any odd-parity record errors). `quoteBalanced` is that parity
+ * test, so a non-empty accumulator at EOF is precisely an unterminated field.
+ * Rejecting here (rather than yielding a truncated record that could still pass
+ * the field-count checks) keeps the malformed bytes from reaching COPY and
+ * deadlocking.
  */
 export async function* readDelimitedRecords(
   file: string,
@@ -106,9 +117,11 @@ export async function* readDelimitedRecords(
         pending = "";
       }
     }
-    // Trailing record with an unterminated quote — surface it (Postgres errors on it too).
+    // EOF with a non-empty accumulator ⇒ the final record never closed its quote
+    // (odd total quote count). COPY rejects exactly this; reject it here too,
+    // before any byte reaches the COPY.
     if (pending !== "") {
-      yield { fields: parseDelimitedLine(pending, delimiter), line: startLine };
+      throw new Error(`unterminated quoted field in ${file} starting at line ${startLine}`);
     }
   } finally {
     rl.close();
@@ -123,6 +136,10 @@ export async function* readDelimitedRecords(
  * fast — before any byte reaches the COPY. The first record (the header, which
  * the raw table's columns are built from) sets the expected width. Returns that
  * width (column count); an empty file returns 0.
+ *
+ * Records come from `readDelimitedRecords`, which additionally throws on an
+ * unterminated quoted field — the other shape COPY rejects server-side — so both
+ * COPY-error classes are caught here before the COPY opens.
  */
 export async function validateFieldCounts(file: string, delimiter: string): Promise<number> {
   let expected = -1;

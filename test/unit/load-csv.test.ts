@@ -88,6 +88,12 @@ describe("readDelimitedRecords", () => {
     // The multi-line record starts at physical line 2; "3,ok" is physical line 4.
     expect(recs.map((r) => r.line)).toEqual([1, 2, 4]);
   });
+
+  it("throws on an unterminated quoted field at EOF (COPY rejects it too)", async () => {
+    const f = resolve(TMP, "unterminated.csv");
+    writeFileSync(f, 'a,b\n1,"never closed\n');
+    await expect(collectRecords(f, ",")).rejects.toThrow(/unterminated quoted field.*line 2/);
+  });
 });
 
 describe("validateFieldCounts (the COPY-deadlock guard)", () => {
@@ -120,5 +126,26 @@ describe("validateFieldCounts (the COPY-deadlock guard)", () => {
     const f = resolve(TMP, "empty.csv");
     writeFileSync(f, "");
     expect(await validateFieldCounts(f, ",")).toBe(0);
+  });
+
+  it("rejects an unterminated quoted field (the other COPY-error class)", async () => {
+    const f = resolve(TMP, "unterminated-vfc.csv");
+    writeFileSync(f, 'a,b\n1,"oops\n');
+    await expect(validateFieldCounts(f, ",")).rejects.toThrow(/unterminated quoted field/);
+  });
+
+  it("rejects a same-width malformed record that field counts alone would miss", async () => {
+    const f = resolve(TMP, "samewidth-malformed.csv");
+    // `1,"2` parses to 2 fields — the same width as the header — so the field-count
+    // check passes, but the open quote is unterminated and COPY would reject it.
+    writeFileSync(f, 'a,b\n1,"2\n');
+    await expect(validateFieldCounts(f, ",")).rejects.toThrow(/unterminated quoted field/);
+  });
+
+  it("rejects a mid-field stray quote (odd parity ⇒ unterminated)", async () => {
+    const f = resolve(TMP, "stray-quote.csv");
+    // `x,y"z` has one quote (odd parity); live COPY rejects it as unterminated.
+    writeFileSync(f, 'a,b\nx,y"z\n');
+    await expect(validateFieldCounts(f, ",")).rejects.toThrow(/unterminated quoted field/);
   });
 });

@@ -44,7 +44,13 @@ describe("expected-output.ndjson regression", () => {
     expect(docs.filter((d) => !isValidAbn(d._id)).map((d) => d._id)).toEqual([]);
   });
 
-  it("no name field equals a raw XML type code", () => {
+  // Fixture-curation guard (NOT a universal data rule): the hand-authored
+  // fixtures deliberately contain no name that equals a discriminator code, so a
+  // collision here means load.ts leaked the `@type` into a name value. Real
+  // extracts DO have rare genuine collisions (e.g. "DGR"/"BN" as people's
+  // initials, "TRD"/"IND" as real names) — which is why there is no equivalent
+  // check on production output; see src/verify-checks.ts.
+  it("no name field equals a raw XML type code (curated fixture)", () => {
     const leaks: string[] = [];
     for (const d of docs) {
       const names = [d.entityName, ...d.businessNames, ...d.tradingNames, ...d.otherNames].filter(

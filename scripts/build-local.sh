@@ -36,7 +36,10 @@ echo "[build-local] building..."
 npm run build --silent
 
 echo "[build-local] downloading ABN Bulk Extract (this is large)..."
-mapfile -t XML < <(DATA_DIR="$DATA_DIR" node dist/download-cli.js)
+# `mapfile`/`readarray` is bash 4+; macOS ships bash 3.2, so read into the array
+# portably. download-cli.js prints one XML path per line on stdout (logs go to stderr).
+XML=()
+while IFS= read -r f; do [ -n "$f" ] && XML+=("$f"); done < <(DATA_DIR="$DATA_DIR" node dist/download-cli.js)
 echo "[build-local] ${#XML[@]} XML files."
 
 echo "[build-local] (re)creating schema abn_${SV}..."

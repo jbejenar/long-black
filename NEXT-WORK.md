@@ -6,10 +6,12 @@
 
 ## Runtime validation (deliberate, heavyweight)
 
-- [ ] **Real-data smoke (P1.04)** — `LONG_BLACK_VERSION=2026.06.25 ./scripts/build-local.sh`.
-      Downloads ~1 GB (→ ~6–8 GB XML, ~15M records). Confirm: RSS < 500 MB during
-      flatten, row count ≈ 15M, spot-check known ABNs vs abr.business.gov.au.
-      Write the numbers into `docs/PERFORMANCE.md`.
+- [x] **Real-data smoke (P1.04)** — ran `LONG_BLACK_VERSION=2026.06.24
+  ./scripts/build-local.sh` on the real extract: **20,295,936** ABNs, peak RSS
+      **229 MB** (< 500 MB), all checksums valid, 0 dup ids. Numbers in
+      `docs/PERFORMANCE.md`. Surfaced + fixed two real bugs: the verify Set
+      blowing V8's 16.7M cap (crema `idsSorted`) and `build-local.sh`'s `mapfile`
+      (bash 4+) on macOS bash 3.2.
 
 ## Real enrichment loaders (verify-on-first-load)
 

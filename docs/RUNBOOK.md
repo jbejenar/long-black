@@ -12,7 +12,8 @@ disk-freed `ubuntu-latest` runner against a `postgres:16` service:
 5. **output** — split per state, gzip, write `metadata.json`
 6. **release** — publish the assets as a GitHub Release
 
-`docker-publish.yml` then builds + pushes the runtime image and smoke-tests it.
+A published build then dispatches `docker-publish.yml`, which builds the runtime
+image, smoke-tests it, and only then pushes it to GHCR.
 
 ## Monitoring
 
@@ -63,19 +64,26 @@ gh run view <run-id> --log-failed   # just the failed step
 
 ### 5. Release creation failure
 
-- **Symptoms:** `gh release create` fails (permission, tag exists, asset too big).
-- **Diagnosis:** the job has `contents: write`; the step deletes a same-tag
-  release first for idempotency. Per-state files are < 2 GB.
-- **Resolution:** re-run (idempotent). Inspect `gh release view <tag>`.
+- **Symptoms:** the publish step fails (permission, asset too big), or aborts with
+  "release `<tag>` is already PUBLISHED; refusing to overwrite".
+- **Diagnosis:** the job has `contents: write`. The step is **non-destructive** —
+  it never deletes a release/tag. A new tag is created; an existing draft is
+  clobbered in place; an existing _published_ release is refused unless the run
+  set `replace_existing=true`. Per-state files are < 2 GB.
+- **Resolution:** re-runs are safe (assets clobber in place). To intentionally
+  replace a published release, re-run with `-f replace_existing=true`. Inspect
+  `gh release view <tag>`.
 
 ### 6. Docker publish failure
 
-- **Symptoms:** `docker-publish.yml` fails to build/push or the image smoke-test
-  fails.
-- **Diagnosis:** GHCR auth (`packages: write` + `GITHUB_TOKEN`), or a runtime
-  regression in the image.
-- **Resolution:** re-run `docker-publish.yml -f tag=<tag>`. Reproduce locally:
-  `docker build -f long-black/Dockerfile -t long-black ..` then
+- **Symptoms:** `docker-publish.yml` fails at the build, smoke-test, or push step,
+  or aborts with "release `<tag>` is a draft / not found".
+- **Diagnosis:** the image is built locally and smoke-tested **before** any push,
+  so a smoke-test failure means **nothing was pushed to GHCR** (no bad `latest`).
+  A push failure is usually GHCR auth (`packages: write` + `GITHUB_TOKEN`). It only
+  images a published tag (a draft is refused).
+- **Resolution:** re-run `docker-publish.yml -f tag=<tag>` for a published tag.
+  Reproduce locally: `docker build -f long-black/Dockerfile -t long-black ..` then
   `docker run --rm -v "$PWD/out:/output" long-black`.
 
 ## Manual operations

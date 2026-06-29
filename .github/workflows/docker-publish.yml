@@ -1,56 +1,81 @@
 name: Docker Publish
 
 # Build the self-contained runtime image (Postgres + Node + crema + long-black)
-# and push it to GHCR, then smoke-test it with the in-image fixture build.
+# and push it to GHCR — but ONLY after smoke-testing the exact built image.
 #
-# Triggered by a successful Build (chained via workflow_run because releases/tags
-# created with GITHUB_TOKEN do NOT fire `release`/`push` events), or manually.
+# Triggered explicitly with the release tag: build.yml dispatches this with the
+# tag it just published (so the image always matches that build), or a maintainer
+# runs it manually for a specific tag. There is deliberately no `workflow_run`
+# trigger — chaining on "the latest release" let a draft build image the wrong
+# (previous) release.
 
 on:
-  workflow_run:
-    workflows: ["Build"]
-    types: [completed]
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag to image (e.g. v2026.06.24); blank → latest release"
+        description: "Release tag to image, e.g. v2026.06.24 (blank → latest PUBLISHED release)"
         required: false
 
 permissions:
   contents: read
   packages: write # push to GHCR
 
+concurrency:
+  group: docker-publish-${{ github.event.inputs.tag }}
+  cancel-in-progress: false
+
+env:
+  # Pinned to the same reviewed crema tag build.yml uses, so the image is
+  # reproducible for a given release. Bump in lockstep — see docs/RELEASING.md.
+  CREMA_REF: v0.1.0
+  IMAGE: ghcr.io/${{ github.repository_owner }}/long-black
+
 jobs:
   publish:
-    # Only on a manual run, or when the upstream Build succeeded.
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      # crema is a sibling `file:../crema` dependency; the Docker build context is
-      # the parent dir holding both checkouts.
-      - uses: actions/checkout@v4
-        with:
-          path: long-black
-      - uses: actions/checkout@v4
-        with:
-          repository: jbejenar/crema
-          path: crema
-
-      - name: Resolve tag
+      - name: Resolve + validate tag
         id: tag
-        working-directory: long-black
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          INPUT_TAG: ${{ github.event.inputs.tag }}
         run: |
           set -euo pipefail
-          T="${{ github.event.inputs.tag }}"
+          T="$INPUT_TAG"
           if [ -z "$T" ]; then
             T=$(gh release list --exclude-drafts --limit 1 --json tagName --jq '.[0].tagName')
           fi
-          [ -n "$T" ] || { echo "no release tag found"; exit 1; }
-          echo "Imaging tag: $T"
+          [ -n "$T" ] || { echo "::error::no release tag found"; exit 1; }
+          # The tag flows into image tags — keep it strictly vYYYY.MM.DD. bash's
+          # [[ =~ ]] anchors the whole string (newline-safe, unlike per-line grep).
+          if [[ ! "$T" =~ ^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}$ ]]; then
+            echo "::error::tag '$T' is not a valid vYYYY.MM.DD release tag"
+            exit 1
+          fi
+          # Refuse to image a draft (or non-existent) release.
+          DRAFT=$(gh release view "$T" --json isDraft --jq '.isDraft' 2>/dev/null) \
+            || { echo "::error::release $T not found"; exit 1; }
+          if [ "$DRAFT" != "false" ]; then
+            echo "::error::release $T is a draft; refusing to image it"
+            exit 1
+          fi
+          echo "Imaging published tag: $T"
           echo "tag=$T" >> "$GITHUB_OUTPUT"
+
+      # crema is a sibling `file:../crema` dependency; the Docker build context is
+      # the parent dir holding both checkouts. long-black is checked out at the
+      # exact released tag so the image matches the published source.
+      - uses: actions/checkout@v4
+        with:
+          path: long-black
+          ref: ${{ steps.tag.outputs.tag }}
+      - uses: actions/checkout@v4
+        with:
+          repository: jbejenar/crema
+          ref: ${{ env.CREMA_REF }} # pinned — see env.CREMA_REF above
+          path: crema
 
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
@@ -59,22 +84,36 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
-      - uses: docker/build-push-action@v6
+      # Build locally and load into the daemon — do NOT push yet.
+      - name: Build image (local, not pushed)
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: long-black/Dockerfile
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/long-black:${{ steps.tag.outputs.tag }}
-            ghcr.io/${{ github.repository_owner }}/long-black:latest
+          load: true
+          push: false
+          tags: long-black:candidate
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Smoke-test the image (in-container fixture build)
+      - name: Smoke-test the candidate image (in-container fixture build)
         run: |
           set -euo pipefail
           mkdir -p smoke
-          docker run --rm -v "$PWD/smoke:/output" \
-            "ghcr.io/${{ github.repository_owner }}/long-black:${{ steps.tag.outputs.tag }}"
+          docker run --rm -v "$PWD/smoke:/output" long-black:candidate
           test -f smoke/fixture.ndjson
           echo "image fixture build OK ($(wc -l < smoke/fixture.ndjson) docs)"
+
+      # Only now — after the exact image passed its smoke test — tag + push it.
+      # Pushing the same local image (no rebuild) guarantees the published image
+      # is byte-identical to the one tested.
+      - name: Push tested image to GHCR
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          docker tag long-black:candidate "${IMAGE}:${TAG}"
+          docker tag long-black:candidate "${IMAGE}:latest"
+          docker push "${IMAGE}:${TAG}"
+          docker push "${IMAGE}:latest"
+          echo "pushed ${IMAGE}:${TAG} and ${IMAGE}:latest"

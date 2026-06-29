@@ -19,6 +19,10 @@ on:
         description: "Publish the release (false → leave it as a draft)"
         type: boolean
         default: true
+      replace_existing:
+        description: "Allow replacing an already-PUBLISHED release of the same tag (assets are clobbered; the release is never deleted)"
+        type: boolean
+        default: false
   schedule:
     # 5th of each month, 03:00 UTC — the ABR refreshes weekly, so any week's
     # extract is fresh; a monthly cadence avoids 52 artifact sets/year.
@@ -26,10 +30,17 @@ on:
 
 permissions:
   contents: write # create the GitHub Release
+  actions: write # dispatch docker-publish.yml for the resolved tag
 
 concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: false
+
+env:
+  # crema is pinned to a reviewed git tag, not its moving default branch, so a
+  # release is reproducible and never changes underneath long-black. Bump this
+  # (and re-test) when adopting a new crema — see docs/RELEASING.md.
+  CREMA_REF: v0.1.0
 
 jobs:
   build:
@@ -64,6 +75,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: jbejenar/crema
+          ref: ${{ env.CREMA_REF }} # pinned — see env.CREMA_REF above
           path: crema
       - uses: actions/setup-node@v4
         with:
@@ -76,27 +88,48 @@ jobs:
         working-directory: long-black
         run: npm ci && npm run build
 
-      - name: Resolve version
+      - name: Resolve + validate version
         id: ver
         working-directory: long-black
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
         run: |
-          V="${{ github.event.inputs.version }}"
+          set -euo pipefail
+          V="$INPUT_VERSION"
           if [ -z "$V" ]; then
             V=$(curl -s "https://data.gov.au/data/api/3/action/package_show?id=abn-bulk-extract" \
               | python3 -c "import sys,json; r=json.load(sys.stdin)['result']; ds=[x['last_modified'] for x in r['resources'] if (x.get('format') or '').upper()=='ZIP']; print(max(ds)[:10].replace('-','.'))")
           fi
-          echo "Resolved version: $V"
-          echo "version=$V" >> "$GITHUB_OUTPUT"
-          echo "tag=v$V" >> "$GITHUB_OUTPUT"
-          echo "sv=$(printf '%s' "$V" | tr -cd '0-9')" >> "$GITHUB_OUTPUT"
+          # Validate BEFORE this value is reused in any privileged shell step, file
+          # name, schema name, or release tag. A strict YYYY.MM.DD is the single
+          # trusted canonical form; reject anything else (shell metacharacters,
+          # newlines, path separators, malformed CKAN data) up front. bash's
+          # [[ =~ ]] anchors the WHOLE string, so an embedded newline cannot smuggle
+          # a valid-looking first line past the check (grep -E matches per line).
+          if [[ ! "$V" =~ ^[0-9]{4}\.[0-9]{2}\.[0-9]{2}$ ]]; then
+            echo "::error::resolved version '$V' is not a valid YYYY.MM.DD extract date"
+            exit 1
+          fi
+          SV=$(printf '%s' "$V" | tr -d '.')
+          echo "Resolved version: $V (schema suffix $SV)"
+          {
+            echo "version=$V"
+            echo "tag=v$V"
+            echo "sv=$SV"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Build (download → load → finalize → flatten → verify → output)
         working-directory: long-black
         env:
+          # All dynamic values reach the shell via env (validated above), never as
+          # ${{ }} interpolation inside the run body.
           LONG_BLACK_VERSION: ${{ steps.ver.outputs.version }}
+          VERSION: ${{ steps.ver.outputs.version }}
+          SV: ${{ steps.ver.outputs.sv }}
         run: |
           set -euo pipefail
-          SV="${{ steps.ver.outputs.sv }}"
+          # psql forwards "$@" for future call sites; current callers only pipe stdin.
+          # shellcheck disable=SC2119,SC2120
           psql() { PGPASSWORD=postgres command psql -h localhost -p 5433 -U postgres -d abn -v ON_ERROR_STOP=1 -q "$@"; }
           mkdir -p data output
 
@@ -114,11 +147,11 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::flatten + verify"
-          node dist/cli.js "output/long-black-${{ steps.ver.outputs.version }}.ndjson"
+          node dist/cli.js "output/long-black-${VERSION}.ndjson"
           echo "::endgroup::"
 
           echo "::group::output (split + gzip + metadata)"
-          node dist/output-cli.js "output/long-black-${{ steps.ver.outputs.version }}.ndjson" output
+          node dist/output-cli.js "output/long-black-${VERSION}.ndjson" output
           echo "::endgroup::"
 
       - name: Verify release assets
@@ -144,6 +177,7 @@ jobs:
           REPO: ${{ github.repository }}
           # Empty on the scheduled run → publishes; `false` on a manual run → draft.
           PUBLISH: ${{ github.event.inputs.publish }}
+          REPLACE_EXISTING: ${{ github.event.inputs.replace_existing }}
         run: |
           set -euo pipefail
           {
@@ -157,10 +191,46 @@ jobs:
             echo "gh release download ${TAG} --repo ${REPO} --pattern 'long-black-*-nsw.ndjson.gz'"
             echo '```'
           } > RELEASE_NOTES.md
-          DRAFT=""
-          [ "${PUBLISH}" = "false" ] && DRAFT="--draft"
-          gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
-          gh release create "$TAG" $DRAFT \
-            --title "long-black $TAG" \
-            --notes-file RELEASE_NOTES.md \
-            output/long-black-*.ndjson.gz output/metadata.json
+
+          WANT_DRAFT=false
+          [ "${PUBLISH}" = "false" ] && WANT_DRAFT=true
+          ASSETS=(output/long-black-*.ndjson.gz output/metadata.json)
+
+          # Non-destructive: never delete an existing release/tag before the
+          # replacement exists. Create only when the tag is new; otherwise clobber
+          # assets in place. A published release is replaced ONLY with an explicit
+          # opt-in, and is never downgraded to a draft.
+          if CUR_DRAFT=$(gh release view "$TAG" --json isDraft --jq '.isDraft' 2>/dev/null); then
+            echo "release $TAG already exists (isDraft=$CUR_DRAFT)"
+            if [ "$CUR_DRAFT" = "false" ] && [ "${REPLACE_EXISTING}" != "true" ]; then
+              echo "::error::release $TAG is already PUBLISHED; refusing to overwrite. Re-run with replace_existing=true to replace its assets."
+              exit 1
+            fi
+            gh release upload "$TAG" --clobber "${ASSETS[@]}"
+            if [ "$CUR_DRAFT" = "true" ]; then
+              # A draft may move to whatever PUBLISH requested.
+              gh release edit "$TAG" --title "long-black $TAG" --notes-file RELEASE_NOTES.md --draft="$WANT_DRAFT"
+            else
+              # Already published: keep it published, just refresh metadata.
+              gh release edit "$TAG" --title "long-black $TAG" --notes-file RELEASE_NOTES.md
+            fi
+          else
+            DRAFT_FLAG=""
+            [ "$WANT_DRAFT" = "true" ] && DRAFT_FLAG="--draft"
+            gh release create "$TAG" $DRAFT_FLAG \
+              --title "long-black $TAG" \
+              --notes-file RELEASE_NOTES.md \
+              "${ASSETS[@]}"
+          fi
+
+          # Chain the runtime image build to THIS resolved tag — only once the
+          # release is actually published (not a draft), so a draft build never
+          # images the wrong/previous release.
+          FINAL_DRAFT=$(gh release view "$TAG" --json isDraft --jq '.isDraft')
+          if [ "$FINAL_DRAFT" = "false" ]; then
+            echo "dispatching docker-publish for $TAG"
+            gh workflow run docker-publish.yml -f tag="$TAG" \
+              || echo "::warning::could not dispatch docker-publish.yml; run it manually with -f tag=$TAG"
+          else
+            echo "release left as a draft → skipping docker-publish"
+          fi

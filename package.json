@@ -1,6 +1,6 @@
 {
   "name": "long-black",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Australian business (ABN) data → pre-joined, normalized NDJSON. One document per ABN. Built on crema.",
   "type": "module",
   "main": "./dist/index.js",
@@ -30,6 +30,7 @@
   "devDependencies": {
     "@commitlint/cli": "^21.0.1",
     "@commitlint/config-conventional": "^21.0.1",
+    "@dsnp/parquetjs": "^1.8.7",
     "@types/node": "^25.9.1",
     "eslint": "^10.4.0",
     "husky": "^9.1.7",

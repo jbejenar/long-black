@@ -14,6 +14,11 @@ The NDJSON document is the contract (`docs/DOCUMENT-SCHEMA.md`).
 
 ### Added
 
+- **0.6.0** — Optional **Parquet** output (`output-cli.js … --parquet`, emitted
+  by the release builds): an all-ABN `long-black-<version>.parquet` alongside the
+  per-state NDJSON.gz, via crema's generic `convertToParquet`. Scalars become
+  native columns; nested/array fields are JSON strings. No document-schema
+  change — same fields, alternative encoding.
 - **0.5.0** — Real ASIC/ACNC CSV enrichment loaders (`src/enrich.ts`,
   `enrich-cli.ts`, `sql/normalize-*.sql`): discover each source by stable package
   id → COPY into an all-text raw table built from the sniffed header → normalize

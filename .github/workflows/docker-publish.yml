@@ -30,7 +30,7 @@ concurrency:
 env:
   # Pinned to the same reviewed crema tag build.yml uses, so the image is
   # reproducible for a given release. Bump in lockstep — see docs/RELEASING.md.
-  CREMA_REF: v0.1.0
+  CREMA_REF: v0.2.0
   IMAGE: ghcr.io/${{ github.repository_owner }}/long-black
 
 jobs:

@@ -79,7 +79,7 @@ data.gov.au, **CC-BY 3.0 AU**, joined on the ABN. See
 | Loader        | `saxes` streaming XML (ABR) + COPY-based CSV/TSV (ASIC/ACNC) → COPY   |
 | Pipeline core | `crema` (flatten engine, split, compress, verify, download, metadata) |
 | Language      | Node 22 / TypeScript (ESM, strict)                                    |
-| Output        | NDJSON, per-state gzipped                                             |
+| Output        | NDJSON (per-state, gzipped) + optional all-ABN Parquet (`--parquet`)  |
 
 ## Licence
 

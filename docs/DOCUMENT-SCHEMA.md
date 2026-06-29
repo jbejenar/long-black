@@ -1,8 +1,12 @@
 # Document Schema Reference — long-black
 
-> **Schema version:** 0.5.0
+> **Schema version:** 0.6.0
 > **Runtime validation:** `src/schema.ts` (`AbnDocumentSchema`, Zod)
 > **Breaking changes:** require a major version bump.
+
+> 0.6.0 adds an optional **Parquet** output (`--parquet`) — the same fields as
+> the NDJSON, scalars as native columns and nested fields as JSON strings; the
+> document contract below is unchanged.
 
 One NDJSON document per ABN. This document is the contract: `src/schema.ts`,
 this file, and `fixtures/expected-output.ndjson` move together (additive field =
@@ -105,6 +109,12 @@ the charitable purposes in ACNC Act order), null when none is flagged.
 
 NDJSON — one document per line, `ORDER BY abn`. Per-state split + gzip are
 applied downstream (`crema` split/compress). Dates are ISO `YYYY-MM-DD`.
+
+With `--parquet`, an all-ABN `long-black-<version>.parquet` is also emitted
+(`crema` `convertToParquet`): scalar fields become native Parquet columns and the
+nested/array fields (`businessNames`, `tradingNames`, `otherNames`, `dgr`,
+`registeredBusinessNames`, `company`, `charity`) are serialized to JSON strings.
+Consumers can filter by the native `state` column.
 
 ## Data licensing
 

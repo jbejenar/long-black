@@ -57,7 +57,7 @@ else
     || echo "[entrypoint] WARNING: enrichment incomplete — continuing with partial/null enrichment"
   OUT="/output/long-black-${VERSION}.ndjson"
   DATABASE_URL="$DB" LONG_BLACK_VERSION="$VERSION" node /app/dist/cli.js "$OUT"
-  LONG_BLACK_VERSION="$VERSION" node /app/dist/output-cli.js "$OUT" /output
+  LONG_BLACK_VERSION="$VERSION" node /app/dist/output-cli.js "$OUT" /output --parquet
 fi
 
 echo "[entrypoint] done."

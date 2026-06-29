@@ -36,7 +36,7 @@ env:
   # crema is pinned to a reviewed git tag, not its moving default branch, so a
   # release is reproducible and never changes underneath long-black. Bump this
   # (and re-test) when adopting a new crema — see docs/RELEASING.md.
-  CREMA_REF: v0.1.0
+  CREMA_REF: v0.2.0
 
 jobs:
   build:
@@ -154,7 +154,7 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::output (split + gzip + metadata)"
-          node dist/output-cli.js "output/long-black-${VERSION}.ndjson" output
+          node dist/output-cli.js "output/long-black-${VERSION}.ndjson" output --parquet
           echo "::endgroup::"
 
       - name: Verify release assets
@@ -169,7 +169,10 @@ jobs:
           done
           [ "$count" -ge 1 ] || { echo "no per-state output files"; exit 1; }
           echo "$count gzip files, all valid"
-          ls -lh output/long-black-*.ndjson.gz output/metadata.json
+          # The all-ABN Parquet (emitted with --parquet) must exist and be nonempty.
+          pq=$(ls output/long-black-*.parquet 2>/dev/null | head -1)
+          [ -s "$pq" ] || { echo "no Parquet output file"; exit 1; }
+          ls -lh output/long-black-*.ndjson.gz "$pq" output/metadata.json
 
       - name: Publish GitHub Release
         working-directory: long-black
@@ -183,7 +186,7 @@ jobs:
         run: |
           set -euo pipefail
           {
-            echo "Australian Business (ABN) data — one NDJSON document per ABN, split per state and gzip-compressed."
+            echo "Australian Business (ABN) data — one NDJSON document per ABN, split per state and gzip-compressed, plus an all-ABN Parquet file (\`long-black-${VERSION}.parquet\`)."
             echo "Source: ABR ABN Bulk Extract, extract ${VERSION}."
             echo ""
             echo "**Licence:** CC-BY 3.0 AU. Contains data © Commonwealth of Australia (Australian Business Register). See \`docs/DATA-SOURCES.md\`."
@@ -196,7 +199,7 @@ jobs:
 
           WANT_DRAFT=false
           [ "${PUBLISH}" = "false" ] && WANT_DRAFT=true
-          ASSETS=(output/long-black-*.ndjson.gz output/metadata.json)
+          ASSETS=(output/long-black-*.ndjson.gz output/long-black-*.parquet output/metadata.json)
 
           # Verify every expected asset is present on the release with a NONZERO
           # size before it is made public — by exact name, not just an aggregate

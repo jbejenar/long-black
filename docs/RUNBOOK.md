@@ -65,13 +65,16 @@ gh run view <run-id> --log-failed   # just the failed step
 ### 5. Release creation failure
 
 - **Symptoms:** the publish step fails (permission, asset too big), or aborts with
-  "release `<tag>` is already PUBLISHED; refusing to overwrite".
-- **Diagnosis:** the job has `contents: write`. The step is **non-destructive** —
-  it never deletes a release/tag. A new tag is created; an existing draft is
-  clobbered in place; an existing _published_ release is refused unless the run
-  set `replace_existing=true`. Per-state files are < 2 GB.
-- **Resolution:** re-runs are safe (assets clobber in place). To intentionally
-  replace a published release, re-run with `-f replace_existing=true`. Inspect
+  "release `<tag>` is already published — cut a NEW version tag" or "tag `<tag>`
+  already exists at `<sha>`, not this build commit".
+- **Diagnosis:** the job has `contents: write` and treats release identity +
+  atomicity as one contract (see RELEASING.md). It never deletes or mutates a live
+  published release, and refuses a tag that already points at a different commit —
+  corrected data must go out as a **new version**. New releases are built in an
+  invisible draft and verified before promotion. Per-state files are < 2 GB.
+- **Resolution:** for corrected data, run with a **new `version`** (a later extract
+  date). A failed run before promotion leaves only an invisible draft — delete it
+  (`gh release delete <tag>`) and re-run, or let the next run reuse it. Inspect
   `gh release view <tag>`.
 
 ### 6. Docker publish failure

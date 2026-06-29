@@ -19,10 +19,6 @@ on:
         description: "Publish the release (false → leave it as a draft)"
         type: boolean
         default: true
-      replace_existing:
-        description: "Allow replacing an already-PUBLISHED release of the same tag (assets are clobbered; the release is never deleted)"
-        type: boolean
-        default: false
   schedule:
     # 5th of each month, 03:00 UTC — the ABR refreshes weekly, so any week's
     # extract is fresh; a monthly cadence avoids 52 artifact sets/year.
@@ -177,7 +173,6 @@ jobs:
           REPO: ${{ github.repository }}
           # Empty on the scheduled run → publishes; `false` on a manual run → draft.
           PUBLISH: ${{ github.event.inputs.publish }}
-          REPLACE_EXISTING: ${{ github.event.inputs.replace_existing }}
         run: |
           set -euo pipefail
           {
@@ -195,66 +190,80 @@ jobs:
           WANT_DRAFT=false
           [ "${PUBLISH}" = "false" ] && WANT_DRAFT=true
           ASSETS=(output/long-black-*.ndjson.gz output/metadata.json)
-          EXPECTED_COUNT=${#ASSETS[@]}
 
-          # Assert every expected asset is actually present on the release before
-          # it is made (or kept) public — so consumers never see a partial set.
+          # Verify every expected asset is present on the release with a NONZERO
+          # size before it is made public — by exact name, not just an aggregate
+          # count (a clobber could leave a renamed/0-byte asset that a count misses).
           verify_assets() {
-            local n
-            n=$(gh release view "$TAG" --json assets --jq '[.assets[].name] | length')
-            [ "$n" -ge "$EXPECTED_COUNT" ] \
-              || { echo "::error::release $TAG has $n/$EXPECTED_COUNT assets after upload"; exit 1; }
-            echo "verified $n/$EXPECTED_COUNT assets on $TAG"
+            local a base size missing=0
+            gh release view "$TAG" --json assets --jq '.assets[] | "\(.name)\t\(.size)"' > rel-assets.tsv
+            for a in "${ASSETS[@]}"; do
+              base=$(basename "$a")
+              size=$(awk -F'\t' -v n="$base" '$1 == n {print $2}' rel-assets.tsv)
+              if [ -z "$size" ]; then
+                echo "::error::asset $base missing on $TAG"; missing=1
+              elif [ "$size" -le 0 ]; then
+                echo "::error::asset $base is empty ($size bytes) on $TAG"; missing=1
+              fi
+            done
+            [ "$missing" = 0 ] || exit 1
+            echo "verified ${#ASSETS[@]} assets present with nonzero size on $TAG"
           }
 
-          # Non-destructive: never delete an existing release/tag before the
-          # replacement exists. Create only when the tag is new; otherwise clobber
-          # assets in place. A published release is replaced ONLY with an explicit
-          # opt-in, and is never downgraded to a draft.
-          FRESH=false
-          if CUR_DRAFT=$(gh release view "$TAG" --json isDraft --jq '.isDraft' 2>/dev/null); then
-            echo "release $TAG already exists (isDraft=$CUR_DRAFT)"
-            if [ "$CUR_DRAFT" = "false" ] && [ "${REPLACE_EXISTING}" != "true" ]; then
-              echo "::error::release $TAG is already PUBLISHED; refusing to overwrite. Re-run with replace_existing=true to replace its assets."
-              exit 1
-            fi
+          # Release identity + atomicity as ONE contract:
+          #   1. The release tag MUST point at THIS build commit ("$GITHUB_SHA"), so
+          #      the published source always matches the assets it produced (and the
+          #      image built from the tag is built from that same source).
+          #   2. A live PUBLISHED release is never mutated — corrected data gets a
+          #      NEW version tag — so consumers never see a partial/changing release.
+          #   3. New releases publish only from an invisible draft pinned to the
+          #      build commit, promoted only after every asset is verified.
+
+          # (1) A real (pushed) tag must already BE this build commit. Drafts carry
+          # no pushed tag yet, so this only fires for an existing published/manual tag.
+          TAG_SHA=""
+          TYPE=$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq '.object.type' 2>/dev/null) || TYPE=""
+          if [ "$TYPE" = "commit" ]; then
+            TAG_SHA=$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq '.object.sha')
+          elif [ "$TYPE" = "tag" ]; then # annotated tag → dereference to its commit
+            OBJ=$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq '.object.sha')
+            TAG_SHA=$(gh api "repos/$REPO/git/tags/$OBJ" --jq '.object.sha')
+          fi
+          if [ -n "$TAG_SHA" ] && [ "$TAG_SHA" != "$GITHUB_SHA" ]; then
+            echo "::error::tag $TAG already exists at $TAG_SHA, not this build commit $GITHUB_SHA — cut a NEW version for corrected data"
+            exit 1
+          fi
+
+          REL_DRAFT=$(gh release view "$TAG" --json isDraft --jq '.isDraft' 2>/dev/null) || REL_DRAFT="none"
+          if [ "$REL_DRAFT" = "false" ]; then
+            # (2) Refuse to mutate a live published dataset release.
+            echo "::error::release $TAG is already published — cut a NEW version tag for corrected data rather than mutating a live release"
+            exit 1
+          elif [ "$REL_DRAFT" = "true" ]; then
+            # Reuse the existing (invisible) draft: retarget it to this build commit,
+            # replace every asset, verify, then promote per PUBLISH.
+            gh release edit "$TAG" --target "$GITHUB_SHA" --title "long-black $TAG" --notes-file RELEASE_NOTES.md
             gh release upload "$TAG" --clobber "${ASSETS[@]}"
             verify_assets
-            if [ "$CUR_DRAFT" = "true" ]; then
-              # A draft may move to whatever PUBLISH requested.
-              gh release edit "$TAG" --title "long-black $TAG" --notes-file RELEASE_NOTES.md --draft="$WANT_DRAFT"
-            else
-              # Already published: keep it published, just refresh metadata.
-              gh release edit "$TAG" --title "long-black $TAG" --notes-file RELEASE_NOTES.md
-            fi
+            [ "$WANT_DRAFT" = "false" ] && gh release edit "$TAG" --draft=false
           else
-            FRESH=true
-            # Atomic from a consumer's view: create as a DRAFT pinned to THIS build
-            # commit (--target "$GITHUB_SHA"; otherwise a new tag is cut from the
-            # moving default branch, which can drift during the ~2 h build), upload
-            # every asset, verify they all landed, and only THEN promote. A failure
-            # mid-upload leaves an invisible draft, never a partial public release.
+            # (3) Fresh: invisible draft pinned to the build commit, upload, verify,
+            # then promote. A mid-upload failure leaves a draft, never a partial
+            # public release.
             gh release create "$TAG" --draft --target "$GITHUB_SHA" \
-              --title "long-black $TAG" \
-              --notes-file RELEASE_NOTES.md \
-              "${ASSETS[@]}"
+              --title "long-black $TAG" --notes-file RELEASE_NOTES.md "${ASSETS[@]}"
             verify_assets
             [ "$WANT_DRAFT" = "false" ] && gh release edit "$TAG" --draft=false
           fi
 
-          # Chain the runtime image build to THIS resolved tag — only once the
-          # release is actually published (not a draft). For a fresh release the
-          # tag is pinned to "$GITHUB_SHA", so pass that SHA and have docker-publish
-          # assert the tag resolves to it (the image is built from the exact source
-          # that produced + verified the dataset). An in-place replacement keeps the
-          # original tag/commit, so it is re-imaged manually rather than guessed.
+          # The tag is now guaranteed == "$GITHUB_SHA", so always dispatch
+          # docker-publish with that expected SHA when the release is published;
+          # docker-publish re-asserts the tag resolves to it before pushing.
           FINAL_DRAFT=$(gh release view "$TAG" --json isDraft --jq '.isDraft')
-          if [ "$FINAL_DRAFT" != "false" ]; then
-            echo "release left as a draft → skipping docker-publish"
-          elif [ "$FRESH" = "true" ]; then
+          if [ "$FINAL_DRAFT" = "false" ]; then
             echo "dispatching docker-publish for $TAG @ $GITHUB_SHA"
             gh workflow run docker-publish.yml -f tag="$TAG" -f expected_sha="$GITHUB_SHA" \
-              || echo "::warning::could not dispatch docker-publish.yml; run it manually with -f tag=$TAG"
+              || echo "::warning::could not dispatch docker-publish.yml; run it manually with -f tag=$TAG -f expected_sha=$GITHUB_SHA"
           else
-            echo "::notice::$TAG was replaced in place; re-image manually with: gh workflow run docker-publish.yml -f tag=$TAG"
+            echo "release left as a draft → skipping docker-publish"
           fi

@@ -123,14 +123,24 @@ jobs:
 
       # Only now — after the exact image passed its smoke test — tag + push it.
       # Pushing the same local image (no rebuild) guarantees the published image
-      # is byte-identical to the one tested.
+      # is byte-identical to the one tested. `:latest` is moved ONLY when imaging
+      # the actual latest published release, so a manual re-image of an OLDER tag
+      # (which skips the expected_sha assertion) can never clobber `:latest` with
+      # stale source.
       - name: Push tested image to GHCR
         env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           TAG: ${{ steps.tag.outputs.tag }}
         run: |
           set -euo pipefail
           docker tag long-black:candidate "${IMAGE}:${TAG}"
-          docker tag long-black:candidate "${IMAGE}:latest"
           docker push "${IMAGE}:${TAG}"
-          docker push "${IMAGE}:latest"
-          echo "pushed ${IMAGE}:${TAG} and ${IMAGE}:latest"
+          LATEST=$(gh release list --exclude-drafts --limit 1 --json tagName --jq '.[0].tagName')
+          if [ "$TAG" = "$LATEST" ]; then
+            docker tag long-black:candidate "${IMAGE}:latest"
+            docker push "${IMAGE}:latest"
+            echo "pushed ${IMAGE}:${TAG} and ${IMAGE}:latest"
+          else
+            echo "::notice::$TAG is not the latest published release ($LATEST) — pushed ${IMAGE}:${TAG} only, left :latest unchanged"
+          fi

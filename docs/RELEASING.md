@@ -95,9 +95,9 @@ gh workflow run docker-publish.yml -f tag=v2026.06.24
 
 crema is a build dependency (`file:../crema`). Both `build.yml` and
 `docker-publish.yml` check it out at a **pinned git tag** via `env.CREMA_REF`
-(currently `v0.1.0`), not its moving `main`, so a long-black release is
-reproducible and cannot change because crema's default branch moved. When
-adopting a new crema:
+(currently `v0.2.0` — adds `convertToParquet`), not its moving `main`, so a
+long-black release is reproducible and cannot change because crema's default
+branch moved. When adopting a new crema:
 
 1. Tag the reviewed crema commit (e.g. `git tag v0.2.0 && git push origin v0.2.0`).
 2. Bump `env.CREMA_REF` in **both** workflows to that tag in one PR.

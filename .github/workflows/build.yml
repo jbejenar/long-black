@@ -36,7 +36,7 @@ env:
   # crema is pinned to a reviewed git tag, not its moving default branch, so a
   # release is reproducible and never changes underneath long-black. Bump this
   # (and re-test) when adopting a new crema — see docs/RELEASING.md.
-  CREMA_REF: v0.1.0
+  CREMA_REF: v0.2.0
 
 jobs:
   build:

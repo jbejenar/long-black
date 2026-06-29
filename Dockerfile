@@ -25,6 +25,12 @@ RUN cd long-black && npm ci --ignore-scripts
 COPY long-black/ ./long-black/
 RUN cd long-black && npm run build
 
+# Note: the runtime image ships devDependencies (typescript/eslint/vitest) in
+# node_modules. Pruning them here is not trivial — crema's `prepare` runs a
+# `tsc` build on any `npm prune`/`npm ci --omit=dev` and fails once its own
+# tooling is gone (and would wipe the just-built dist). A leaner runtime is a
+# future optimization (e.g. a dedicated prod-deps stage); see NEXT-WORK.
+
 # ---------------------------------------------------------------------------
 # Stage 2: runtime — Postgres + Node + the built pipeline
 # ---------------------------------------------------------------------------

@@ -7,7 +7,9 @@
 One NDJSON document per ABN. This document is the contract: `src/schema.ts`,
 this file, and `fixtures/expected-output.ndjson` move together (additive field =
 minor bump; removal/rename = major). Enrichment objects (`company`, `charity`)
-are nullable and stay `null` until those sources are wired (P3).
+are nullable and populate when a source row matches on ABN — the fixture seeds
+example rows to exercise the join seam (see `fixtures/edge-cases.md`); wiring the
+real ASIC/ACNC CSV loaders against live files is the remaining step (NEXT-WORK).
 
 ## Top-level fields
 
@@ -43,6 +45,18 @@ are nullable and stay `null` until those sources are wired (P3).
 | ---------------- | ----------------- | -------- | ------------------------------------------- |
 | `name`           | string            | yes      | DGR fund name (the entity itself if absent) |
 | `statusFromDate` | string (ISO date) | yes      | Endorsement start date                      |
+
+## Nested: `RegBN` (registeredBusinessNames)
+
+Each element of `registeredBusinessNames` — ASIC's authoritative registered
+business names (1:N on ABN). `[]` until P3.02 wires the source.
+
+| Field              | Type              | Nullable | Description                  |
+| ------------------ | ----------------- | -------- | ---------------------------- |
+| `name`             | string            | no       | Registered business name     |
+| `status`           | string            | yes      | Registration status          |
+| `registrationDate` | string (ISO date) | yes      | When the name was registered |
+| `cancellationDate` | string (ISO date) | yes      | When the name was cancelled  |
 
 ## Nested: `company` (P3.01) / `charity` (P3.03)
 

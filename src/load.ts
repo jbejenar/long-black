@@ -15,7 +15,7 @@
  */
 
 import { createReadStream } from "node:fs";
-import { once } from "node:events";
+import { pipeline } from "node:stream/promises";
 import { SaxesParser, type SaxesTagPlain } from "saxes";
 import postgres from "postgres";
 
@@ -309,9 +309,52 @@ export interface LoadAbnOptions {
 }
 
 /**
+ * Concatenate every file's ABRs into a single ordered stream of COPY CSV lines.
+ *
+ * Each ABR file is an *independent* XML document (own `<?xml?>` declaration +
+ * `<Transfer>` root), so each file gets its own fresh `AbrParser`; feeding two
+ * documents to one parser fails ("an XML declaration must be at the start").
+ * The parser is push-based (rows arrive via the `onRecord` callback), so we
+ * bridge to this pull-based generator through a small `pending` buffer: a chunk
+ * is written, the rows it completed are drained as CSV lines, and the loop only
+ * advances once the consumer (the COPY writable, via `pipeline`) has pulled
+ * them — i.e. backpressure is preserved and `pending` holds at most one chunk's
+ * worth of rows, keeping memory constant across the ~6-8 GB extract.
+ */
+export async function* csvLines(files: string[], onRow: () => void): AsyncGenerator<string> {
+  for (const file of files) {
+    const pending: string[] = [];
+    const parser = new AbrParser((row) => {
+      onRow();
+      pending.push(rowToCsvLine(row));
+    });
+    const stream: AsyncIterable<string> = createReadStream(file, { encoding: "utf-8" });
+    for await (const chunk of stream) {
+      parser.write(chunk);
+      yield* pending.splice(0);
+    }
+    parser.close();
+    yield* pending.splice(0);
+  }
+}
+
+/**
  * Stream ABR XML files into the unconstrained `abn` staging table via a single
  * COPY (one connection — sidesteps postgres@3's COPY_IN_PROGRESS rule). Run
  * abn-finalize.sql afterwards to add the PK.
+ *
+ * One `pipeline` owns the COPY writable for the *entire* load: `csvLines`
+ * concatenates every file's rows (each file parsed by its own SAX parser) into a
+ * single CSV-line source, so the writable receives exactly one set of `pipeline`
+ * listeners and is ended once, on success. (The previous shape re-piped each
+ * file into the *same* writable with `{ end: false }`; `pipeline` attaches fresh
+ * error/close/finish listeners to its destination on every call and does not
+ * remove them from a deliberately-kept-open destination, so listeners
+ * accumulated per file and a >10-file load tripped MaxListenersExceededWarning.)
+ * `pipeline` propagates (never swallows) any read/parse/connection error with
+ * automatic backpressure; on error the connection is wedged mid-COPY, so we
+ * force-close (`timeout: 0`) to reject promptly rather than hang on a graceful
+ * drain awaiting a COPY termination that will never come.
  */
 export async function loadAbnFiles(options: LoadAbnOptions): Promise<{ count: number }> {
   const { connectionString, schemaVersion, files } = options;
@@ -319,36 +362,22 @@ export async function loadAbnFiles(options: LoadAbnOptions): Promise<{ count: nu
   let count = 0;
   try {
     const reserved = await sql.reserve();
-    try {
-      const table = `abn_${schemaVersion}.abn`;
-      const copy = `COPY ${table} (${COPY_COLUMNS.join(",")}) FROM STDIN WITH (FORMAT csv, NULL '')`;
-      // reserved.unsafe(...).writable() — COPY stream, no cursor needed.
-      const writable = await reserved.unsafe(copy).writable();
+    const table = `abn_${schemaVersion}.abn`;
+    const copy = `COPY ${table} (${COPY_COLUMNS.join(",")}) FROM STDIN WITH (FORMAT csv, NULL '')`;
+    const writable = await reserved.unsafe(copy).writable();
 
-      for (const file of files) {
-        const input = createReadStream(file, { encoding: "utf-8" });
-        const parser = new AbrParser((row) => {
-          count++;
-          // backpressure: pause the file stream until the COPY buffer drains
-          if (!writable.write(rowToCsvLine(row))) input.pause();
-        });
-        const onDrain = (): void => {
-          input.resume();
-        };
-        writable.on("drain", onDrain);
-        input.on("data", (chunk) => parser.write(String(chunk)));
-        await once(input, "end");
-        parser.close();
-        writable.off("drain", onDrain);
-      }
+    await pipeline(
+      csvLines(files, () => {
+        count++;
+      }),
+      writable,
+    );
 
-      writable.end();
-      await once(writable, "finish");
-      return { count };
-    } finally {
-      reserved.release();
-    }
-  } finally {
+    reserved.release();
     await sql.end();
+    return { count };
+  } catch (err) {
+    await sql.end({ timeout: 0 }).catch(() => {});
+    throw err;
   }
 }

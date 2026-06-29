@@ -16,5 +16,5 @@ async function main(): Promise<void> {
 
 main().catch((err) => {
   console.error("[download] Fatal:", err);
-  process.exit(1);
+  process.exit(2);
 });

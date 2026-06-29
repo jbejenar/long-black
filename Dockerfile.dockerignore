@@ -1,0 +1,13 @@
+# Per-Dockerfile ignore (BuildKit): because this Dockerfile is referenced as
+# `-f long-black/Dockerfile`, BuildKit reads THIS file (`Dockerfile.dockerignore`)
+# in preference to a context-root `.dockerignore`, and applies its patterns
+# relative to the build context (the parent `address/` dir). That keeps the
+# host's node_modules/dist (wrong-arch, stale) out of the context so they can't
+# overlay the linux modules built inside the image.
+**/node_modules
+**/dist
+**/output
+**/data
+**/.git
+**/.tmp-test-*
+**/*.ndjson.gz

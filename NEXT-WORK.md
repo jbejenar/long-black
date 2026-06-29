@@ -17,12 +17,11 @@
       a per-source normalize `INSERT … SELECT` once the real file headers are
       confirmed (`sniffHeader`). ASIC files are tab-delimited despite `.csv`.
       Build the all-text raw table from the sniffed header so column counts
-      match. Known limitation to handle here: postgres@3 stashes a server-side
-      COPY row error without erroring the writable stream, so a malformed row
-      (wrong field count) deadlocks the COPY instead of rejecting. Mitigate by
-      validating field counts up front, or load via `pg-copy-streams` (which
-      surfaces COPY errors). The happy path + client-side error handling are
-      proven; only the malformed-row case is affected.
+      match. (The malformed-row COPY deadlock is now closed: `loadDelimitedRaw`
+      runs `validateFieldCounts` first — a single streaming pass that rejects a
+      ragged file with its line number _before_ any byte reaches the COPY, so the
+      postgres@3 server-side-error deadlock is unreachable. So the remaining work
+      here is purely wiring the real source configs + normalize SQL.)
 
 ## Just-in-time tooling (verbatim lifts from flat-white → crema, when needed)
 

@@ -23,11 +23,11 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: long-black
       # crema is a sibling dependency (file:../crema). Check it out + build it.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: jbejenar/crema
           path: crema

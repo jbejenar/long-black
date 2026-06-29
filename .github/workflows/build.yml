@@ -1,0 +1,166 @@
+name: Build
+
+# Monthly production build: download the real ABR ABN Bulk Extract, run the full
+# pipeline (download → load → flatten → verify → split → compress), and publish
+# the per-state NDJSON(.gz) + metadata.json as a GitHub Release.
+#
+# Mirrors scripts/build-local.sh, but against a postgres:16 service and on a
+# disk-freed runner (the extract is ~13 GB of XML). The fixture loop
+# (build-fixture-only.sh) and the real-data smoke (docs/PERFORMANCE.md) cover the
+# pipeline itself; this workflow is the release wrapper.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "ABR extract date YYYY.MM.DD (blank → auto-discover the current extract)"
+        required: false
+      publish:
+        description: "Publish the release (false → leave it as a draft)"
+        type: boolean
+        default: true
+  schedule:
+    # 5th of each month, 03:00 UTC — the ABR refreshes weekly, so any week's
+    # extract is fresh; a monthly cadence avoids 52 artifact sets/year.
+    - cron: "0 3 5 * *"
+
+permissions:
+  contents: write # create the GitHub Release
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    services:
+      db:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: abn
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 3s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5433/abn
+    steps:
+      - name: Free disk space (the extract is ~13 GB of XML)
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android \
+            /usr/local/share/boost "$AGENT_TOOLSDIRECTORY" || true
+          df -h /
+
+      - uses: actions/checkout@v4
+        with:
+          path: long-black
+      - uses: actions/checkout@v4
+        with:
+          repository: jbejenar/crema
+          path: crema
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build crema
+        working-directory: crema
+        run: npm ci && npm run build
+      - name: Install + build long-black
+        working-directory: long-black
+        run: npm ci && npm run build
+
+      - name: Resolve version
+        id: ver
+        working-directory: long-black
+        run: |
+          V="${{ github.event.inputs.version }}"
+          if [ -z "$V" ]; then
+            V=$(curl -s "https://data.gov.au/data/api/3/action/package_show?id=abn-bulk-extract" \
+              | python3 -c "import sys,json; r=json.load(sys.stdin)['result']; ds=[x['last_modified'] for x in r['resources'] if (x.get('format') or '').upper()=='ZIP']; print(max(ds)[:10].replace('-','.'))")
+          fi
+          echo "Resolved version: $V"
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "tag=v$V" >> "$GITHUB_OUTPUT"
+          echo "sv=$(printf '%s' "$V" | tr -cd '0-9')" >> "$GITHUB_OUTPUT"
+
+      - name: Build (download → load → finalize → flatten → verify → output)
+        working-directory: long-black
+        env:
+          LONG_BLACK_VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          set -euo pipefail
+          SV="${{ steps.ver.outputs.sv }}"
+          psql() { PGPASSWORD=postgres command psql -h localhost -p 5433 -U postgres -d abn -v ON_ERROR_STOP=1 -q "$@"; }
+          mkdir -p data output
+
+          echo "::group::download"
+          XML=()
+          while IFS= read -r f; do [ -n "$f" ] && XML+=("$f"); done < <(DATA_DIR=data node dist/download-cli.js)
+          echo "${#XML[@]} XML files"
+          echo "::endgroup::"
+
+          echo "::group::schema + load"
+          echo "DROP SCHEMA IF EXISTS abn_${SV} CASCADE;" | psql
+          sed "s/__SCHEMA_VERSION__/${SV}/g" sql/staging-schema.sql | psql
+          node dist/load-cli.js "${XML[@]}"
+          sed "s/__SCHEMA_VERSION__/${SV}/g" sql/abn-finalize.sql | psql
+          echo "::endgroup::"
+
+          echo "::group::flatten + verify"
+          node dist/cli.js "output/long-black-${{ steps.ver.outputs.version }}.ndjson"
+          echo "::endgroup::"
+
+          echo "::group::output (split + gzip + metadata)"
+          node dist/output-cli.js "output/long-black-${{ steps.ver.outputs.version }}.ndjson" output
+          echo "::endgroup::"
+
+      - name: Verify release assets
+        working-directory: long-black
+        run: |
+          set -euo pipefail
+          test -f output/metadata.json
+          count=0
+          for f in output/long-black-*.ndjson.gz; do
+            gzip -t "$f"
+            count=$((count + 1))
+          done
+          [ "$count" -ge 1 ] || { echo "no per-state output files"; exit 1; }
+          echo "$count gzip files, all valid"
+          ls -lh output/long-black-*.ndjson.gz output/metadata.json
+
+      - name: Publish GitHub Release
+        working-directory: long-black
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.ver.outputs.version }}
+          TAG: ${{ steps.ver.outputs.tag }}
+          REPO: ${{ github.repository }}
+          # Empty on the scheduled run → publishes; `false` on a manual run → draft.
+          PUBLISH: ${{ github.event.inputs.publish }}
+        run: |
+          set -euo pipefail
+          {
+            echo "Australian Business (ABN) data — one NDJSON document per ABN, split per state and gzip-compressed."
+            echo "Source: ABR ABN Bulk Extract, extract ${VERSION}."
+            echo ""
+            echo "**Licence:** CC-BY 3.0 AU. Contains data © Commonwealth of Australia (Australian Business Register). See \`docs/DATA-SOURCES.md\`."
+            echo ""
+            echo "Download a state file, e.g.:"
+            echo '```'
+            echo "gh release download ${TAG} --repo ${REPO} --pattern 'long-black-*-nsw.ndjson.gz'"
+            echo '```'
+          } > RELEASE_NOTES.md
+          DRAFT=""
+          [ "${PUBLISH}" = "false" ] && DRAFT="--draft"
+          gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$TAG" $DRAFT \
+            --title "long-black $TAG" \
+            --notes-file RELEASE_NOTES.md \
+            output/long-black-*.ndjson.gz output/metadata.json

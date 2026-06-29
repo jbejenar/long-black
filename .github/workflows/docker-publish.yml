@@ -1,0 +1,80 @@
+name: Docker Publish
+
+# Build the self-contained runtime image (Postgres + Node + crema + long-black)
+# and push it to GHCR, then smoke-test it with the in-image fixture build.
+#
+# Triggered by a successful Build (chained via workflow_run because releases/tags
+# created with GITHUB_TOKEN do NOT fire `release`/`push` events), or manually.
+
+on:
+  workflow_run:
+    workflows: ["Build"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to image (e.g. v2026.06.24); blank → latest release"
+        required: false
+
+permissions:
+  contents: read
+  packages: write # push to GHCR
+
+jobs:
+  publish:
+    # Only on a manual run, or when the upstream Build succeeded.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      # crema is a sibling `file:../crema` dependency; the Docker build context is
+      # the parent dir holding both checkouts.
+      - uses: actions/checkout@v4
+        with:
+          path: long-black
+      - uses: actions/checkout@v4
+        with:
+          repository: jbejenar/crema
+          path: crema
+
+      - name: Resolve tag
+        id: tag
+        working-directory: long-black
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          T="${{ github.event.inputs.tag }}"
+          if [ -z "$T" ]; then
+            T=$(gh release list --exclude-drafts --limit 1 --json tagName --jq '.[0].tagName')
+          fi
+          [ -n "$T" ] || { echo "no release tag found"; exit 1; }
+          echo "Imaging tag: $T"
+          echo "tag=$T" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: long-black/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/long-black:${{ steps.tag.outputs.tag }}
+            ghcr.io/${{ github.repository_owner }}/long-black:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke-test the image (in-container fixture build)
+        run: |
+          set -euo pipefail
+          mkdir -p smoke
+          docker run --rm -v "$PWD/smoke:/output" \
+            "ghcr.io/${{ github.repository_owner }}/long-black:${{ steps.tag.outputs.tag }}"
+          test -f smoke/fixture.ndjson
+          echo "image fixture build OK ($(wc -l < smoke/fixture.ndjson) docs)"

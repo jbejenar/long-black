@@ -28,6 +28,14 @@ business_names_agg AS (
   ) ORDER BY business_name, registration_date) AS names
   FROM abn___SCHEMA_VERSION__.asic_business_name
   GROUP BY abn
+),
+-- 1:0..1 — DISTINCT ON guards against a duplicate-ABN fan-out (one charity per
+-- ABN expected, but never let the join multiply base rows → no duplicate _id).
+charity AS (
+  SELECT DISTINCT ON (abn)
+    abn, charity_name, status, size, subtype, registration_date
+  FROM abn___SCHEMA_VERSION__.acnc_charity
+  ORDER BY abn, registration_date DESC NULLS LAST
 )
 SELECT
   a.abn                                                AS _id,
@@ -76,5 +84,5 @@ SELECT
 FROM abn___SCHEMA_VERSION__.abn a
 LEFT JOIN company c ON c.abn = a.abn
 LEFT JOIN business_names_agg bn ON bn.abn = a.abn
-LEFT JOIN abn___SCHEMA_VERSION__.acnc_charity ch ON ch.abn = a.abn
+LEFT JOIN charity ch ON ch.abn = a.abn
 ORDER BY a.abn;

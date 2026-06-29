@@ -57,11 +57,13 @@ LONG_BLACK_VERSION=2026.06.25 ./scripts/build-local.sh
 ## How it works
 
 ```
-download (data.gov.au CKAN)  →  load (saxes XML → COPY)  →  flatten (Postgres → NDJSON)
-        →  verify (schema + ABN mod-89)  →  split per state  →  gzip  →  metadata.json
+download (data.gov.au CKAN)  →  load (saxes XML → COPY)  →  enrich (ASIC/ACNC CSV → COPY)
+        →  flatten (Postgres → NDJSON)  →  verify (schema + ABN mod-89)
+        →  split per state  →  gzip  →  metadata.json
 ```
 
-Everything except `load`, `compose`, the schema, and the SQL comes from `crema`.
+Everything except `load`, `enrich`, `compose`, the schema, and the SQL comes from
+`crema`.
 
 ## Data sources
 
@@ -74,7 +76,7 @@ data.gov.au, **CC-BY 3.0 AU**, joined on the ABN. See
 | Layer         | Choice                                                                |
 | ------------- | --------------------------------------------------------------------- |
 | Database      | PostgreSQL 16 (ephemeral, no PostGIS)                                 |
-| Loader        | `saxes` streaming XML → COPY (native TS)                              |
+| Loader        | `saxes` streaming XML (ABR) + COPY-based CSV/TSV (ASIC/ACNC) → COPY   |
 | Pipeline core | `crema` (flatten engine, split, compress, verify, download, metadata) |
 | Language      | Node 22 / TypeScript (ESM, strict)                                    |
 | Output        | NDJSON, per-state gzipped                                             |

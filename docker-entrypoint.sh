@@ -52,6 +52,9 @@ else
   mapfile -t XML < <(DATA_DIR=/data node /app/dist/download-cli.js)
   DATABASE_URL="$DB" LONG_BLACK_VERSION="$VERSION" node /app/dist/load-cli.js "${XML[@]}"
   sed_ver /app/sql/abn-finalize.sql | runsql
+  echo "[entrypoint] enrichment (ASIC Company/Business Names + ACNC, best-effort)..."
+  DATA_DIR=/data DATABASE_URL="$DB" LONG_BLACK_VERSION="$VERSION" node /app/dist/enrich-cli.js \
+    || echo "[entrypoint] WARNING: enrichment incomplete — continuing with partial/null enrichment"
   OUT="/output/long-black-${VERSION}.ndjson"
   DATABASE_URL="$DB" LONG_BLACK_VERSION="$VERSION" node /app/dist/cli.js "$OUT"
   LONG_BLACK_VERSION="$VERSION" node /app/dist/output-cli.js "$OUT" /output

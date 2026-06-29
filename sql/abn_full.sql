@@ -16,7 +16,9 @@ WITH company AS (
     abn, acn, company_name, current_name, type, class, sub_class, status,
     registration_date, deregistration_date, previous_state, state_registration_number
   FROM abn___SCHEMA_VERSION__.asic_company
-  ORDER BY abn, current_name_start_date DESC NULLS LAST
+  -- company_name breaks ties so the pick is deterministic if a duplicate ABN
+  -- ever slips through (the normalize loads one current-name row per ABN).
+  ORDER BY abn, current_name_start_date DESC NULLS LAST, company_name
 ),
 -- 1:N — aggregate ASIC registered business names per ABN (never direct-join).
 business_names_agg AS (
@@ -35,7 +37,7 @@ charity AS (
   SELECT DISTINCT ON (abn)
     abn, charity_name, status, size, subtype, registration_date
   FROM abn___SCHEMA_VERSION__.acnc_charity
-  ORDER BY abn, registration_date DESC NULLS LAST
+  ORDER BY abn, registration_date DESC NULLS LAST, charity_name
 )
 SELECT
   a.abn                                                AS _id,

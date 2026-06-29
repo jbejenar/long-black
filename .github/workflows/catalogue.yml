@@ -95,7 +95,7 @@ jobs:
           path: crema
 
       - if: steps.check.outputs.should_generate == 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "22"
 

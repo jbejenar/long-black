@@ -82,7 +82,7 @@ jobs:
           repository: jbejenar/crema
           ref: ${{ env.CREMA_REF }} # pinned — see env.CREMA_REF above
           path: crema
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: "22"
 

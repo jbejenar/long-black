@@ -42,6 +42,11 @@ jobs:
         run: npm ci
       - name: Lint + typecheck + test
         working-directory: long-black
+        # DATABASE_URL makes the live-COPY integration test (test/integration/
+        # load-copy.test.ts) run against the postgres:16 service; without it the
+        # suite stays Postgres-free and that test self-skips.
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5433/abn
         run: |
           npm run lint
           npm run typecheck

@@ -10,7 +10,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseAbrXmlString, type AbnStagingRow } from "../../src/load.js";
+import { csvLines, parseAbrXmlString, type AbnStagingRow } from "../../src/load.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SAMPLE = resolve(__dirname, "../../fixtures/sample-abr.xml");
@@ -102,5 +102,43 @@ describe("parseAbrXmlString", () => {
   // error and the pipeline could hang — so pin the throw here.
   it("throws on malformed XML (so the load pipeline rejects rather than hangs)", () => {
     expect(() => parseAbrXmlString("<Transfer><ABR><ABN>11<UNCLOSED")).toThrow();
+  });
+});
+
+describe("csvLines (multi-file COPY source)", () => {
+  const expectedAbns = rows.map((r) => r.abn);
+
+  async function collect(files: string[]): Promise<{ lines: string[]; rowCalls: number }> {
+    const lines: string[] = [];
+    let rowCalls = 0;
+    for await (const line of csvLines(files, () => rowCalls++)) lines.push(line);
+    return { lines, rowCalls };
+  }
+
+  // The whole point of the single-pipeline refactor: many independent XML
+  // documents (each its own `<?xml?>`/`<Transfer>` root) flow through one source
+  // by giving *each file* its own parser. Feeding >10 files here is also the
+  // structural guard for the listener leak (PR #3, Bug 1) — loadAbnFiles wraps
+  // exactly this generator in one `pipeline`, so there is no per-file writable
+  // re-pipe to accumulate listeners. (The live-Postgres no-warning assertion is
+  // in test/integration/load-copy.test.ts.)
+  it("concatenates many files in order, each parsed independently", async () => {
+    const files = Array.from({ length: 12 }, () => SAMPLE);
+    const { lines, rowCalls } = await collect(files);
+
+    expect(lines.length).toBe(rows.length * 12);
+    expect(rowCalls).toBe(rows.length * 12);
+
+    // Every emitted line is a CSV row whose first field is the ABN, and the
+    // 5-ABN sequence repeats once per file — proving file boundaries reset state.
+    const abnsInOrder = lines.map((l) => l.split(",")[0]);
+    const expectedSequence = Array.from({ length: 12 }, () => expectedAbns).flat();
+    expect(abnsInOrder).toEqual(expectedSequence);
+  });
+
+  it("yields nothing for an empty file list", async () => {
+    const { lines, rowCalls } = await collect([]);
+    expect(lines).toEqual([]);
+    expect(rowCalls).toBe(0);
   });
 });

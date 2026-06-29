@@ -16,7 +16,6 @@
 
 import { createReadStream } from "node:fs";
 import { pipeline } from "node:stream/promises";
-import { Transform } from "node:stream";
 import { SaxesParser, type SaxesTagPlain } from "saxes";
 import postgres from "postgres";
 
@@ -310,36 +309,33 @@ export interface LoadAbnOptions {
 }
 
 /**
- * A Transform that runs the saxes parser and emits one CSV line per ABR.
+ * Concatenate every file's ABRs into a single ordered stream of COPY CSV lines.
  *
- * `transform`/`flush` reference `parser` in their bodies; those bodies only run
- * once the stream is driven (after this function returns), so the forward
- * reference to the `const parser` below is resolved by the time they fire.
+ * Each ABR file is an *independent* XML document (own `<?xml?>` declaration +
+ * `<Transfer>` root), so each file gets its own fresh `AbrParser`; feeding two
+ * documents to one parser fails ("an XML declaration must be at the start").
+ * The parser is push-based (rows arrive via the `onRecord` callback), so we
+ * bridge to this pull-based generator through a small `pending` buffer: a chunk
+ * is written, the rows it completed are drained as CSV lines, and the loop only
+ * advances once the consumer (the COPY writable, via `pipeline`) has pulled
+ * them — i.e. backpressure is preserved and `pending` holds at most one chunk's
+ * worth of rows, keeping memory constant across the ~6-8 GB extract.
  */
-function abrCsvTransform(onRow: () => void): Transform {
-  const transform = new Transform({
-    transform(chunk: Buffer | string, _encoding, callback) {
-      try {
-        parser.write(typeof chunk === "string" ? chunk : chunk.toString("utf-8"));
-        callback();
-      } catch (err) {
-        callback(err as Error);
-      }
-    },
-    flush(callback) {
-      try {
-        parser.close();
-        callback();
-      } catch (err) {
-        callback(err as Error);
-      }
-    },
-  });
-  const parser = new AbrParser((row) => {
-    onRow();
-    transform.push(rowToCsvLine(row));
-  });
-  return transform;
+export async function* csvLines(files: string[], onRow: () => void): AsyncGenerator<string> {
+  for (const file of files) {
+    const pending: string[] = [];
+    const parser = new AbrParser((row) => {
+      onRow();
+      pending.push(rowToCsvLine(row));
+    });
+    const stream: AsyncIterable<string> = createReadStream(file, { encoding: "utf-8" });
+    for await (const chunk of stream) {
+      parser.write(chunk);
+      yield* pending.splice(0);
+    }
+    parser.close();
+    yield* pending.splice(0);
+  }
 }
 
 /**
@@ -347,14 +343,18 @@ function abrCsvTransform(onRow: () => void): Transform {
  * COPY (one connection — sidesteps postgres@3's COPY_IN_PROGRESS rule). Run
  * abn-finalize.sql afterwards to add the PK.
  *
- * Each ABR file is an *independent* XML document (own `<?xml?>` declaration +
- * `<Transfer>` root), so each gets its own parser via a fresh `abrCsvTransform`;
- * all of them stream into the one shared COPY writable (`end: false` keeps it
- * open across files, ended once afterwards). `pipeline` propagates (never
- * swallows) any read/parse/connection error with automatic backpressure; on
- * error the connection is wedged mid-COPY, so we force-close (`timeout: 0`) to
- * reject promptly rather than hang on a graceful drain awaiting a COPY
- * termination that will never come.
+ * One `pipeline` owns the COPY writable for the *entire* load: `csvLines`
+ * concatenates every file's rows (each file parsed by its own SAX parser) into a
+ * single CSV-line source, so the writable receives exactly one set of `pipeline`
+ * listeners and is ended once, on success. (The previous shape re-piped each
+ * file into the *same* writable with `{ end: false }`; `pipeline` attaches fresh
+ * error/close/finish listeners to its destination on every call and does not
+ * remove them from a deliberately-kept-open destination, so listeners
+ * accumulated per file and a >10-file load tripped MaxListenersExceededWarning.)
+ * `pipeline` propagates (never swallows) any read/parse/connection error with
+ * automatic backpressure; on error the connection is wedged mid-COPY, so we
+ * force-close (`timeout: 0`) to reject promptly rather than hang on a graceful
+ * drain awaiting a COPY termination that will never come.
  */
 export async function loadAbnFiles(options: LoadAbnOptions): Promise<{ count: number }> {
   const { connectionString, schemaVersion, files } = options;
@@ -366,19 +366,12 @@ export async function loadAbnFiles(options: LoadAbnOptions): Promise<{ count: nu
     const copy = `COPY ${table} (${COPY_COLUMNS.join(",")}) FROM STDIN WITH (FORMAT csv, NULL '')`;
     const writable = await reserved.unsafe(copy).writable();
 
-    for (const file of files) {
-      await pipeline(
-        createReadStream(file, { encoding: "utf-8" }),
-        abrCsvTransform(() => {
-          count++;
-        }),
-        writable,
-        { end: false },
-      );
-    }
-    await new Promise<void>((resolve, reject) => {
-      writable.end((err?: Error | null) => (err ? reject(err) : resolve()));
-    });
+    await pipeline(
+      csvLines(files, () => {
+        count++;
+      }),
+      writable,
+    );
 
     reserved.release();
     await sql.end();

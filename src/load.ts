@@ -15,7 +15,8 @@
  */
 
 import { createReadStream } from "node:fs";
-import { once } from "node:events";
+import { pipeline } from "node:stream/promises";
+import { Transform } from "node:stream";
 import { SaxesParser, type SaxesTagPlain } from "saxes";
 import postgres from "postgres";
 
@@ -309,9 +310,51 @@ export interface LoadAbnOptions {
 }
 
 /**
+ * A Transform that runs the saxes parser and emits one CSV line per ABR.
+ *
+ * `transform`/`flush` reference `parser` in their bodies; those bodies only run
+ * once the stream is driven (after this function returns), so the forward
+ * reference to the `const parser` below is resolved by the time they fire.
+ */
+function abrCsvTransform(onRow: () => void): Transform {
+  const transform = new Transform({
+    transform(chunk: Buffer | string, _encoding, callback) {
+      try {
+        parser.write(typeof chunk === "string" ? chunk : chunk.toString("utf-8"));
+        callback();
+      } catch (err) {
+        callback(err as Error);
+      }
+    },
+    flush(callback) {
+      try {
+        parser.close();
+        callback();
+      } catch (err) {
+        callback(err as Error);
+      }
+    },
+  });
+  const parser = new AbrParser((row) => {
+    onRow();
+    transform.push(rowToCsvLine(row));
+  });
+  return transform;
+}
+
+/**
  * Stream ABR XML files into the unconstrained `abn` staging table via a single
  * COPY (one connection — sidesteps postgres@3's COPY_IN_PROGRESS rule). Run
  * abn-finalize.sql afterwards to add the PK.
+ *
+ * Each ABR file is an *independent* XML document (own `<?xml?>` declaration +
+ * `<Transfer>` root), so each gets its own parser via a fresh `abrCsvTransform`;
+ * all of them stream into the one shared COPY writable (`end: false` keeps it
+ * open across files, ended once afterwards). `pipeline` propagates (never
+ * swallows) any read/parse/connection error with automatic backpressure; on
+ * error the connection is wedged mid-COPY, so we force-close (`timeout: 0`) to
+ * reject promptly rather than hang on a graceful drain awaiting a COPY
+ * termination that will never come.
  */
 export async function loadAbnFiles(options: LoadAbnOptions): Promise<{ count: number }> {
   const { connectionString, schemaVersion, files } = options;
@@ -319,36 +362,29 @@ export async function loadAbnFiles(options: LoadAbnOptions): Promise<{ count: nu
   let count = 0;
   try {
     const reserved = await sql.reserve();
-    try {
-      const table = `abn_${schemaVersion}.abn`;
-      const copy = `COPY ${table} (${COPY_COLUMNS.join(",")}) FROM STDIN WITH (FORMAT csv, NULL '')`;
-      // reserved.unsafe(...).writable() — COPY stream, no cursor needed.
-      const writable = await reserved.unsafe(copy).writable();
+    const table = `abn_${schemaVersion}.abn`;
+    const copy = `COPY ${table} (${COPY_COLUMNS.join(",")}) FROM STDIN WITH (FORMAT csv, NULL '')`;
+    const writable = await reserved.unsafe(copy).writable();
 
-      for (const file of files) {
-        const input = createReadStream(file, { encoding: "utf-8" });
-        const parser = new AbrParser((row) => {
+    for (const file of files) {
+      await pipeline(
+        createReadStream(file, { encoding: "utf-8" }),
+        abrCsvTransform(() => {
           count++;
-          // backpressure: pause the file stream until the COPY buffer drains
-          if (!writable.write(rowToCsvLine(row))) input.pause();
-        });
-        const onDrain = (): void => {
-          input.resume();
-        };
-        writable.on("drain", onDrain);
-        input.on("data", (chunk) => parser.write(String(chunk)));
-        await once(input, "end");
-        parser.close();
-        writable.off("drain", onDrain);
-      }
-
-      writable.end();
-      await once(writable, "finish");
-      return { count };
-    } finally {
-      reserved.release();
+        }),
+        writable,
+        { end: false },
+      );
     }
-  } finally {
+    await new Promise<void>((resolve, reject) => {
+      writable.end((err?: Error | null) => (err ? reject(err) : resolve()));
+    });
+
+    reserved.release();
     await sql.end();
+    return { count };
+  } catch (err) {
+    await sql.end({ timeout: 0 }).catch(() => {});
+    throw err;
   }
 }

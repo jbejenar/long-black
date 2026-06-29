@@ -95,4 +95,12 @@ describe("parseAbrXmlString", () => {
       { statusFromDate: "2013-06-01", status: null, name: "DGR FUND B" },
     ]);
   });
+
+  // The COPY loader's error-propagation (reject, never hang) relies on saxes
+  // *throwing* on malformed input rather than only emitting an error event. If a
+  // saxes upgrade ever changed that, loadAbnFiles would silently swallow the
+  // error and the pipeline could hang — so pin the throw here.
+  it("throws on malformed XML (so the load pipeline rejects rather than hangs)", () => {
+    expect(() => parseAbrXmlString("<Transfer><ABR><ABN>11<UNCLOSED")).toThrow();
+  });
 });

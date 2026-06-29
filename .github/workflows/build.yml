@@ -195,11 +195,23 @@ jobs:
           WANT_DRAFT=false
           [ "${PUBLISH}" = "false" ] && WANT_DRAFT=true
           ASSETS=(output/long-black-*.ndjson.gz output/metadata.json)
+          EXPECTED_COUNT=${#ASSETS[@]}
+
+          # Assert every expected asset is actually present on the release before
+          # it is made (or kept) public — so consumers never see a partial set.
+          verify_assets() {
+            local n
+            n=$(gh release view "$TAG" --json assets --jq '[.assets[].name] | length')
+            [ "$n" -ge "$EXPECTED_COUNT" ] \
+              || { echo "::error::release $TAG has $n/$EXPECTED_COUNT assets after upload"; exit 1; }
+            echo "verified $n/$EXPECTED_COUNT assets on $TAG"
+          }
 
           # Non-destructive: never delete an existing release/tag before the
           # replacement exists. Create only when the tag is new; otherwise clobber
           # assets in place. A published release is replaced ONLY with an explicit
           # opt-in, and is never downgraded to a draft.
+          FRESH=false
           if CUR_DRAFT=$(gh release view "$TAG" --json isDraft --jq '.isDraft' 2>/dev/null); then
             echo "release $TAG already exists (isDraft=$CUR_DRAFT)"
             if [ "$CUR_DRAFT" = "false" ] && [ "${REPLACE_EXISTING}" != "true" ]; then
@@ -207,6 +219,7 @@ jobs:
               exit 1
             fi
             gh release upload "$TAG" --clobber "${ASSETS[@]}"
+            verify_assets
             if [ "$CUR_DRAFT" = "true" ]; then
               # A draft may move to whatever PUBLISH requested.
               gh release edit "$TAG" --title "long-black $TAG" --notes-file RELEASE_NOTES.md --draft="$WANT_DRAFT"
@@ -215,22 +228,33 @@ jobs:
               gh release edit "$TAG" --title "long-black $TAG" --notes-file RELEASE_NOTES.md
             fi
           else
-            DRAFT_FLAG=""
-            [ "$WANT_DRAFT" = "true" ] && DRAFT_FLAG="--draft"
-            gh release create "$TAG" $DRAFT_FLAG \
+            FRESH=true
+            # Atomic from a consumer's view: create as a DRAFT pinned to THIS build
+            # commit (--target "$GITHUB_SHA"; otherwise a new tag is cut from the
+            # moving default branch, which can drift during the ~2 h build), upload
+            # every asset, verify they all landed, and only THEN promote. A failure
+            # mid-upload leaves an invisible draft, never a partial public release.
+            gh release create "$TAG" --draft --target "$GITHUB_SHA" \
               --title "long-black $TAG" \
               --notes-file RELEASE_NOTES.md \
               "${ASSETS[@]}"
+            verify_assets
+            [ "$WANT_DRAFT" = "false" ] && gh release edit "$TAG" --draft=false
           fi
 
           # Chain the runtime image build to THIS resolved tag — only once the
-          # release is actually published (not a draft), so a draft build never
-          # images the wrong/previous release.
+          # release is actually published (not a draft). For a fresh release the
+          # tag is pinned to "$GITHUB_SHA", so pass that SHA and have docker-publish
+          # assert the tag resolves to it (the image is built from the exact source
+          # that produced + verified the dataset). An in-place replacement keeps the
+          # original tag/commit, so it is re-imaged manually rather than guessed.
           FINAL_DRAFT=$(gh release view "$TAG" --json isDraft --jq '.isDraft')
-          if [ "$FINAL_DRAFT" = "false" ]; then
-            echo "dispatching docker-publish for $TAG"
-            gh workflow run docker-publish.yml -f tag="$TAG" \
+          if [ "$FINAL_DRAFT" != "false" ]; then
+            echo "release left as a draft → skipping docker-publish"
+          elif [ "$FRESH" = "true" ]; then
+            echo "dispatching docker-publish for $TAG @ $GITHUB_SHA"
+            gh workflow run docker-publish.yml -f tag="$TAG" -f expected_sha="$GITHUB_SHA" \
               || echo "::warning::could not dispatch docker-publish.yml; run it manually with -f tag=$TAG"
           else
-            echo "release left as a draft → skipping docker-publish"
+            echo "::notice::$TAG was replaced in place; re-image manually with: gh workflow run docker-publish.yml -f tag=$TAG"
           fi

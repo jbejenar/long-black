@@ -15,6 +15,9 @@ on:
       tag:
         description: "Release tag to image, e.g. v2026.06.24 (blank → latest PUBLISHED release)"
         required: false
+      expected_sha:
+        description: "If set, assert the resolved tag points at this commit (the Build commit) before imaging"
+        required: false
 
 permissions:
   contents: read
@@ -76,6 +79,20 @@ jobs:
           repository: jbejenar/crema
           ref: ${{ env.CREMA_REF }} # pinned — see env.CREMA_REF above
           path: crema
+
+      - name: Assert the tag is the Build commit
+        if: ${{ github.event.inputs.expected_sha != '' }}
+        env:
+          EXPECTED_SHA: ${{ github.event.inputs.expected_sha }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          HEAD=$(git -C long-black rev-parse HEAD)
+          if [ "$HEAD" != "$EXPECTED_SHA" ]; then
+            echo "::error::tag $TAG resolves to $HEAD, expected Build commit $EXPECTED_SHA — refusing to image a release whose source differs from the build that produced its assets"
+            exit 1
+          fi
+          echo "tag $TAG verified at Build commit $HEAD"
 
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3

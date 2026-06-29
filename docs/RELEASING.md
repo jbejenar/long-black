@@ -44,17 +44,25 @@ The build fails (and does **not** publish) if `verify` finds any issue — inval
 ABN checksum, schema violation, duplicate or out-of-order `_id` — because
 `dist/cli.js` exits non-zero, aborting the `set -e` step before the release.
 
+A new release is published **atomically** from a consumer's point of view: it is
+created as a **draft pinned to the build commit** (`--target $GITHUB_SHA`, so the
+tag can't drift onto the moving default branch during the multi-hour build), all
+assets are uploaded, their presence is **verified**, and only then is the draft
+promoted (when `publish=true`). A failure mid-upload leaves an invisible draft —
+never a public release with missing files.
+
 ### Re-running an existing tag (non-destructive)
 
 The publish step never deletes a release or tag before its replacement exists:
 
-- **New tag** → a release is created (draft when `publish=false`).
-- **Existing draft** → its assets are clobbered in place and it moves to whatever
-  `publish` requests.
+- **New tag** → created as a draft, assets uploaded + verified, then promoted
+  (left a draft when `publish=false`).
+- **Existing draft** → its assets are clobbered in place, verified, and it moves
+  to whatever `publish` requests.
 - **Existing _published_ release** → refused unless you pass `replace_existing=true`;
-  even then the assets are clobbered in place and the release is **never**
-  downgraded to a draft. This protects a public dataset from being removed by a
-  re-run or a network failure mid-replacement.
+  even then the assets are clobbered in place (and verified) and the release is
+  **never** downgraded to a draft. This protects a public dataset from being
+  removed by a re-run or a network failure mid-replacement.
 
 ```bash
 # Replace the assets of an already-published release (rare; opt-in):
@@ -69,11 +77,18 @@ docker-publish.yml -f tag=<tag>`). It is triggered explicitly with that tag — 
 via `workflow_run` on "the latest release", which could image the wrong (previous)
 release when a draft build completes. A draft build does not dispatch it.
 
-`docker-publish.yml` checks out long-black at the released tag, builds the image
-**locally** (`load: true`, not pushed), smoke-tests that exact image with its
-in-container fixture build, and only then tags + pushes the _same_ image to
-`ghcr.io/jbejenar/long-black:<version>` + `:latest`. A broken image therefore
-never reaches GHCR. To image a published tag manually:
+For a fresh release the dispatch also passes `expected_sha=$GITHUB_SHA`;
+`docker-publish.yml` checks out long-black at the released tag and **asserts it
+resolves to that exact Build commit** before imaging, so the image can only be
+built from the same source that produced and verified the dataset. (An in-place
+replacement keeps the original tag/commit, so it is re-imaged manually rather than
+guessed — the `::notice::` in the build log gives the command.)
+
+`docker-publish.yml` then builds the image **locally** (`load: true`, not pushed),
+smoke-tests that exact image with its in-container fixture build, and only then
+tags + pushes the _same_ image to `ghcr.io/jbejenar/long-black:<version>` +
+`:latest`. A broken image therefore never reaches GHCR. To image a published tag
+manually:
 
 ```bash
 gh workflow run docker-publish.yml -f tag=v2026.06.24

@@ -70,11 +70,11 @@ jobs:
       # crema is a sibling `file:../crema` dependency; the Docker build context is
       # the parent dir holding both checkouts. long-black is checked out at the
       # exact released tag so the image matches the published source.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: long-black
           ref: ${{ steps.tag.outputs.tag }}
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: jbejenar/crema
           ref: ${{ env.CREMA_REF }} # pinned — see env.CREMA_REF above

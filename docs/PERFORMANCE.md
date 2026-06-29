@@ -56,6 +56,38 @@ null/empty state; `AAT`, when present, is its own bucket — this extract had no
 `metadata.json` records the per-state counts, the build timestamp, and the CC-BY
 3.0 AU source attribution.
 
+## Enrichment (real extract, 2026.06.24)
+
+All three enrichment sources were downloaded from data.gov.au and loaded against
+the real 20.3M-ABN table, then joined through `abn_full.sql`. Measured on the
+machine above; the join adds ~13 s to the flatten (2 min 16 s vs 2 min 3 s
+core-only) and stays well under the memory budget.
+
+| Source              | Rows loaded | ABNs enriched | Coverage | Load time   |
+| ------------------- | ----------: | ------------: | -------: | ----------- |
+| ASIC Company        |   2,342,141 |     2,341,897 |   11.5 % | —           |
+| ASIC Business Names |   2,618,824 |     1,977,574 |    9.7 % | —           |
+| ACNC charities      |      65,270 |        65,265 |    0.3 % | —           |
+| **All three**       |           — |             — |        — | ~1 min 26 s |
+
+ABNs-enriched is the document count carrying a non-null `company` / non-empty
+`registeredBusinessNames[]` / non-null `charity`; it matches the output exactly
+(0 composition errors over 20,295,936 docs). Most ABNs are sole traders / trusts
+with no ASIC company or charity record, so single-digit-percent coverage is
+expected, not a gap.
+
+**Completeness gates** (the "data must be complete before shipping" policy):
+
+- `enrich-cli` fails if any source loads below its floor (`minRows`: company/
+  business-names 1,000,000, charities 20,000 — ≈⅓ of the counts above).
+- `cli.js` runs an enrichment-coverage gate after verify
+  (`LONG_BLACK_COVERAGE_PROFILE=production`): the build fails unless `company` ≥
+  1,000,000, `registeredBusinessNames` ≥ 1,000,000, and `charity` ≥ 20,000 docs.
+- `build.yml` treats an incomplete enrichment as fatal (no silent partial
+  release) unless a deliberate `allow_partial_enrichment=true` manual override,
+  and diffs the build against the prior release (`compare-cli`) to hold anomalous
+  builds as drafts.
+
 ## Data-quality observations (real extract)
 
 - **ABN checksum:** all 20,295,936 `_id`s pass the mod-89 weighted checksum (0

@@ -59,6 +59,44 @@ The build fails (and does **not** publish) if `verify` finds any issue — inval
 ABN checksum, schema violation, duplicate or out-of-order `_id` — because
 `dist/cli.js` exits non-zero, aborting the `set -e` step before the release.
 
+### Data completeness (the data must be complete before shipping)
+
+A clean, schema-valid output is not sufficient: the join is across four sources of
+truth, and a silently-missing enrichment source would still produce valid (but
+hollow) documents. Three gates make incompleteness fatal rather than invisible:
+
+1. **Per-source load floor.** `enrich-cli` fails if any source loads fewer than
+   its `minRows` (company / business-names 1,000,000, charities 20,000 — ≈⅓ of the
+   real volumes in `docs/PERFORMANCE.md`). Catches an empty/truncated CSV or the
+   wrong resource being picked.
+2. **Enrichment required.** `build.yml` treats an enrichment failure as fatal — no
+   silent partial release. A deliberate manual run may set
+   `allow_partial_enrichment=true` to ship with a degraded source (which also
+   disables gate 3); the scheduled monthly build never does.
+3. **Output coverage gate.** After verify, `cli.js`
+   (`LONG_BLACK_COVERAGE_PROFILE=production`) streams the output and fails unless
+   each nested source populated at least its floor (`company` ≥ 1,000,000,
+   `registeredBusinessNames` ≥ 1,000,000, `charity` ≥ 20,000). Catches a broken
+   join even when the load itself succeeded.
+
+The fixture loop runs the same coverage gate at fixture scale
+(`LONG_BLACK_COVERAGE_PROFILE=fixture` → each source ≥ 1 document), so a broken
+join is caught in CI, not only in production.
+
+### Anomaly gate (build-over-build)
+
+Before publishing, `build.yml` downloads the prior published release's
+`metadata.json` and runs `compare-cli` against the new build. A per-state or total
+count that moved past the threshold (`compare_threshold`, default `0.25` = 25 %),
+or a state appearing/retiring, **holds the release as a draft** for human review
+(it does not block — the assets still upload, and the comparison reports are
+attached as a workflow artifact). The first release (no prior) is a no-op. Run it
+manually too:
+
+```bash
+node dist/compare-cli.js output/metadata.json prior-metadata.json --threshold 0.25
+```
+
 ### Release identity + atomicity (one contract)
 
 Publishing treats _release identity_ and _publication atomicity_ as a single
@@ -123,16 +161,8 @@ Regenerate manually (e.g. after editing a release):
 gh workflow run catalogue.yml
 ```
 
-## Build-over-build comparison
-
-`compare-cli.js` diffs two `metadata.json` files and flags anomalies — a per-state
-or total count that moved past a threshold (default 1.0 = 100%), or a state that
-appeared or retired — exiting non-zero so a suspicious build can be held as a draft
-for review:
-
-```bash
-node dist/compare-cli.js output/metadata.json prior-metadata.json --threshold 0.25
-```
+The build-over-build comparison that gates publication is documented under
+[Anomaly gate](#anomaly-gate-build-over-build) above.
 
 ## crema dependency pin
 

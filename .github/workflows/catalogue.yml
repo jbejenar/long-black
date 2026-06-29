@@ -46,32 +46,29 @@ jobs:
     # workflow_dispatch has no upstream context, so it always passes.
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
+    outputs:
+      should_generate: ${{ steps.check.outputs.should_generate }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          path: long-black
-      # crema is a sibling dependency (file:../crema). Pin + build it.
-      - uses: actions/checkout@v4
-        with:
-          repository: jbejenar/crema
-          ref: ${{ env.CREMA_REF }}
-          path: crema
-
-      - name: Verify a published release exists (skip if latest is draft)
+      - name: Verify a published release exists (gate, no side effects)
+        id: check
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Build's release job succeeds whether the release is published or kept
-          # as a draft. We must NOT regenerate the catalogue from a draft state —
-          # the public GitHub Pages output would leak draft asset links.
+          # as a draft. We must NOT regenerate the catalogue from a draft/empty
+          # state — the public Pages output would leak draft asset links. This step
+          # only sets should_generate; every step below (and the deploy job) is
+          # gated on it, so a skip truly stops generation + deployment (a bare
+          # `exit 0` here would only end THIS step — the rest would still run).
           #
           # gh release view (no args) returns the latest non-draft release; if
-          # there are none yet (first-ever build), it errors and we exit early.
+          # there are none yet (first-ever build), it errors and we skip.
           if ! gh release view \
                  --repo "${{ github.repository }}" \
-                 --json tagName,isDraft,isPrerelease \
+                 --json tagName,isDraft \
                  > /tmp/latest-release.json 2>/dev/null; then
             echo "::warning::No published releases found — skipping catalogue generation"
+            echo "should_generate=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           LATEST_TAG=$(jq -r '.tagName' /tmp/latest-release.json)
@@ -79,34 +76,54 @@ jobs:
           echo "Latest non-draft release: ${LATEST_TAG} (isDraft: ${IS_DRAFT})"
           if [[ "$IS_DRAFT" == "true" ]]; then
             echo "::warning::Latest release is draft — skipping catalogue generation"
+            echo "should_generate=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           echo "✓ Latest release is published — proceeding"
+          echo "should_generate=true" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/setup-node@v4
+      - if: steps.check.outputs.should_generate == 'true'
+        uses: actions/checkout@v4
+        with:
+          path: long-black
+      # crema is a sibling dependency (file:../crema). Pin + build it.
+      - if: steps.check.outputs.should_generate == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: jbejenar/crema
+          ref: ${{ env.CREMA_REF }}
+          path: crema
+
+      - if: steps.check.outputs.should_generate == 'true'
+        uses: actions/setup-node@v4
         with:
           node-version: "22"
 
       - name: Build crema
+        if: steps.check.outputs.should_generate == 'true'
         working-directory: crema
         run: npm ci && npm run build
       - name: Install + build long-black
+        if: steps.check.outputs.should_generate == 'true'
         working-directory: long-black
         run: npm ci && npm run build
 
       - name: Generate catalogue
+        if: steps.check.outputs.should_generate == 'true'
         working-directory: long-black
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
         run: node dist/catalogue-cli.js --repo "$REPO" --out dist/catalogue/index.html
 
-      - uses: actions/upload-pages-artifact@v3
+      - if: steps.check.outputs.should_generate == 'true'
+        uses: actions/upload-pages-artifact@v3
         with:
           path: long-black/dist/catalogue
 
   deploy:
     needs: build
+    if: ${{ needs.build.outputs.should_generate == 'true' }}
     runs-on: ubuntu-latest
     environment:
       name: github-pages

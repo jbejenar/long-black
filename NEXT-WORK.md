@@ -12,6 +12,15 @@
       `docs/PERFORMANCE.md`. Surfaced + fixed two real bugs: the verify Set
       blowing V8's 16.7M cap (crema `idsSorted`) and `build-local.sh`'s `mapfile`
       (bash 4+) on macOS bash 3.2.
+- [x] **Enrichment proven on real data** — downloaded + loaded all three real
+      sources against the 20.3M-ABN table: **2,341,897** ASIC companies,
+      **1,977,574** business-name holders, **65,265** charities joined, 0
+      composition errors. Coverage + load times in `docs/PERFORMANCE.md`. The
+      pipeline now enforces completeness (the data must be complete before
+      shipping): per-source `minRows` floors in enrich-cli, a post-verify
+      enrichment-coverage gate (`src/coverage.ts`), required enrichment in
+      build/build-local (no best-effort null-shipping), and a build-over-build
+      anomaly gate that drafts suspicious releases.
 
 ## Real enrichment loaders (verify-on-first-load)
 

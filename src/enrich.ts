@@ -40,6 +40,15 @@ export interface EnrichmentSource {
   resourceMatch: string;
   /** Normalize SQL filename under sql/. */
   normalizeSqlFile: string;
+  /**
+   * Minimum typed rows a healthy load produces — a completeness floor. A load
+   * landing fewer (an empty/truncated CSV, the wrong resource picked, a normalize
+   * that dropped everything) is treated as a failure, not a silent success. Set
+   * to ~a third of the real 2026.06.24 counts (company 2.34M, business names
+   * 2.62M, charities 65k — see docs/PERFORMANCE.md), so normal drift never trips
+   * it but a collapsed load does.
+   */
+  minRows: number;
 }
 
 export const ENRICHMENT_SOURCES: EnrichmentSource[] = [
@@ -51,6 +60,7 @@ export const ENRICHMENT_SOURCES: EnrichmentSource[] = [
     quoting: false,
     resourceMatch: "company",
     normalizeSqlFile: "normalize-asic-company.sql",
+    minRows: 1_000_000, // real 2026.06.24: 2,342,141
   },
   {
     key: "asic_business_name",
@@ -60,6 +70,7 @@ export const ENRICHMENT_SOURCES: EnrichmentSource[] = [
     quoting: false,
     resourceMatch: "business_names",
     normalizeSqlFile: "normalize-asic-business-name.sql",
+    minRows: 1_000_000, // real 2026.06.24: 2,618,824
   },
   {
     key: "acnc_charity",
@@ -69,6 +80,7 @@ export const ENRICHMENT_SOURCES: EnrichmentSource[] = [
     quoting: true,
     resourceMatch: "datadotgov_main",
     normalizeSqlFile: "normalize-acnc-charity.sql",
+    minRows: 20_000, // real 2026.06.24: 65,270
   },
 ];
 

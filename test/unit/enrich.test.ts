@@ -23,6 +23,16 @@ describe("ENRICHMENT_SOURCES config", () => {
     expect(byKey.asic_business_name).toMatchObject({ delimiter: "\t", quoting: false });
     expect(byKey.acnc_charity).toMatchObject({ delimiter: ",", quoting: true });
   });
+
+  it("sets a positive completeness floor (minRows) below the real volume", () => {
+    // Real 2026.06.24 counts: company 2.34M, business names 2.62M, charities 65k.
+    const byKey = Object.fromEntries(ENRICHMENT_SOURCES.map((s) => [s.key, s]));
+    expect(byKey.asic_company.minRows).toBeGreaterThan(0);
+    expect(byKey.asic_company.minRows).toBeLessThan(2_342_141);
+    expect(byKey.asic_business_name.minRows).toBeLessThan(2_618_824);
+    expect(byKey.acnc_charity.minRows).toBeLessThan(65_270);
+    for (const s of ENRICHMENT_SOURCES) expect(s.minRows).toBeGreaterThan(0);
+  });
 });
 
 describe("selectEnrichmentResource", () => {

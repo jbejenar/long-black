@@ -16,6 +16,12 @@ import { streamFlatten, verify } from "crema";
 import { AbnDocumentSchema } from "./schema.js";
 import { composeAbnDocument } from "./compose.js";
 import { abnChecks } from "./verify-checks.js";
+import {
+  checkEnrichmentCoverage,
+  ABN_COVERAGE_FLOORS,
+  FIXTURE_COVERAGE_FLOORS,
+  type CoverageFloors,
+} from "./coverage.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SQL_PATH = resolve(__dirname, "..", "sql", "abn_full.sql");
@@ -37,8 +43,14 @@ export async function run(options: {
   connectionString: string;
   version: string;
   outputPath: string;
+  /**
+   * Enrichment coverage floors. When set, the run fails unless every nested
+   * source populates at least this many documents — the "data must be complete
+   * before shipping" gate. `null` skips it (e.g. an ad-hoc core-only run).
+   */
+  coverageFloors?: CoverageFloors | null;
 }): Promise<{ count: number; errors: number; ok: boolean }> {
-  const { connectionString, version, outputPath } = options;
+  const { connectionString, version, outputPath, coverageFloors } = options;
   const schemaVersion = deriveSchemaVersion(version);
   const query = readFileSync(SQL_PATH, "utf-8");
 
@@ -78,15 +90,54 @@ export async function run(options: {
     }
   }
 
-  return { count, errors, ok: report.ok && errors === 0 };
+  // Completeness gate: a clean, schema-valid output can still be hollow if an
+  // enrichment source silently failed to load (every nested object null). Assert
+  // each source of truth actually populated documents at the configured floor.
+  let coverageOk = true;
+  if (coverageFloors != null) {
+    const cov = await checkEnrichmentCoverage(outputPath, coverageFloors);
+    const pct = (n: number) => (cov.total > 0 ? ((100 * n) / cov.total).toFixed(1) : "0.0");
+    console.log(
+      `[coverage] company ${cov.company} (${pct(cov.company)}%) · ` +
+        `charity ${cov.charity} (${pct(cov.charity)}%) · ` +
+        `registeredBusinessNames ${cov.registeredBusinessNames} (${pct(cov.registeredBusinessNames)}%) · ` +
+        `businessNames ${cov.businessNames} · dgr ${cov.dgr}`,
+    );
+    coverageOk = cov.ok;
+    if (!cov.ok) {
+      console.error(
+        `[coverage] FAIL — enrichment below floor; data is incomplete, refusing to ship:\n  ` +
+          cov.shortfalls.join("\n  "),
+      );
+    }
+  }
+
+  return { count, errors, ok: report.ok && errors === 0 && coverageOk };
+}
+
+/** Resolve coverage floors from LONG_BLACK_COVERAGE_PROFILE (default fixture). */
+export function resolveCoverageFloors(profile: string | undefined): CoverageFloors | null {
+  switch ((profile ?? "fixture").toLowerCase()) {
+    case "production":
+      return ABN_COVERAGE_FLOORS;
+    case "off":
+      return null;
+    case "fixture":
+      return FIXTURE_COVERAGE_FLOORS;
+    default:
+      throw new Error(
+        `Invalid LONG_BLACK_COVERAGE_PROFILE "${profile}" (expected production | fixture | off)`,
+      );
+  }
 }
 
 async function main(): Promise<void> {
   const connectionString = process.env.DATABASE_URL ?? DEFAULT_DB_URL;
   const version = process.env.LONG_BLACK_VERSION ?? DEFAULT_VERSION;
   const outputPath = process.argv[2] ?? "output/fixture.ndjson";
+  const coverageFloors = resolveCoverageFloors(process.env.LONG_BLACK_COVERAGE_PROFILE);
 
-  const { ok } = await run({ connectionString, version, outputPath });
+  const { ok } = await run({ connectionString, version, outputPath, coverageFloors });
   if (!ok) process.exit(3);
 }
 

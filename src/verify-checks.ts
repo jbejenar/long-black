@@ -20,25 +20,20 @@ export function isValidAbn(abn: string): boolean {
   return sum % 89 === 0;
 }
 
-/** XML name-type discriminators that must never leak into a name field. */
-const NAME_TYPE_CODES = new Set(["MN", "TRD", "BN", "OTN", "DGR", "LGL", "IND"]);
+// NOTE: there is no production "name must not equal an XML type code" check.
+// It read well at fixture scale but is a false positive on real data: short
+// genuine names legitimately coincide with the discriminator codes — the
+// 2026.06.24 extract has 7 (in 20.3M), e.g. "DGR" is a trading name for *D*avid
+// *G*raham *R*ote, "BN" for *B*alram *N*aipal, "IND" is a registered business
+// name, and "TRD" appears as actual entity names. The invariant the check meant
+// to guard — that load.ts routes by the `@type` attribute but never substitutes
+// it for the element text — is enforced where it is actually decidable: the
+// parser golden-record tests (incl. a code-shaped name that must survive) and
+// the byte-for-byte fixture regression.
 
 export const abnChecks: DocCheck<AbnDocument>[] = [
   {
     name: "abn-checksum",
     run: (doc) => (isValidAbn(doc._id) ? null : `invalid ABN checksum: ${doc._id}`),
-  },
-  {
-    name: "name-not-type-code",
-    run: (doc) => {
-      const names = [
-        doc.entityName,
-        ...doc.businessNames,
-        ...doc.tradingNames,
-        ...doc.otherNames,
-      ].filter((n): n is string => typeof n === "string");
-      const leak = names.find((n) => NAME_TYPE_CODES.has(n.trim().toUpperCase()));
-      return leak ? `name field equals a raw type code: ${leak}` : null;
-    },
   },
 ];

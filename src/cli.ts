@@ -58,6 +58,13 @@ export async function run(options: {
     ndjsonPath: outputPath,
     schema: AbnDocumentSchema,
     checks: abnChecks,
+    // abn_full.sql emits `ORDER BY abn`, so _ids arrive ascending — let the
+    // harness check uniqueness by adjacency (O(1) memory). Required at the real
+    // ~20M-doc scale: a Set of every _id both exceeds V8's ~16.7M entry cap and
+    // blows the memory budget. The harness's default lexicographic order check is
+    // correct here because ABNs are fixed-width 11-digit strings, so lexicographic
+    // order equals numeric order (no idComparator needed).
+    idsSorted: true,
   });
   if (report.ok) {
     console.log(`[verify] PASS — ${report.validCount} valid, 0 issues`);

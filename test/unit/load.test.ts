@@ -103,6 +103,31 @@ describe("parseAbrXmlString", () => {
   it("throws on malformed XML (so the load pipeline rejects rather than hangs)", () => {
     expect(() => parseAbrXmlString("<Transfer><ABR><ABN>11<UNCLOSED")).toThrow();
   });
+
+  // A genuine name can equal an XML discriminator code: the real extract has
+  // entities literally named "TRD"/"IND" and trading names like "DGR"/"BN"
+  // (people's initials). The parser must route names by the `@type` *attribute*
+  // and use the element *text* as the value — never substitute the code — so a
+  // code-shaped name must survive verbatim into the right field. (This is the
+  // invariant that the dropped `name-not-type-code` verify check meant to guard;
+  // pinning it here is where it's actually decidable.)
+  it("preserves a name whose text equals a type code (no discriminator leak)", () => {
+    const xml =
+      '<Transfer><ABR recordLastUpdatedDate="20260601">' +
+      '<ABN status="ACT" ABNStatusFromDate="20000101">51824753556</ABN>' +
+      "<EntityType><EntityTypeInd>PRV</EntityTypeInd><EntityTypeText>Australian Private Company</EntityTypeText></EntityType>" +
+      "<MainEntity>" +
+      '<NonIndividualName type="MN"><NonIndividualNameText>TRD</NonIndividualNameText></NonIndividualName>' +
+      "<BusinessAddress><AddressDetails><State>VIC</State><Postcode>3000</Postcode></AddressDetails></BusinessAddress>" +
+      "</MainEntity>" +
+      '<OtherEntity><NonIndividualName type="TRD"><NonIndividualNameText>IND</NonIndividualNameText></NonIndividualName></OtherEntity>' +
+      "</ABR></Transfer>";
+    const [r] = parseAbrXmlString(xml);
+    expect(r.entity_name).toBe("TRD"); // MN text used verbatim, not dropped
+    expect(r.entity_type_code).toBe("PRV"); // the code went to its own field
+    expect(r.trading_names).toEqual(["IND"]); // TRD-typed name "IND" routed by @type
+    expect(r.business_names).toEqual([]);
+  });
 });
 
 describe("csvLines (multi-file COPY source)", () => {

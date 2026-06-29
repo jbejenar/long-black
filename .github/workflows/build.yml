@@ -2,7 +2,8 @@ name: Build
 
 # Monthly production build: download the real ABR ABN Bulk Extract, run the full
 # pipeline (download → load → flatten → verify → split → compress), and publish
-# the per-state NDJSON(.gz) + metadata.json as a GitHub Release.
+# the per-state NDJSON(.gz) + all-ABN Parquet + metadata.json + manifest.json as a
+# GitHub Release.
 #
 # Mirrors scripts/build-local.sh, but against a postgres:16 service and on a
 # disk-freed runner (the extract is ~13 GB of XML). The fixture loop
@@ -36,7 +37,7 @@ env:
   # crema is pinned to a reviewed git tag, not its moving default branch, so a
   # release is reproducible and never changes underneath long-black. Bump this
   # (and re-test) when adopting a new crema — see docs/RELEASING.md.
-  CREMA_REF: v0.2.0
+  CREMA_REF: v0.3.0
 
 jobs:
   build:
@@ -157,6 +158,10 @@ jobs:
           node dist/output-cli.js "output/long-black-${VERSION}.ndjson" output --parquet
           echo "::endgroup::"
 
+          echo "::group::manifest (per-shard checksums + provenance)"
+          node dist/manifest-cli.js output
+          echo "::endgroup::"
+
       - name: Verify release assets
         working-directory: long-black
         run: |
@@ -172,7 +177,10 @@ jobs:
           # The all-ABN Parquet (emitted with --parquet) must exist and be nonempty.
           pq=$(ls output/long-black-*.parquet 2>/dev/null | head -1)
           [ -s "$pq" ] || { echo "no Parquet output file"; exit 1; }
-          ls -lh output/long-black-*.ndjson.gz "$pq" output/metadata.json
+          # The release manifest (per-shard checksums + provenance) must exist and parse.
+          [ -s output/manifest.json ] || { echo "no manifest.json"; exit 1; }
+          jq -e '.manifest_version == 2 and (.files | length) >= 1' output/manifest.json > /dev/null
+          ls -lh output/long-black-*.ndjson.gz "$pq" output/metadata.json output/manifest.json
 
       - name: Publish GitHub Release
         working-directory: long-black
@@ -185,11 +193,28 @@ jobs:
           PUBLISH: ${{ github.event.inputs.publish }}
         run: |
           set -euo pipefail
+          # Count + per-state table parsed from metadata.json via jq. The
+          # catalogue (catalogue.yml) reads these back from the release body, so
+          # the format — "**<n>** businesses" and "| <STATE> | <n> |" — is
+          # load-bearing (matches src/catalogue.ts ABN_BRANDING.keyPattern).
+          STATS=$(jq -r '
+            "**\(.totalCount)** businesses.",
+            "",
+            "| State | Businesses |",
+            "| --- | ---: |",
+            (.counts | to_entries | sort_by(.key)[] | "| \(.key | ascii_upcase) | \(.value) |")
+          ' output/metadata.json)
           {
             echo "Australian Business (ABN) data — one NDJSON document per ABN, split per state and gzip-compressed, plus an all-ABN Parquet file (\`long-black-${VERSION}.parquet\`)."
             echo "Source: ABR ABN Bulk Extract, extract ${VERSION}."
             echo ""
+            echo "${STATS}"
+            echo ""
+            echo "Schema: v$(node -p "require('./package.json').version")"
+            echo ""
             echo "**Licence:** CC-BY 3.0 AU. Contains data © Commonwealth of Australia (Australian Business Register). See \`docs/DATA-SOURCES.md\`."
+            echo ""
+            echo "Each release also ships \`manifest.json\` (per-shard sha256 + record counts + build provenance)."
             echo ""
             echo "Download a state file, e.g.:"
             echo '```'
@@ -199,7 +224,7 @@ jobs:
 
           WANT_DRAFT=false
           [ "${PUBLISH}" = "false" ] && WANT_DRAFT=true
-          ASSETS=(output/long-black-*.ndjson.gz output/long-black-*.parquet output/metadata.json)
+          ASSETS=(output/long-black-*.ndjson.gz output/long-black-*.parquet output/metadata.json output/manifest.json)
 
           # Verify every expected asset is present on the release with a NONZERO
           # size before it is made public — by exact name, not just an aggregate

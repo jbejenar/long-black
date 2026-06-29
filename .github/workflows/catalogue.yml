@@ -1,0 +1,116 @@
+# Deploy the GitHub Pages release catalogue after each successful Build.
+#
+# Trigger is `workflow_run` on the Build workflow (NOT `release: published`):
+# GitHub Actions does not fire `release` events for releases created by a
+# GITHUB_TOKEN action (recursion prevention), and Build publishes via the
+# workflow token — so a `release.published` trigger would never fire. The
+# `workflow_run` trigger IS fired by GITHUB_TOKEN actions and is the documented
+# escape hatch for chaining workflows.
+#
+# Defense in depth — Build's release job succeeds whether the GitHub Release is
+# published OR kept as a draft (the anomaly manual-review path). Two guards stop
+# the public catalogue from leaking draft asset links + metadata:
+#   1. The "Verify a published release exists" step below exits early (no-op) if
+#      the latest release is a draft.
+#   2. crema's processReleases filters out draft AND prerelease entries — which
+#      also covers manual workflow_dispatch runs that bypass the gate above.
+#
+# workflow_dispatch is supported for backfills / recovery / after manual edits.
+
+name: Catalogue
+
+on:
+  workflow_run:
+    workflows: ["Build"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  # Pin crema to the same reviewed tag the release pipelines use, so the public
+  # catalogue is reproducible. Bump in lockstep with build.yml — see RELEASING.md.
+  CREMA_REF: v0.3.0
+
+jobs:
+  build:
+    # workflow_run fires on every completion; limit to the success path.
+    # workflow_dispatch has no upstream context, so it always passes.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: long-black
+      # crema is a sibling dependency (file:../crema). Pin + build it.
+      - uses: actions/checkout@v4
+        with:
+          repository: jbejenar/crema
+          ref: ${{ env.CREMA_REF }}
+          path: crema
+
+      - name: Verify a published release exists (skip if latest is draft)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Build's release job succeeds whether the release is published or kept
+          # as a draft. We must NOT regenerate the catalogue from a draft state —
+          # the public GitHub Pages output would leak draft asset links.
+          #
+          # gh release view (no args) returns the latest non-draft release; if
+          # there are none yet (first-ever build), it errors and we exit early.
+          if ! gh release view \
+                 --repo "${{ github.repository }}" \
+                 --json tagName,isDraft,isPrerelease \
+                 > /tmp/latest-release.json 2>/dev/null; then
+            echo "::warning::No published releases found — skipping catalogue generation"
+            exit 0
+          fi
+          LATEST_TAG=$(jq -r '.tagName' /tmp/latest-release.json)
+          IS_DRAFT=$(jq -r '.isDraft' /tmp/latest-release.json)
+          echo "Latest non-draft release: ${LATEST_TAG} (isDraft: ${IS_DRAFT})"
+          if [[ "$IS_DRAFT" == "true" ]]; then
+            echo "::warning::Latest release is draft — skipping catalogue generation"
+            exit 0
+          fi
+          echo "✓ Latest release is published — proceeding"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build crema
+        working-directory: crema
+        run: npm ci && npm run build
+      - name: Install + build long-black
+        working-directory: long-black
+        run: npm ci && npm run build
+
+      - name: Generate catalogue
+        working-directory: long-black
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: node dist/catalogue-cli.js --repo "$REPO" --out dist/catalogue/index.html
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: long-black/dist/catalogue
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

@@ -37,8 +37,8 @@ sorted-adjacency id checks (no per-row accumulation).
 
 ## Output
 
-Per-state split, streaming gzip (one file per `state`, `other` bucket for
-null/empty/AAT):
+Per-state split, streaming gzip (one file per `state`; `other` bucket for
+null/empty state; `AAT`, when present, is its own bucket — this extract had none):
 
 | State     |      Documents |  Compressed |
 | --------- | -------------: | ----------: |

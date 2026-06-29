@@ -14,6 +14,23 @@ The NDJSON document is the contract (`docs/DOCUMENT-SCHEMA.md`).
 
 ### Added
 
+- **0.7.0** — **Release catalogue + manifest + comparison tooling** (re-lifted
+  into crema as generic, branding/product-injected engines and consumed here):
+  - `manifest-cli.js` writes `output/manifest.json` every release — per-shard
+    sha256 + record counts + build provenance (repo/commit/run) via crema's
+    `buildManifestV2` (product `abn`, no index). The per-state NDJSON.gz shards
+    are the manifest source files; the all-ABN Parquet is excluded so
+    `total_records` isn't double-counted.
+  - `catalogue-cli.js` + `src/catalogue.ts` (`ABN_BRANDING`) render a static
+    GitHub-release catalogue; `catalogue.yml` deploys it to GitHub Pages after
+    each successful Build (drafts/prereleases excluded — gated twice).
+  - `compare-cli.js` flags build-over-build anomalies (a per-state or total
+    count moving past the threshold, or a state appearing/retiring) for the
+    release manual-review gate.
+
+  Release notes now carry a jq-emitted `**<n>** businesses` line + per-state
+  table that the catalogue parses back. No document-schema change.
+
 - **0.6.0** — Optional **Parquet** output (`output-cli.js … --parquet`, emitted
   by the release builds): an all-ABN `long-black-<version>.parquet` alongside the
   per-state NDJSON.gz, via crema's generic `convertToParquet`. Scalars become

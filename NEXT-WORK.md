@@ -7,7 +7,7 @@
 ## Runtime validation (deliberate, heavyweight)
 
 - [x] **Real-data smoke (P1.04)** — ran `LONG_BLACK_VERSION=2026.06.24
-  ./scripts/build-local.sh` on the real extract: **20,295,936** ABNs, peak RSS
+./scripts/build-local.sh` on the real extract: **20,295,936** ABNs, peak RSS
       **229 MB** (< 500 MB), all checksums valid, 0 dup ids. Numbers in
       `docs/PERFORMANCE.md`. Surfaced + fixed two real bugs: the verify Set
       blowing V8's 16.7M cap (crema `idsSorted`) and `build-local.sh`'s `mapfile`
@@ -37,12 +37,16 @@
 
 ## Runtime image slimming (optional)
 
-- [ ] **Drop devDependencies from the runtime image.** The Dockerfile copies the
+- [x] **Drop devDependencies from the runtime image.** The Dockerfile copies the
       builder's `node_modules` wholesale, so the runtime ships typescript/eslint/
       vitest. A naive `npm prune --omit=dev` / `npm ci --omit=dev` re-runs crema's
       `prepare` (a `tsc` build that also `rm -rf dist`) and fails once its tooling
-      is gone. Do it with a dedicated prod-deps stage (fresh `npm ci --omit=dev`
-      from lock, scripts off, into a clean tree) and copy only that + `dist`.
+      is gone. Done with a dedicated `proddeps` stage: fresh `npm ci --omit=dev`
+      from lock with scripts off into a clean tree (crema's `prepare` deleted first
+      so installing the `file:` dep doesn't re-trigger `tsc`), grafting the
+      already-built `dist` on top, then the runtime copies only that prod tree +
+      `dist`. Image 1.36 GB → 975 MB (~28% smaller); runtime carries no
+      typescript/eslint/vitest/prettier.
 
 ## Cadence
 

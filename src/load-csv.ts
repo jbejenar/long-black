@@ -152,9 +152,10 @@ export interface LoadDelimitedOptions {
   /** Whether the file has a header row to skip. Default true. */
   hasHeader?: boolean;
   /**
-   * Pre-validate that every row's field count matches the header before the
-   * COPY (default true). Guards the postgres@3 server-side-COPY-error deadlock;
-   * only disable if the file was validated upstream.
+   * Pre-validate the file before the COPY (default true): every row has the same
+   * field count, AND that count matches the COPY target table's column count.
+   * Guards the postgres@3 server-side-COPY-error deadlock; only disable if the
+   * file was already validated against the target upstream.
    */
   validate?: boolean;
 }
@@ -167,12 +168,15 @@ export interface LoadDelimitedOptions {
  * `sniffHeader`): COPY rejects a row with the wrong field count. That failure is
  * load-bearing here because postgres@3 stashes a *server-side* COPY row error
  * without erroring the writable stream — a malformed row mid-file would deadlock
- * the COPY rather than reject. `validateFieldCounts` runs first (single
- * streaming pass) and rejects on the first mismatch *before* any byte reaches
- * the COPY, so the deadlock is unreachable; the COPY then only sees a file it
- * has already proven rectangular. The catch still force-closes (`timeout: 0`) so
- * the remaining client-side cases — a read error or a dropped connection —
- * reject promptly instead of hanging on a graceful drain.
+ * the COPY rather than reject. Two checks run *before* any byte reaches the COPY,
+ * so the deadlock is unreachable: `validateFieldCounts` (single streaming pass)
+ * proves the file is internally rectangular, and the file's width is then
+ * compared against the COPY target's *actual* column count — because a
+ * rectangular file with the wrong width (or a `hasHeader: false` file whose rows
+ * are uniformly the wrong width) is internally consistent yet would still trip
+ * the server-side COPY error. The catch still force-closes (`timeout: 0`) so the
+ * remaining client-side cases — a read error or a dropped connection — reject
+ * promptly instead of hanging on a graceful drain.
  */
 export async function loadDelimitedRaw(options: LoadDelimitedOptions): Promise<void> {
   const {
@@ -184,9 +188,33 @@ export async function loadDelimitedRaw(options: LoadDelimitedOptions): Promise<v
     validate = true,
   } = options;
   // Fail fast on a ragged file before opening the COPY (see above).
-  if (validate) await validateFieldCounts(file, delimiter);
+  const fileWidth = validate ? await validateFieldCounts(file, delimiter) : -1;
   const sql = postgres(connectionString, { max: 1, max_lifetime: null });
   try {
+    // Closes the remaining deadlock path: a rectangular file whose width does not
+    // match the COPY target. `to_regclass` resolves a (possibly schema-qualified /
+    // quoted) name the same way COPY will, honouring search_path; rawTable is a
+    // bound *parameter*, never interpolated, so this is injection-safe. An empty
+    // file (0 records → no COPY rows) can't deadlock, so it skips the width check.
+    if (validate && fileWidth > 0) {
+      const cols = await sql<{ n: number }[]>`
+        SELECT count(*)::int AS n
+        FROM pg_attribute
+        WHERE attrelid = to_regclass(${rawTable}::text)
+          AND attnum > 0
+          AND NOT attisdropped`;
+      const targetWidth = cols[0]?.n ?? 0;
+      if (targetWidth === 0) {
+        throw new Error(`COPY target ${rawTable} does not exist or has no columns`);
+      }
+      if (fileWidth !== targetWidth) {
+        throw new Error(
+          `column-count mismatch: ${file} has ${fileWidth} field(s) but COPY target ` +
+            `${rawTable} has ${targetWidth} column(s) — fix the raw table DDL ` +
+            `(built from sniffHeader) or the file before loading`,
+        );
+      }
+    }
     const reserved = await sql.reserve();
     const header = hasHeader ? "HEADER true" : "HEADER false";
     const copy = `COPY ${rawTable} FROM STDIN WITH (FORMAT csv, DELIMITER E'${delimiter === "\t" ? "\\t" : delimiter}', ${header}, QUOTE '"', NULL '')`;

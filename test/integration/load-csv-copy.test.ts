@@ -6,9 +6,11 @@
  *   DATABASE_URL=postgres://postgres:postgres@localhost:5433/abn npm test
  *
  * Proves the deadlock guard end-to-end: a rectangular file COPYs into the raw
- * table, and a ragged file rejects *before* the COPY (via validateFieldCounts)
- * so the postgres@3 server-side-COPY-error deadlock is never reached — the load
- * fails fast and leaves zero rows, rather than hanging.
+ * table; a ragged file rejects *before* the COPY (via validateFieldCounts); and
+ * a rectangular file whose width does not match the target table also rejects
+ * before the COPY (via the target column-count check) — so the postgres@3
+ * server-side-COPY-error deadlock is never reached on either malformed shape. The
+ * load fails fast and leaves zero rows, rather than hanging.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
@@ -69,6 +71,41 @@ describe.skipIf(!DB)("loadDelimitedRaw (live COPY)", () => {
         delimiter: "\t",
       }),
     ).rejects.toThrow(/field-count mismatch/);
+    expect(await rowCount()).toBe(0);
+  }, 20_000);
+
+  it("rejects a rectangular file whose width != the 3-column target (no deadlock)", async () => {
+    await sql.unsafe(`TRUNCATE ${RAW}`); // no cursor needed — fixture reset
+    const f = join(tmp, "wide.tsv");
+    // Internally consistent (every row 4 fields) but the target table has 3
+    // columns — the exact case validateFieldCounts alone could not catch.
+    writeFileSync(f, "a\tb\tc\td\n1\t2\t3\t4\nw\tx\ty\tz\n");
+    await expect(
+      loadDelimitedRaw({
+        connectionString: DB as string,
+        file: f,
+        rawTable: RAW,
+        delimiter: "\t",
+      }),
+    ).rejects.toThrow(/column-count mismatch/);
+    expect(await rowCount()).toBe(0);
+  }, 20_000);
+
+  it("rejects a headerless file whose uniform width != the target (no deadlock)", async () => {
+    await sql.unsafe(`TRUNCATE ${RAW}`); // no cursor needed — fixture reset
+    const f = join(tmp, "noheader-wide.tsv");
+    // hasHeader:false → the first row is data, not a trustworthy schema ref; all
+    // rows are 4 fields against the 3-column target, so it must reject before COPY.
+    writeFileSync(f, "1\t2\t3\t4\n5\t6\t7\t8\n");
+    await expect(
+      loadDelimitedRaw({
+        connectionString: DB as string,
+        file: f,
+        rawTable: RAW,
+        delimiter: "\t",
+        hasHeader: false,
+      }),
+    ).rejects.toThrow(/column-count mismatch/);
     expect(await rowCount()).toBe(0);
   }, 20_000);
 });

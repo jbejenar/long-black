@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-30",
+  "generatedAt": "2026-07-01",
   "schemas": {
     "AbnDocument": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -651,6 +651,51 @@
             "required": ["type", "startDate", "endDate", "comment"],
             "additionalProperties": false
           }
+        },
+        "ageYears": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "isActive": {
+          "type": "boolean"
+        },
+        "flags": {
+          "type": "object",
+          "properties": {
+            "isIndividual": {
+              "type": "boolean"
+            },
+            "isCompany": {
+              "type": "boolean"
+            },
+            "isCharity": {
+              "type": "boolean"
+            },
+            "isLicensed": {
+              "type": "boolean"
+            },
+            "hasEnforcementAction": {
+              "type": "boolean"
+            },
+            "isDgr": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "isIndividual",
+            "isCompany",
+            "isCharity",
+            "isLicensed",
+            "hasEnforcementAction",
+            "isDgr"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [
@@ -679,7 +724,10 @@
         "charity",
         "financialServicesLicence",
         "creditLicence",
-        "bannedDisqualified"
+        "bannedDisqualified",
+        "ageYears",
+        "isActive",
+        "flags"
       ],
       "additionalProperties": false
     }

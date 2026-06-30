@@ -33,6 +33,16 @@ function validDoc(overrides: Partial<AbnDocument> = {}): AbnDocument {
     financialServicesLicence: null,
     creditLicence: null,
     bannedDisqualified: [],
+    ageYears: 26,
+    isActive: true,
+    flags: {
+      isIndividual: false,
+      isCompany: false,
+      isCharity: false,
+      isLicensed: false,
+      hasEnforcementAction: false,
+      isDgr: false,
+    },
     ...overrides,
   };
 }
@@ -150,6 +160,22 @@ describe("AbnDocumentSchema", () => {
     };
     const r = AbnDocumentSchema.safeParse(
       validDoc({ charity: charity as unknown as AbnDocument["charity"] }),
+    );
+    expect(r.success).toBe(false);
+  });
+
+  it("accepts a null ageYears (no abnStatusFromDate)", () => {
+    expect(AbnDocumentSchema.safeParse(validDoc({ ageYears: null })).success).toBe(true);
+  });
+
+  it("requires isActive to be a boolean", () => {
+    const r = AbnDocumentSchema.safeParse(validDoc({ isActive: "yes" as unknown as boolean }));
+    expect(r.success).toBe(false);
+  });
+
+  it("requires every flag (rejects a partial flags object)", () => {
+    const r = AbnDocumentSchema.safeParse(
+      validDoc({ flags: { isIndividual: true } as unknown as AbnDocument["flags"] }),
     );
     expect(r.success).toBe(false);
   });

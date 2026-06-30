@@ -14,6 +14,22 @@ The NDJSON document is the contract (`docs/DOCUMENT-SCHEMA.md`).
 
 ### Added
 
+- **0.11.0** — **Derived signals** — three new fields computed in `compose.ts` from
+  data already in each document, **no new source, no join, no coverage gate**.
+  Additive, minor bump:
+  - `ageYears` (`number | null`) — whole years from `abnStatusFromDate` to the
+    `_version` date. Computed against the build version, **never wall-clock**, so the
+    output stays byte-deterministic for the regression baseline; null when the
+    from-date is absent (~0% of rows), clamped to 0 if the date post-dates the build.
+  - `isActive` (`boolean`) — `abnStatus === 'ACT'`. **44.2%** of the 2026.06.24
+    extract (most ABNs are cancelled — 11.3M of 20.3M).
+  - `flags` (`EntityFlags`) — always-present convenience booleans so consumers can
+    filter without digging into nested null/empty objects: `isIndividual` (~54%),
+    `isCompany` (~12%), `isCharity` (~0.3%), `isLicensed` (AFS or credit, ~0.05%),
+    `hasEnforcementAction` (banned, 12 entities), `isDgr` (~0.16%).
+  - Contract docs moved in lockstep (`src/schema.ts`, `docs/DOCUMENT-SCHEMA.md`,
+    `fixtures/expected-output.ndjson`, `fixtures/schema-baseline.json`,
+    `opensearch/abn-mappings.json`). Prevalences spot-checked on the real 20.3M build.
 - **0.10.0** — **Charity financials** (ACNC Annual Information Statement). Adds a
   nested `charity.financials` object so each currently-registered charity carries
   its most recent AIS financials — revenue, expenses, assets, liabilities — plus

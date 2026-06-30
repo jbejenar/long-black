@@ -59,16 +59,45 @@ function acnType(value: unknown): AbnDocument["acnType"] {
   return ACN_TYPES.has(s) ? (s as AbnDocument["acnType"]) : null;
 }
 
+const MS_PER_YEAR = 365.25 * 24 * 60 * 60 * 1000;
+
+/**
+ * Whole years from `abnStatusFromDate` to the data version date — a deterministic
+ * "ABN age" signal (years since the ABN entered its current status; for an active
+ * ABN this is effectively its registration age). Computed against the build's
+ * `_version` (NOT wall-clock) so the output stays byte-deterministic for the
+ * regression baseline. Null when the from-date is absent/unparseable; clamped to 0
+ * if the from-date somehow post-dates the version.
+ */
+function ageYears(abnStatusFromDate: string | null, version: string): number | null {
+  if (abnStatusFromDate === null) return null;
+  const start = Date.parse(abnStatusFromDate);
+  const end = Date.parse(version.replace(/\./g, "-"));
+  if (Number.isNaN(start) || Number.isNaN(end)) return null;
+  if (end <= start) return 0;
+  return Math.floor((end - start) / MS_PER_YEAR);
+}
+
 export function composeAbnDocument(row: Record<string, unknown>, version: string): AbnDocument {
   const status = String(row.abn_status) === "CAN" ? "CAN" : "ACT";
+  const abnStatusFromDate = nullableString(row.abn_status_from_date);
+  const entityTypeCode = String(row.entity_type_code ?? "");
+  const dgr = dgrArray(row.dgr);
+  const company = (row.company as CompanyEnrichment | null) ?? null;
+  const charity = (row.charity as CharityEnrichment | null) ?? null;
+  const financialServicesLicence = (row.financial_services_licence as AfsLicence | null) ?? null;
+  const creditLicence = (row.credit_licence as CreditLicence | null) ?? null;
+  const bannedDisqualified = Array.isArray(row.banned_disqualified)
+    ? (row.banned_disqualified as BannedDisqualified[])
+    : [];
 
   return {
     _id: String(row._id),
     _version: version,
     abnStatus: status,
-    abnStatusFromDate: nullableString(row.abn_status_from_date),
+    abnStatusFromDate,
     entityName: nullableString(row.entity_name),
-    entityTypeCode: String(row.entity_type_code ?? ""),
+    entityTypeCode,
     entityTypeText: nullableString(row.entity_type_text),
     givenName: nullableString(row.given_names),
     familyName: nullableString(row.family_name),
@@ -82,17 +111,26 @@ export function composeAbnDocument(row: Record<string, unknown>, version: string
     businessNames: stringArray(row.business_names),
     tradingNames: stringArray(row.trading_names),
     otherNames: stringArray(row.other_names),
-    dgr: dgrArray(row.dgr),
+    dgr,
     // SQL builds these nested shapes (camelCase) or null/[]; Zod validates them.
     registeredBusinessNames: Array.isArray(row.registered_business_names)
       ? (row.registered_business_names as RegisteredBusinessName[])
       : [],
-    company: (row.company as CompanyEnrichment | null) ?? null,
-    charity: (row.charity as CharityEnrichment | null) ?? null,
-    financialServicesLicence: (row.financial_services_licence as AfsLicence | null) ?? null,
-    creditLicence: (row.credit_licence as CreditLicence | null) ?? null,
-    bannedDisqualified: Array.isArray(row.banned_disqualified)
-      ? (row.banned_disqualified as BannedDisqualified[])
-      : [],
+    company,
+    charity,
+    financialServicesLicence,
+    creditLicence,
+    bannedDisqualified,
+    // Derived signals — computed here from the fields above, no extra source.
+    ageYears: ageYears(abnStatusFromDate, version),
+    isActive: status === "ACT",
+    flags: {
+      isIndividual: entityTypeCode === "IND",
+      isCompany: company !== null,
+      isCharity: charity !== null,
+      isLicensed: financialServicesLicence !== null || creditLicence !== null,
+      hasEnforcementAction: bannedDisqualified.length > 0,
+      isDgr: dgr.length > 0,
+    },
   };
 }

@@ -91,6 +91,26 @@ export const BannedDisqualifiedSchema = z.object({
   comment: z.string().nullable(),
 });
 
+/**
+ * Derived convenience booleans — composed from the fields above, not a new source.
+ * Every flag is always present (a true/false), so consumers can filter without
+ * digging into nested null/empty objects.
+ */
+export const EntityFlagsSchema = z.object({
+  /** Entity type is an individual / sole trader (`entityTypeCode === 'IND'`). */
+  isIndividual: z.boolean(),
+  /** Has an ASIC company record (`company != null`). */
+  isCompany: z.boolean(),
+  /** Is an ACNC-registered charity (`charity != null`). */
+  isCharity: z.boolean(),
+  /** Holds an ASIC AFS or credit licence. */
+  isLicensed: z.boolean(),
+  /** Has ≥1 ASIC banning/disqualification action. */
+  hasEnforcementAction: z.boolean(),
+  /** Has ≥1 Deductible Gift Recipient endorsement. */
+  isDgr: z.boolean(),
+});
+
 export const AbnDocumentSchema = z.object({
   /** The ABN — 11 digits, string (never numeric). */
   _id: z.string(),
@@ -124,9 +144,16 @@ export const AbnDocumentSchema = z.object({
   creditLicence: CreditLicenceSchema.nullable(),
   /** ASIC banning/disqualification actions against this entity (via ACN); empty if none. */
   bannedDisqualified: z.array(BannedDisqualifiedSchema),
+  /** Whole years since `abnStatusFromDate` relative to `_version`; null if no date. */
+  ageYears: z.number().nullable(),
+  /** `abnStatus === 'ACT'` — a convenience boolean. */
+  isActive: z.boolean(),
+  /** Derived convenience booleans (see EntityFlagsSchema). */
+  flags: EntityFlagsSchema,
 });
 
 export type AbnDocument = z.infer<typeof AbnDocumentSchema>;
+export type EntityFlags = z.infer<typeof EntityFlagsSchema>;
 export type DgrEndorsement = z.infer<typeof DgrSchema>;
 export type RegisteredBusinessName = z.infer<typeof RegisteredBusinessNameSchema>;
 export type CompanyEnrichment = z.infer<typeof CompanyEnrichmentSchema>;

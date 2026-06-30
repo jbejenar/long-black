@@ -12,8 +12,8 @@ relational store (Postgres) rather than a direct XML→NDJSON stream.
 | **ASIC Company**                | `asic-companies`               | CSV (tab) / ZIP  | ~394 MB                             | Weekly (Tue) | **ABN** + ACN           | `company{}` — type/class/status, registration & deregistration dates, prior state |
 | **ASIC Business Names**         | `asic-business-names`          | CSV (tab) / ZIP  | ~247 MB                             | Weekly (Wed) | **ABN** of holder       | `registeredBusinessNames[]` — authoritative names + status/dates                  |
 | **ACNC Registered Charities**   | `acnc-register`                | CSV / XLSX       | ~15 MB, ~60k                        | Weekly       | **ABN**                 | `charity{}` — status, size, subtype, registration date                            |
-| **ASIC AFS Licensees**          | `asic-afs-licensee`            | CSV (comma)      | ~1 MB, ~6.3k                        | Weekly       | **ABN**                 | `financialServicesLicence{}` — AFS licence number, name, start date, conditions   |
-| **ASIC Credit Licensees**       | `asic-credit-licensee`         | CSV (comma)      | ~1 MB, ~3.9k                        | Weekly       | **ABN**                 | `creditLicence{}` — credit licence number, name, status, start/end dates          |
+| **ASIC AFS Licensees**          | `asic-afs-licensee`            | CSV (comma)      | ~1 MB, ~6.5k                        | Weekly       | **ABN** or ACN          | `financialServicesLicence{}` — AFS licence number, name, start date, conditions   |
+| **ASIC Credit Licensees**       | `asic-credit-licensee`         | CSV (comma)      | ~1 MB, ~4.3k                        | Weekly       | **ABN** or ACN          | `creditLicence{}` — credit licence number, name, status, start/end dates          |
 | **ASIC Banned & Disqualified**  | `asic-banned-disqualified-org` | CSV (tab)        | ~10 KB, ~15 rows                    | Weekly       | **ACN** (`asic_number`) | `bannedDisqualified[]` — banning/disqualification actions (type, dates, comment)  |
 
 **Why the regulated & risk bundle.** AFS and credit licences are the two
@@ -58,8 +58,10 @@ The enrichment loader (`src/enrich.ts`) discovers each source's data CSV by
 stable package id, COPYs it into an all-`text` raw table built from the file's
 real header (`sniffHeader` → `buildRawTableDdl`, so column count always matches),
 then a per-source normalize SQL casts and projects into the typed staging table.
-Dates are **DD/MM/YYYY** (Australian) → `to_date(…, 'DD/MM/YYYY')`. Rows without a
-valid 11-digit ABN are skipped (they cannot join the ABR base).
+Dates are **DD/MM/YYYY** (Australian) → `to_date(…, 'DD/MM/YYYY')`. Most sources are
+keyed on an 11-digit ABN and rows without one are skipped; the AFS/credit licensee
+sources additionally accept a 9-digit ACN, and the banned register is ACN-only
+(see each mapping below for how the value resolves to a base row).
 
 **ASIC Company** (`sql/normalize-asic-company.sql`) — the register carries one row
 per name a company has held; only the **current-name row** (`Current Name

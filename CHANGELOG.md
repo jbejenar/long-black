@@ -12,6 +12,15 @@ The NDJSON document is the contract (`docs/DOCUMENT-SCHEMA.md`).
 
 ## [Unreleased]
 
+### Changed
+
+- **Metadata attribution** — `metadata.json` `sources[]` now itemizes **all nine
+  datasets** individually (previously only five), so every release fully accounts
+  for what it is derived from. Added the ACNC Annual Information Statement and the
+  ASIC AFS / Credit / Banned & Disqualified datasets to `ABN_SOURCES`
+  (`src/output.ts`), each with its CC-BY 3.0 AU attribution. No document-schema
+  change (the output contract is unchanged) — metadata only.
+
 ### Added
 
 - **0.12.0** — **Government spend** (`govSpend`) — per-ABN AusTender

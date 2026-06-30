@@ -6,15 +6,16 @@ All sources are published on [data.gov.au](https://data.gov.au), licensed
 what makes a pre-joined super-dataset possible — and is why long-black uses a
 relational store (Postgres) rather than a direct XML→NDJSON stream.
 
-| Source                          | CKAN id                        | Format           | Size                                | Cadence      | Join key                | Contributes                                                                       |
-| ------------------------------- | ------------------------------ | ---------------- | ----------------------------------- | ------------ | ----------------------- | --------------------------------------------------------------------------------- |
-| **ABR ABN Bulk Extract** (core) | `abn-bulk-extract`             | XML, 2 ZIP parts | ~493 MB ×2 (~6–8 GB XML), ~15M ABNs | Weekly       | **ABN**, ACN/ARBN       | entity name/type, ABN status, GST, DGR, business/trading names, state+postcode    |
-| **ASIC Company**                | `asic-companies`               | CSV (tab) / ZIP  | ~394 MB                             | Weekly (Tue) | **ABN** + ACN           | `company{}` — type/class/status, registration & deregistration dates, prior state |
-| **ASIC Business Names**         | `asic-business-names`          | CSV (tab) / ZIP  | ~247 MB                             | Weekly (Wed) | **ABN** of holder       | `registeredBusinessNames[]` — authoritative names + status/dates                  |
-| **ACNC Registered Charities**   | `acnc-register`                | CSV / XLSX       | ~15 MB, ~60k                        | Weekly       | **ABN**                 | `charity{}` — status, size, subtype, registration date                            |
-| **ASIC AFS Licensees**          | `asic-afs-licensee`            | CSV (comma)      | ~1 MB, ~6.5k                        | Weekly       | **ABN** or ACN          | `financialServicesLicence{}` — AFS licence number, name, start date, conditions   |
-| **ASIC Credit Licensees**       | `asic-credit-licensee`         | CSV (comma)      | ~1 MB, ~4.3k                        | Weekly       | **ABN** or ACN          | `creditLicence{}` — credit licence number, name, status, start/end dates          |
-| **ASIC Banned & Disqualified**  | `asic-banned-disqualified-org` | CSV (tab)        | ~10 KB, ~15 rows                    | Weekly       | **ACN** (`asic_number`) | `bannedDisqualified[]` — banning/disqualification actions (type, dates, comment)  |
+| Source                          | CKAN id                        | Format           | Size                                | Cadence      | Join key                | Contributes                                                                            |
+| ------------------------------- | ------------------------------ | ---------------- | ----------------------------------- | ------------ | ----------------------- | -------------------------------------------------------------------------------------- |
+| **ABR ABN Bulk Extract** (core) | `abn-bulk-extract`             | XML, 2 ZIP parts | ~493 MB ×2 (~6–8 GB XML), ~15M ABNs | Weekly       | **ABN**, ACN/ARBN       | entity name/type, ABN status, GST, DGR, business/trading names, state+postcode         |
+| **ASIC Company**                | `asic-companies`               | CSV (tab) / ZIP  | ~394 MB                             | Weekly (Tue) | **ABN** + ACN           | `company{}` — type/class/status, registration & deregistration dates, prior state      |
+| **ASIC Business Names**         | `asic-business-names`          | CSV (tab) / ZIP  | ~247 MB                             | Weekly (Wed) | **ABN** of holder       | `registeredBusinessNames[]` — authoritative names + status/dates                       |
+| **ACNC Registered Charities**   | `acnc-register`                | CSV / XLSX       | ~15 MB, ~60k                        | Weekly       | **ABN**                 | `charity{}` — status, size, subtype, registration date                                 |
+| **ACNC Annual Info Statement**  | `acnc-<year>-...-ais-data`     | CSV              | ~38 MB, ~54k                        | Annual       | **ABN**                 | `charity.financials{}` — revenue, expenses, assets, liabilities, FTE staff, volunteers |
+| **ASIC AFS Licensees**          | `asic-afs-licensee`            | CSV (comma)      | ~1 MB, ~6.5k                        | Weekly       | **ABN** or ACN          | `financialServicesLicence{}` — AFS licence number, name, start date, conditions        |
+| **ASIC Credit Licensees**       | `asic-credit-licensee`         | CSV (comma)      | ~1 MB, ~4.3k                        | Weekly       | **ABN** or ACN          | `creditLicence{}` — credit licence number, name, status, start/end dates               |
+| **ASIC Banned & Disqualified**  | `asic-banned-disqualified-org` | CSV (tab)        | ~10 KB, ~15 rows                    | Weekly       | **ACN** (`asic_number`) | `bannedDisqualified[]` — banning/disqualification actions (type, dates, comment)       |
 
 **Why the regulated & risk bundle.** AFS and credit licences are the two
 ASIC-issued permissions that gate who may legally provide financial or consumer-
@@ -25,9 +26,8 @@ services provider and whether it (or its corporate entity) has been actioned by
 the regulator.
 
 **Future tail** (same seam, when wanted): ASIC AFS authorised representatives,
-auditors, liquidators, banned & disqualified **persons** (vs orgs); ACNC Annual
-Information Statement financials; AusTender government-contract spend — all
-data.gov.au, CC-BY, keyed on ABN/ACN.
+auditors, liquidators, banned & disqualified **persons** (vs orgs); AusTender
+government-contract spend — all data.gov.au, CC-BY, keyed on ABN/ACN.
 
 ## Notes
 
@@ -40,8 +40,9 @@ data.gov.au, CC-BY, keyed on ABN/ACN.
     loaded with quote-parsing disabled (`enrich.ts` → `loadDelimitedRaw` with
     `quoting: false`, which COPYs as `FORMAT csv` with a control-byte QUOTE so
     `"`, `\` and `\.` are all literal).
-  - **Real comma CSV** (`quoting: true`, RFC-4180): ACNC, **ASIC AFS Licensees**,
-    and **ASIC Credit Licensees** — quoted fields, loaded with quoting on.
+  - **Real comma CSV** (`quoting: true`, RFC-4180): ACNC (register **and** AIS),
+    **ASIC AFS Licensees**, and **ASIC Credit Licensees** — quoted fields, loaded
+    with quoting on.
 - The joined document **mixes snapshots** taken on different days (ABR weekly,
   ASIC Tue/Wed, ACNC weekly). Each source's extract date is recorded in
   `metadata.json`; the document `_version` tracks the ABR `TransferInfo/ExtractTime`.
@@ -113,16 +114,45 @@ order — and null when none is flagged.
 | `subtype`            | priority projection of the ~14 purpose flags |
 | `registrationDate`   | Registration_Date                            |
 
+**ACNC Annual Information Statement** (`sql/normalize-acnc-ais.sql`) — the charity's
+most recent AIS, folded into `charity.financials` (1:0..1 on the 11-digit `abn`).
+**The AIS is published as one CKAN package per year** (`acnc-<year>-...-ais-data`);
+the loader pins a known year — `acnc-2024-...` — a reproducible snapshot bumped with
+a one-line `ENRICHMENT_SOURCES` change (consistent with pinning the ABR extract).
+The main data CSV is `datadotgov_ais24`; the package also ships `_programs` and
+`_group_members` resources, but the main file is the largest CSV so it is selected.
+Because financials fold into `charity{}`, they surface only for currently-registered
+charities — on the 2024 AIS, **1,859** filers had deregistered and do not carry
+financials. Monetary columns are whole-dollar `numeric` (stored as JSON numbers);
+FTE staff is fractional; `volunteers` is an integer. Each numeric cast is regex-
+guarded (blank/non-numeric → null). Dates are DD/MM/YYYY.
+
+| Output (`charity.financials.*`) | ACNC AIS column                  |
+| ------------------------------- | -------------------------------- |
+| `reportingPeriodStart`          | fin report from                  |
+| `reportingPeriodEnd`            | fin report to                    |
+| `totalRevenue`                  | total revenue                    |
+| `totalExpenses`                 | total expenses                   |
+| `totalAssets`                   | total assets                     |
+| `totalLiabilities`              | total liabilities                |
+| `staffFullTimeEquivalent`       | total full time equivalent staff |
+| `volunteers`                    | staff - volunteers               |
+
 **ASIC AFS Licensees** (`sql/normalize-asic-afs-licence.sql`) — the register lists
 **current** AFS licence holders (the "- Current" CSV). `AFS_LIC_ABN_ACN` carries
 the holder's identifier, which is **either an 11-digit ABN or a 9-digit ACN** (on
 the 2026.06.24 extract: ~6,300 ABN rows, ~164 ACN rows). The normalizer strips any
 separators and routes the value to the `abn` **or** `acn` column accordingly; the
 flatten then resolves an ABN row by `a.abn` directly and an ACN row by
-`a.asic_number` **only when `a.asic_number_type = 'ACN'`** (so an ARBN/ARSN/ARFN
-sharing the 9 digits is never matched). ACN-keyed rows that were previously dropped
-would have falsely reported a null AFSL. Presence of a row = a current AFSL (there
-is no per-row status column). 1:0..1 per entity.
+`a.asic_number`, **excluding** asic_numbers explicitly typed `ARBN`/`ARSN`/`ARFN`
+(a known foreign/scheme number sharing the 9 digits is never matched). The exclusion
+is deliberate: the real ABR extract leaves `@ASICNumberType = 'undetermined'` on
+**every** ASIC number (never ACN/ARBN/ARSN/ARFN — see the `acn`/`acnType` note in
+`DOCUMENT-SCHEMA.md`), so a guard requiring `= 'ACN'` would match **nothing**; the
+exclusion form matches `undetermined`/`ACN`/null while still dropping a typed foreign
+number. ACN-keyed rows that were previously dropped would have falsely reported a
+null AFSL. Presence of a row = a current AFSL (there is no per-row status column).
+1:0..1 per entity.
 
 | Output (`financialServicesLicence.*`) | ASIC column                                   |
 | ------------------------------------- | --------------------------------------------- |
@@ -149,11 +179,12 @@ unchanged rather than risk an inexact expansion. 1:0..1 per entity.
 
 **ASIC Banned & Disqualified Orgs** (`sql/normalize-asic-banned-disqualified.sql`)
 — the one register keyed on **ACN, not ABN**: `BD_ORG_ACN` is a 9-digit ACN, so it
-joins via `asic_number` **only when `asic_number_type = 'ACN'`** — the ABR
-`asic_number` can also hold an ARBN/ARSN/ARFN, and matching a non-ACN value that
-shares the same 9 digits would attach another org's enforcement record (a material
-false positive on a risk signal). Non-digits are stripped and only valid 9-digit
-ACNs are kept. Dates are guarded — `BD_ORG_END_DT` holds free text such as
+joins via `asic_number`, **excluding** asic_numbers typed `ARBN`/`ARSN`/`ARFN` (same
+exclusion as the AFS/credit ACN path above — matching a known foreign number sharing
+the same 9 digits would attach another org's enforcement record, a material false
+positive on a risk signal; on real `undetermined`-typed data the exclusion is inert
+but the guard protects any future properly-typed extract). Non-digits are stripped
+and only valid 9-digit ACNs are kept. Dates are guarded — `BD_ORG_END_DT` holds free text such as
 "Permanent banning" for permanent actions, parsed to null (a permanent ban has no
 end date). 0..N actions per org (`json_agg`, ordered by start date then type).
 Tiny, volatile source (~15 rows — most ASIC bannings are of persons, not orgs).

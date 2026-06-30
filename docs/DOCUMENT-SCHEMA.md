@@ -1,13 +1,15 @@
 # Document Schema Reference — long-black
 
-> **Schema version:** 0.9.0
+> **Schema version:** 0.10.0
 > **Runtime validation:** `src/schema.ts` (`AbnDocumentSchema`, Zod)
 > **Breaking changes:** require a major version bump.
 
-> 0.9.0 adds the **regulated & risk** bundle (additive, minor):
-> `financialServicesLicence`, `creditLicence`, `bannedDisqualified`. 0.6.0 added an
-> optional **Parquet** output (`--parquet`) — the same fields as the NDJSON,
-> scalars as native columns and nested fields as JSON strings.
+> 0.10.0 adds **charity financials** (additive, minor): a nested
+> `charity.financials` object from the ACNC Annual Information Statement. 0.9.0 added
+> the **regulated & risk** bundle (`financialServicesLicence`, `creditLicence`,
+> `bannedDisqualified`). 0.6.0 added an optional **Parquet** output (`--parquet`) —
+> the same fields as the NDJSON, scalars as native columns and nested fields as JSON
+> strings.
 
 One NDJSON document per ABN. This document is the contract: `src/schema.ts`,
 this file, and `fixtures/expected-output.ndjson` move together (additive field =
@@ -96,22 +98,45 @@ is the constant `Registered`; charitable purpose is a boolean-flag matrix, so
 `subtype` is the single highest-priority registered subtype (PBI/HPC first, then
 the charitable purposes in ACNC Act order), null when none is flagged.
 
-| Field              | Type              | Nullable | Description                                 |
-| ------------------ | ----------------- | -------- | ------------------------------------------- |
-| `name`             | string            | no       | Charity legal name                          |
-| `status`           | string            | no       | Registration status (constant `Registered`) |
-| `size`             | string            | yes      | Charity size (Small/Medium/Large)           |
-| `subtype`          | string            | yes      | Highest-priority registered subtype         |
-| `registrationDate` | string (ISO date) | yes      | When the charity was registered             |
+| Field              | Type                      | Nullable | Description                                         |
+| ------------------ | ------------------------- | -------- | --------------------------------------------------- |
+| `name`             | string                    | no       | Charity legal name                                  |
+| `status`           | string                    | no       | Registration status (constant `Registered`)         |
+| `size`             | string                    | yes      | Charity size (Small/Medium/Large)                   |
+| `subtype`          | string                    | yes      | Highest-priority registered subtype                 |
+| `registrationDate` | string (ISO date)         | yes      | When the charity was registered                     |
+| `financials`       | `CharityFinancials`\|null | yes      | Latest ACNC Annual Information Statement financials |
+
+### Nested: `charity.financials` (ACNC AIS)
+
+The charity's most recent **Annual Information Statement** financials, folded into
+`charity` (so it surfaces only for currently-registered charities — a charity that
+deregistered after filing won't carry financials). Null when the charity has no AIS
+on file. Shape: `CharityFinancialsSchema`. Monetary values are **JSON numbers**
+(whole dollars); `staffFullTimeEquivalent` may be fractional. The AIS year is a
+pinned snapshot (see `docs/DATA-SOURCES.md`); read the reporting year from
+`reportingPeriodEnd`.
+
+| Field                     | Type              | Nullable | Description                                    |
+| ------------------------- | ----------------- | -------- | ---------------------------------------------- |
+| `reportingPeriodStart`    | string (ISO date) | yes      | AIS financial-year start                       |
+| `reportingPeriodEnd`      | string (ISO date) | yes      | AIS financial-year end                         |
+| `totalRevenue`            | number            | yes      | Total revenue (whole dollars)                  |
+| `totalExpenses`           | number            | yes      | Total expenses                                 |
+| `totalAssets`             | number            | yes      | Total assets                                   |
+| `totalLiabilities`        | number            | yes      | Total liabilities                              |
+| `staffFullTimeEquivalent` | number            | yes      | Full-time-equivalent staff (may be fractional) |
+| `volunteers`              | number            | yes      | Volunteer count                                |
 
 ## Nested: `financialServicesLicence` (ASIC AFS)
 
 Populated when the entity holds a current Australian Financial Services licence
 (1:0..1). `AFS_LIC_ABN_ACN` carries **either an 11-digit ABN or a 9-digit ACN**:
-ABN rows match `abn` directly, ACN rows match `asic_number` when
-`asic_number_type = 'ACN'` (so an ARBN/ARSN/ARFN sharing the digits is never
-matched). The register lists current holders, so presence = a current AFSL. Shape:
-`AfsLicenceSchema` in `src/schema.ts`.
+ABN rows match `abn` directly, ACN rows match `asic_number` **unless that number is
+typed `ARBN`/`ARSN`/`ARFN`** (a known foreign/scheme number sharing the digits is
+never matched; see the `acnType` note below for why this excludes rather than
+requires `ACN`). The register lists current holders, so presence = a current AFSL.
+Shape: `AfsLicenceSchema` in `src/schema.ts`.
 
 | Field        | Type              | Nullable | Description                       |
 | ------------ | ----------------- | -------- | --------------------------------- |
@@ -138,8 +163,8 @@ Shape: `CreditLicenceSchema`. `status` is the raw ASIC code (e.g. `APPR`).
 
 Each element is an ASIC banning/disqualification action against the organisation.
 Unlike the other ASIC sources this register is keyed on **ACN** (`BD_ORG_ACN`), so
-it joins via `asic_number` **only when `asic_number_type = 'ACN'`** — matching a
-non-ACN value (ARBN/ARSN/ARFN) that shares the 9 digits would attach another org's
+it joins via `asic_number`, **excluding** asic_numbers typed `ARBN`/`ARSN`/`ARFN` —
+matching a known foreign number that shares the 9 digits would attach another org's
 enforcement record. 0..N actions per entity (`bannedDisqualified` is `[]` when
 none). `endDate` is null for permanent bannings. Shape: `BannedDisqualifiedSchema`.
 
@@ -153,7 +178,13 @@ none). `endDate` is null for permanent bannings. Shape: `BannedDisqualifiedSchem
 ## Enums
 
 - `abnStatus`: `ACT` (active), `CAN` (cancelled).
-- `acnType`: `ACN`, `ARBN`, `ARSN`, `ARFN`.
+- `acnType`: `ACN`, `ARBN`, `ARSN`, `ARFN` — **but in practice always `null`**. The
+  real ABR extract sets `@ASICNumberType = 'undetermined'` on every ASIC number
+  (~4.07M of them), and the loader maps any value outside the enum to `null`. So
+  `acn` (the number) is populated while `acnType` is null on real data; the enum
+  values appear only if a future extract types its ASIC numbers properly. This is
+  also why the ACN-path enrichment joins (AFS/credit/banned) **exclude** known
+  foreign types rather than require `ACN` — see those nested sections.
 - `entityTypeCode`: free string (the ABR `EntityTypeEnum` has ~130 values; not
   enumerated here to avoid churn — `entityTypeText` carries the label).
 

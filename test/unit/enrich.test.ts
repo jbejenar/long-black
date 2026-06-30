@@ -9,8 +9,9 @@ import type { CkanResource } from "crema";
 import { ENRICHMENT_SOURCES, selectEnrichmentResource } from "../../src/enrich.js";
 
 describe("ENRICHMENT_SOURCES config", () => {
-  it("covers the six enrichment sources with distinct staging tables", () => {
+  it("covers the seven enrichment sources with distinct staging tables", () => {
     expect(ENRICHMENT_SOURCES.map((s) => s.key).sort()).toEqual([
+      "acnc_ais",
       "acnc_charity",
       "asic_afs_licence",
       "asic_banned_disqualified",
@@ -26,8 +27,9 @@ describe("ENRICHMENT_SOURCES config", () => {
     expect(byKey.asic_company).toMatchObject({ delimiter: "\t", quoting: false });
     expect(byKey.asic_business_name).toMatchObject({ delimiter: "\t", quoting: false });
     expect(byKey.asic_banned_disqualified).toMatchObject({ delimiter: "\t", quoting: false });
-    // ACNC + AFS/credit "- Current" CSVs are real comma CSVs.
+    // ACNC (register + AIS) + AFS/credit "- Current" CSVs are real comma CSVs.
     expect(byKey.acnc_charity).toMatchObject({ delimiter: ",", quoting: true });
+    expect(byKey.acnc_ais).toMatchObject({ delimiter: ",", quoting: true });
     expect(byKey.asic_afs_licence).toMatchObject({ delimiter: ",", quoting: true });
     expect(byKey.asic_credit_licence).toMatchObject({ delimiter: ",", quoting: true });
   });

@@ -78,7 +78,28 @@
           "status": { "type": "keyword" },
           "size": { "type": "keyword" },
           "subtype": { "type": "keyword" },
-          "registrationDate": { "type": "date", "format": "yyyy-MM-dd", "ignore_malformed": true }
+          "registrationDate": { "type": "date", "format": "yyyy-MM-dd", "ignore_malformed": true },
+          "financials": {
+            "type": "object",
+            "properties": {
+              "reportingPeriodStart": {
+                "type": "date",
+                "format": "yyyy-MM-dd",
+                "ignore_malformed": true
+              },
+              "reportingPeriodEnd": {
+                "type": "date",
+                "format": "yyyy-MM-dd",
+                "ignore_malformed": true
+              },
+              "totalRevenue": { "type": "double" },
+              "totalExpenses": { "type": "double" },
+              "totalAssets": { "type": "double" },
+              "totalLiabilities": { "type": "double" },
+              "staffFullTimeEquivalent": { "type": "double" },
+              "volunteers": { "type": "long" }
+            }
+          }
         }
       },
       "financialServicesLicence": {

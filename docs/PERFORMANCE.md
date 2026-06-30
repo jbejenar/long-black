@@ -58,48 +58,59 @@ null/empty state; `AAT`, when present, is its own bucket — this extract had no
 
 ## Enrichment (real extract, 2026.06.24)
 
-All six enrichment sources were downloaded from data.gov.au and loaded against
+All seven enrichment sources were downloaded from data.gov.au and loaded against
 the real 20.3M-ABN table, then joined through `abn_full.sql`. Measured on the
-machine above; all six joins together add ~14 s to the flatten (2 min 17 s vs
-2 min 3 s core-only) and stay well under the memory budget.
+machine above; the enrichment joins together add ~15 s to the flatten and stay
+well under the memory budget.
 
 | Source                          | Rows loaded | ABNs enriched | Coverage | Join key            |
 | ------------------------------- | ----------: | ------------: | -------: | ------------------- |
 | ASIC Company                    |   2,342,141 |     2,341,897 |   11.5 % | ABN                 |
 | ASIC Business Names             |   2,618,824 |     1,977,574 |    9.7 % | ABN (holder)        |
 | ACNC charities                  |      65,270 |        65,265 |    0.3 % | ABN                 |
-| ASIC AFS Licensees              |       6,464 |        6,300+ |  0.031 % | ABN **or** ACN      |
-| ASIC Credit Licensees           |       4,296 |        3,939+ |  0.019 % | ABN **or** ACN      |
+| ACNC AIS financials             |      53,665 |        51,806 |    0.3 % | ABN (into charity)  |
+| ASIC AFS Licensees              |       6,464 |         6,315 |  0.031 % | ABN **or** ACN      |
+| ASIC Credit Licensees           |       4,296 |         3,943 |  0.019 % | ABN **or** ACN      |
 | ASIC Banned & Disqualified Orgs |          15 |            12 | <0.001 % | ACN (`asic_number`) |
 
 ABNs-enriched is the document count carrying a non-null `company` /
-`financialServicesLicence` / `creditLicence` or a non-empty
-`registeredBusinessNames[]` / `bannedDisqualified[]` / a non-null `charity`; it
-matches the output exactly (0 composition errors over 20,295,936 docs). Most ABNs
+`financialServicesLicence` / `creditLicence` / `charity` (or `charity.financials`
+for the AIS row) or a non-empty `registeredBusinessNames[]` / `bannedDisqualified[]`;
+it matches the output exactly (0 composition errors over 20,295,936 docs). Most ABNs
 are sole traders / trusts with no ASIC or ACNC record, so the low coverage is
 expected, not a gap — the regulated & risk registers are deliberately small
 populations (licensed financial-services providers and ASIC enforcement actions).
 
-> **AFS/credit ABN-vs-ACN keying.** The `*_ABN_ACN` source column holds an 11-digit
-> ABN on most rows but a 9-digit ACN on some (2026.06.24: **6,300 ABN + 164 ACN**
-> for AFS; **3,939 ABN + 357 ACN** for credit). The `enriched` figures above were
-> measured before the type-guarded ACN fallback landed and reflect the ABN path
-> only (`6,300`/`3,939`); the ACN path resolves the ACN-keyed rows via
-> `asic_number` (type `ACN` only), recovering up to those extra rows — hence the
-> `+`. Exact post-fix counts are confirmed by the next full build; the fixture loop
-> proves the two-path join and the ARBN-collision guard precisely.
+> **AIS coverage = charity ∩ AIS.** `charity.financials` populates only when the
+> ABN is in _both_ the current charity register and the AIS (financials fold into
+> `charity{}`). On the 2024 AIS that intersection is **51,806** (of 53,665 filers;
+> the other 1,859 had deregistered and carry no financials). The AIS is pinned to
+> the 2024 package — a reproducible snapshot, bumped annually.
+
+> **AFS/credit ABN-vs-ACN keying + the `undetermined` guard.** The `*_ABN_ACN`
+> source column holds an 11-digit ABN on most rows but a 9-digit ACN on some
+> (2026.06.24: **6,300 ABN + 164 ACN** for AFS; **3,939 ABN + 357 ACN** for credit).
+> The ACN path resolves those via `a.asic_number`, recovering the rows the ABN-only
+> path dropped (AFS 6,300 → **6,315**, credit 3,939 → **3,943** — only the ACN rows
+> whose ACN actually appears as an ABR `asic_number` resolve). Crucially, the real
+> ABR extract types **every** `asic_number` as `'undetermined'` (never
+> ACN/ARBN/ARSN/ARFN), so the ACN-path joins **exclude** known foreign types
+> (`ARBN`/`ARSN`/`ARFN`) rather than require `ACN` — a `= 'ACN'` guard matched
+> nothing and zeroed `bannedDisqualified` across all 20.3M docs (the 20.3M proof
+> caught this; the fixture now seeds `undetermined` to lock it in). With the
+> exclusion guard, `bannedDisqualified` is back to **12**.
 
 **Completeness gates** (the "data must be complete before shipping" policy):
 
 - `enrich-cli` fails if any source loads below its floor (`minRows`: company/
-  business-names 1,000,000, charities 20,000, AFS/credit 1,000, banned 5 — ≈⅓ of
-  the counts above, except the tiny volatile banned register whose floor just
-  catches a 0-row/wrong-file load).
+  business-names 1,000,000, charities 20,000, AIS 20,000, AFS/credit 1,000, banned
+  5 — ≈⅓ of the counts above, except the tiny volatile banned register whose floor
+  just catches a 0-row/wrong-file load).
 - `cli.js` runs an enrichment-coverage gate after verify
   (`LONG_BLACK_COVERAGE_PROFILE=production`): the build fails unless `company` ≥
   1,000,000, `registeredBusinessNames` ≥ 1,000,000, `charity` ≥ 20,000,
-  `financialServicesLicence` ≥ 1,000, `creditLicence` ≥ 1,000, and
-  `bannedDisqualified` ≥ 5 docs.
+  `charityFinancials` ≥ 20,000, `financialServicesLicence` ≥ 1,000,
+  `creditLicence` ≥ 1,000, and `bannedDisqualified` ≥ 5 docs.
 - `build.yml` treats an incomplete enrichment as fatal (no silent partial
   release) unless a deliberate `allow_partial_enrichment=true` manual override,
   and diffs the build against the prior release (`compare-cli`) to hold anomalous

@@ -385,9 +385,112 @@
                       "type": "null"
                     }
                   ]
+                },
+                "financials": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "reportingPeriodStart": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "reportingPeriodEnd": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "totalRevenue": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "totalExpenses": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "totalAssets": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "totalLiabilities": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "staffFullTimeEquivalent": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "volunteers": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "reportingPeriodStart",
+                        "reportingPeriodEnd",
+                        "totalRevenue",
+                        "totalExpenses",
+                        "totalAssets",
+                        "totalLiabilities",
+                        "staffFullTimeEquivalent",
+                        "volunteers"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 }
               },
-              "required": ["name", "status", "size", "subtype", "registrationDate"],
+              "required": ["name", "status", "size", "subtype", "registrationDate", "financials"],
               "additionalProperties": false
             },
             {

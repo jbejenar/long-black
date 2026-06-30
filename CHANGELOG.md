@@ -14,6 +14,38 @@ The NDJSON document is the contract (`docs/DOCUMENT-SCHEMA.md`).
 
 ### Added
 
+- **0.10.0** — **Charity financials** (ACNC Annual Information Statement). Adds a
+  nested `charity.financials` object so each currently-registered charity carries
+  its most recent AIS financials — revenue, expenses, assets, liabilities — plus
+  workforce (FTE staff, volunteers) and the reporting period. **Additive, minor
+  bump** (a new nested field inside the existing `charity` object):
+  - Source: `acnc-<year>-annual-information-statement-ais-data` (CKAN; one package
+    per year — the loader pins a known year, `acnc-2024-…`, as a reproducible
+    snapshot bumped with a one-line change). Main CSV `datadotgov_ais24`, comma CSV,
+    keyed on the 11-digit `abn` (verify-on-first-load: 53,665 filers, 100% numeric
+    financials, all ABN-keyed).
+  - Monetary fields are emitted as **JSON numbers** (whole dollars, stored
+    `numeric` since some exceed int4); `staffFullTimeEquivalent` may be fractional;
+    `volunteers` is an integer. Casts are regex-guarded (blank/non-numeric → null).
+  - Folded into `charity{}` (not a top-level field), so financials surface only for
+    currently-registered charities; on the 2024 AIS, **1,859** filers had
+    deregistered and carry no financials (documented trade-off).
+  - Wired through the same seam: `ENRICHMENT_SOURCES` (now seven),
+    `normalize-acnc-ais.sql`, an `ais` CTE folded into the charity object in
+    `abn_full.sql`, and a `charityFinancials` coverage gate (`src/coverage.ts` —
+    production floor 20,000, fixture floor 1). Real coverage (20.3M proof):
+    **51,806** charities with financials (register ∩ AIS).
+  - **Fixed (caught by the 20.3M proof):** the 0.9.0 ACN-path joins guarded with
+    `asic_number_type = 'ACN'`, but the real ABR extract types every ASIC number
+    `'undetermined'`, so that guard matched **nothing** — `bannedDisqualified` came
+    back empty for all 20.3M docs and the production coverage gate failed. The three
+    ACN-path joins now **exclude** known foreign types (`ARBN`/`ARSN`/`ARFN`) instead,
+    matching `undetermined`/`ACN`/null while still dropping a typed foreign collision;
+    a fixture seeded `undetermined` now proves the real-data path (preventing the
+    regression). Documented the `acnType`-always-null reality in `DOCUMENT-SCHEMA.md`.
+  - Contract docs moved in lockstep (`src/schema.ts`, `docs/DOCUMENT-SCHEMA.md`,
+    `fixtures/expected-output.ndjson`, `fixtures/schema-baseline.json`,
+    `opensearch/abn-mappings.json`, `docs/DATA-SOURCES.md`, `fixtures/edge-cases.md`).
 - **0.9.0** — **Regulated & risk enrichment bundle** (three new ASIC registers →
   three new document fields). long-black now carries whether an ABN holds a current
   financial-services or consumer-credit licence, and whether its corporate entity
@@ -22,17 +54,19 @@ The NDJSON document is the contract (`docs/DOCUMENT-SCHEMA.md`).
   - `financialServicesLicence` (`AfsLicence | null`) — ASIC AFS Licensees
     (`asic-afs-licensee`), 1:0..1 per entity. `AFS_LIC_ABN_ACN` carries **either an
     11-digit ABN or a 9-digit ACN**, so the licence resolves by two paths: a direct
-    ABN match, or an ACN match against `asic_number` **only when
-    `asic_number_type = 'ACN'`** (an ARBN/ARSN/ARFN sharing the digits is never
-    matched). Without the ACN path ~164 real licensees would falsely report null.
+    ABN match, or an ACN match against `asic_number`, **excluding** asic_numbers
+    typed `ARBN`/`ARSN`/`ARFN` (a known foreign number sharing the digits is never
+    matched; real ABR data is `undetermined`, so the join excludes rather than
+    requires `ACN` — see 0.10.0). Without the ACN path ~164 real licensees would
+    falsely report null.
   - `creditLicence` (`CreditLicence | null`) — ASIC Credit Licensees
-    (`asic-credit-licensee`), 1:0..1 per entity; same ABN-or-ACN type-guarded keying
-    (~357 real ACN-keyed rows recovered); `status` is the raw ASIC code (e.g. `APPR`).
+    (`asic-credit-licensee`), 1:0..1 per entity; same ABN-or-ACN keying (~357 real
+    ACN-keyed rows recovered); `status` is the raw ASIC code (e.g. `APPR`).
   - `bannedDisqualified` (`Banned[]`, `[]` when none) — ASIC Banned & Disqualified
     Orgs (`asic-banned-disqualified-org`). The one register keyed on **ACN**, so it
-    joins via `asic_number` **only when `asic_number_type = 'ACN'`** — guarding
-    against a non-ACN entity inheriting another org's enforcement record on a 9-digit
-    collision; `endDate` is null for permanent bannings.
+    joins via `asic_number`, excluding asic_numbers typed `ARBN`/`ARSN`/`ARFN` —
+    guarding against a foreign entity inheriting another org's enforcement record on
+    a 9-digit collision; `endDate` is null for permanent bannings.
   - Wired through the same enrichment seam: `ENRICHMENT_SOURCES` config (now six),
     three `normalize-asic-*.sql`, type-guarded `abn_full.sql` CTEs/joins, `compose.ts`,
     and the coverage gate (`src/coverage.ts` — production floors 1,000 / 1,000 / 5,

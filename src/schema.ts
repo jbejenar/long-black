@@ -40,13 +40,30 @@ export const RegisteredBusinessNameSchema = z.object({
   cancellationDate: z.string().nullable(),
 });
 
-/** ACNC charity enrichment (1:0..1 on ABN). Null until the source is wired. */
+/**
+ * ACNC Annual Information Statement financials (the charity's most recent AIS).
+ * Nested under `charity` and null when the charity has no AIS on file. Monetary
+ * values are whole-dollar amounts; `staffFullTimeEquivalent` may be fractional.
+ */
+export const CharityFinancialsSchema = z.object({
+  reportingPeriodStart: z.string().nullable(),
+  reportingPeriodEnd: z.string().nullable(),
+  totalRevenue: z.number().nullable(),
+  totalExpenses: z.number().nullable(),
+  totalAssets: z.number().nullable(),
+  totalLiabilities: z.number().nullable(),
+  staffFullTimeEquivalent: z.number().nullable(),
+  volunteers: z.number().nullable(),
+});
+
+/** ACNC charity enrichment (1:0..1 on ABN). `financials` populate from the AIS. */
 export const CharityEnrichmentSchema = z.object({
   name: z.string(),
   status: z.string(),
   size: z.string().nullable(),
   subtype: z.string().nullable(),
   registrationDate: z.string().nullable(),
+  financials: CharityFinancialsSchema.nullable(),
 });
 
 /** ASIC Australian Financial Services licence (1:0..1 on ABN). Presence = a current AFSL holder. */
@@ -114,6 +131,7 @@ export type DgrEndorsement = z.infer<typeof DgrSchema>;
 export type RegisteredBusinessName = z.infer<typeof RegisteredBusinessNameSchema>;
 export type CompanyEnrichment = z.infer<typeof CompanyEnrichmentSchema>;
 export type CharityEnrichment = z.infer<typeof CharityEnrichmentSchema>;
+export type CharityFinancials = z.infer<typeof CharityFinancialsSchema>;
 export type AfsLicence = z.infer<typeof AfsLicenceSchema>;
 export type CreditLicence = z.infer<typeof CreditLicenceSchema>;
 export type BannedDisqualified = z.infer<typeof BannedDisqualifiedSchema>;

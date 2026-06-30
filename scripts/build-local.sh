@@ -55,7 +55,7 @@ sed_ver sql/abn-finalize.sql | runsql
 # Enrichment is REQUIRED — the data must be complete before shipping. Each source
 # must load above its floor (enrich-cli) or this aborts. Set ALLOW_PARTIAL=true to
 # deliberately build with a degraded source (disables the coverage gate too).
-echo "[build-local] enrichment (ASIC Company/Business Names + ACNC — required)..."
+echo "[build-local] enrichment (7 sources: ASIC Company/Business Names/AFS/credit/banned + ACNC register/AIS — required)..."
 COVERAGE_PROFILE=production
 if DATA_DIR="$DATA_DIR" DATABASE_URL="$DB" LONG_BLACK_VERSION="$VERSION" node dist/enrich-cli.js; then
   echo "[build-local] enrichment complete"

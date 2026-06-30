@@ -43,9 +43,14 @@ INSERT INTO abn___SCHEMA_VERSION__.abn (
 ('51000000955','ACT',DATE '2008-01-01','PUB','Australian Public Company',
  'MULTI DGR LIMITED',NULL,NULL,'000000955','ACN','ACT',DATE '2008-07-01','QLD','4001',
  NULL,NULL,NULL,'[{"name":"DGR FUND A","statusFromDate":"2011-01-01"},{"name":"DGR FUND B","statusFromDate":"2013-06-01"}]'::jsonb,20260601),
--- 9. GST cancelled
+-- 9. GST cancelled. asic_number_type is 'undetermined' — the value the REAL ABR
+-- extract carries for EVERY ASIC number (it never emits ACN/ARBN/ARSN/ARFN), so
+-- acnType maps to null here. This is the real-data shape for the ACN-path joins
+-- below: the type-guard matches 'undetermined' (and ACN), so this entity still
+-- receives its ACN-keyed licences + bannings — a guard requiring `= 'ACN'` would
+-- (wrongly) drop them all on real data.
 ('51000000987','ACT',DATE '2005-01-01','PRV','Australian Private Company',
- 'EXPIRED GST PTY LTD',NULL,NULL,'000000987','ACN','CAN',DATE '2019-06-30','NSW','2001',
+ 'EXPIRED GST PTY LTD',NULL,NULL,'000000987','undetermined','CAN',DATE '2019-06-30','NSW','2001',
  NULL,NULL,NULL,NULL,20260601),
 -- 10. GST never registered (null)
 ('51000001490','ACT',DATE '2018-01-01','PRV','Australian Private Company',
@@ -128,6 +133,17 @@ INSERT INTO abn___SCHEMA_VERSION__.acnc_charity (
 ) VALUES
 ('51000000923','GIVING CO CHARITABLE FOUNDATION','Registered','Medium','Advancing education',DATE '2012-06-01'),
 ('51000000810','THE SMITH FAMILY CHARITABLE TRUST','Registered','Small','Advancing social or public welfare',DATE '2011-01-01');
+
+-- ACNC Annual Information Statement fixtures (1:0..1 on ABN; folded into
+-- charity.financials). 51000000923 has a filed AIS (financials populate); 51000000810
+-- deliberately has NONE, so its charity.financials is null — a registered charity
+-- that has not filed. Monetary values are whole dollars; FTE staff is fractional.
+INSERT INTO abn___SCHEMA_VERSION__.acnc_ais (
+  abn, reporting_period_start, reporting_period_end,
+  total_revenue, total_expenses, total_assets, total_liabilities,
+  staff_full_time_equivalent, volunteers
+) VALUES
+('51000000923',DATE '2023-07-01',DATE '2024-06-30',1250000,1180000,3400000,420000,12.5,45);
 
 -- ASIC AFS licence enrichment fixtures (1:0..1 per entity). The source key is
 -- EITHER an ABN or an ACN, so two paths are exercised: 51000000761 is keyed by ABN

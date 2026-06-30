@@ -23,6 +23,7 @@ function ndjson(lines: object[]): string {
 const ZERO: CoverageFloors = {
   company: 0,
   charity: 0,
+  charityFinancials: 0,
   registeredBusinessNames: 0,
   financialServicesLicence: 0,
   creditLicence: 0,
@@ -33,7 +34,7 @@ const ZERO: CoverageFloors = {
 const full = {
   _id: "51824753556",
   company: { acn: "000000019", name: "X" },
-  charity: { name: "Y", status: "Registered" },
+  charity: { name: "Y", status: "Registered", financials: { totalRevenue: 100 } },
   registeredBusinessNames: [{ name: "Z" }],
   financialServicesLicence: { number: "240001" },
   creditLicence: { number: "390001" },
@@ -68,6 +69,7 @@ describe("checkEnrichmentCoverage", () => {
     expect(cov.total).toBe(3);
     expect(cov.company).toBe(2);
     expect(cov.charity).toBe(2);
+    expect(cov.charityFinancials).toBe(2);
     expect(cov.registeredBusinessNames).toBe(2);
     expect(cov.financialServicesLicence).toBe(2);
     expect(cov.creditLicence).toBe(2);
@@ -85,17 +87,31 @@ describe("checkEnrichmentCoverage", () => {
   });
 
   it("FAILS with a shortfall when a source is entirely missing", async () => {
-    // No charity anywhere → charity coverage 0 < floor 1.
+    // No charity anywhere → both charity AND charity.financials coverage 0 < floor 1.
     const path = ndjson([{ ...full, charity: null }, { ...bare }]);
     const cov = await checkEnrichmentCoverage(path, FIXTURE_COVERAGE_FLOORS);
     expect(cov.ok).toBe(false);
-    expect(cov.shortfalls).toEqual(["charity: 0 < required 1"]);
+    expect(cov.shortfalls).toEqual([
+      "charity: 0 < required 1",
+      "charityFinancials: 0 < required 1",
+    ]);
+  });
+
+  it("FAILS for charity.financials even when the charity itself is present", async () => {
+    // A registered charity with no AIS filed → charity ok, charityFinancials short.
+    const noAis = { ...full, charity: { name: "Y", status: "Registered", financials: null } };
+    const cov = await checkEnrichmentCoverage(ndjson([noAis, noAis]), FIXTURE_COVERAGE_FLOORS);
+    expect(cov.charity).toBe(2);
+    expect(cov.charityFinancials).toBe(0);
+    expect(cov.ok).toBe(false);
+    expect(cov.shortfalls).toEqual(["charityFinancials: 0 < required 1"]);
   });
 
   it("reports every source below its floor", async () => {
     const floors: CoverageFloors = {
       company: 5,
       charity: 5,
+      charityFinancials: 5,
       registeredBusinessNames: 5,
       financialServicesLicence: 5,
       creditLicence: 5,
@@ -103,6 +119,6 @@ describe("checkEnrichmentCoverage", () => {
     };
     const cov = await checkEnrichmentCoverage(ndjson([full, bare]), floors);
     expect(cov.ok).toBe(false);
-    expect(cov.shortfalls).toHaveLength(6);
+    expect(cov.shortfalls).toHaveLength(7);
   });
 });

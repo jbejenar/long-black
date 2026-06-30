@@ -24,6 +24,8 @@ export interface CoverageFloors {
   company: number;
   /** Min docs with a non-null `charity` object (ACNC). */
   charity: number;
+  /** Min docs with a non-null `charity.financials` object (ACNC AIS). */
+  charityFinancials: number;
   /** Min docs with ≥1 `registeredBusinessNames[]` entry (ASIC Business Names). */
   registeredBusinessNames: number;
   /** Min docs with a non-null `financialServicesLicence` (ASIC AFS). */
@@ -38,6 +40,7 @@ export interface CoverageResult {
   total: number;
   company: number;
   charity: number;
+  charityFinancials: number;
   registeredBusinessNames: number;
   financialServicesLicence: number;
   creditLicence: number;
@@ -60,6 +63,8 @@ export const ABN_COVERAGE_FLOORS: CoverageFloors = {
   // Real 2026.06.24: see docs/PERFORMANCE.md. Floors ≈ a third of observed.
   company: 1_000_000,
   charity: 20_000,
+  // ACNC AIS filers that match a registered charity. Real 2024 AIS: 53,665 filers.
+  charityFinancials: 20_000,
   registeredBusinessNames: 1_000_000,
   // Regulated & risk sources are small populations; floors confirmed on the real
   // extract (see docs/PERFORMANCE.md) and set well below observed. The banned-org
@@ -79,6 +84,7 @@ export const ABN_COVERAGE_FLOORS: CoverageFloors = {
 export const FIXTURE_COVERAGE_FLOORS: CoverageFloors = {
   company: 1,
   charity: 1,
+  charityFinancials: 1,
   registeredBusinessNames: 1,
   financialServicesLicence: 1,
   creditLicence: 1,
@@ -101,6 +107,7 @@ export async function checkEnrichmentCoverage(
     total: 0,
     company: 0,
     charity: 0,
+    charityFinancials: 0,
     registeredBusinessNames: 0,
     financialServicesLicence: 0,
     creditLicence: 0,
@@ -121,6 +128,8 @@ export async function checkEnrichmentCoverage(
     result.total += 1;
     if (doc.company != null) result.company += 1;
     if (doc.charity != null) result.charity += 1;
+    const charity = doc.charity as { financials?: unknown } | null;
+    if (charity != null && charity.financials != null) result.charityFinancials += 1;
     if (isNonEmptyArray(doc.registeredBusinessNames)) result.registeredBusinessNames += 1;
     if (doc.financialServicesLicence != null) result.financialServicesLicence += 1;
     if (doc.creditLicence != null) result.creditLicence += 1;
@@ -132,6 +141,7 @@ export async function checkEnrichmentCoverage(
   const gates: [keyof CoverageFloors, number, number][] = [
     ["company", result.company, floors.company],
     ["charity", result.charity, floors.charity],
+    ["charityFinancials", result.charityFinancials, floors.charityFinancials],
     ["registeredBusinessNames", result.registeredBusinessNames, floors.registeredBusinessNames],
     ["financialServicesLicence", result.financialServicesLicence, floors.financialServicesLicence],
     ["creditLicence", result.creditLicence, floors.creditLicence],

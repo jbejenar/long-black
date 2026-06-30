@@ -30,8 +30,9 @@ The NDJSON document is the contract (`docs/DOCUMENT-SCHEMA.md`).
   - `govSpend` shape: `{ totalValueAud, contractCount, firstContractDate,
 lastContractDate }`, folded into the document via a 1:0..1 join; `null` when the
     ABN never supplied a contract. Coverage gate floor 30,000 (`src/coverage.ts`).
-  - © Commonwealth of Australia (Department of Finance / AusTender), via the OCP Data
-    Registry — **CC-BY 4.0** (added to the attribution block + `metadata.json`).
+  - © Commonwealth of Australia (Department of Finance / AusTender) — **CC-BY 3.0
+    AU** (the data.gov.au record's dataset licence; the OCP Data Registry is the
+    access route). Added to `ABN_SOURCES` so it appears in `metadata.json`.
   - Contract docs moved in lockstep (`src/schema.ts`, `docs/DOCUMENT-SCHEMA.md`,
     `fixtures/expected-output.ndjson`, `fixtures/schema-baseline.json`,
     `opensearch/abn-mappings.json`, `docs/DATA-SOURCES.md`, `fixtures/edge-cases.md`).

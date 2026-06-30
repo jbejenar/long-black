@@ -51,6 +51,15 @@ export interface GovSpendRow {
   lastContractDate: string | null;
 }
 
+/** Load diagnostics — surfaced so an incomplete/wrong source can't ship silently. */
+export interface GovSpendStats {
+  releases: number;
+  withSupplierAbn: number;
+  withValue: number;
+  withDate: number;
+  distinctAbns: number;
+}
+
 interface OcdsParty {
   roles?: string[];
   identifier?: { scheme?: string; id?: string };
@@ -110,36 +119,69 @@ export function extractRelease(release: OcdsRelease): {
   return { abns: [...abns], cents, date };
 }
 
+/** A parsed line is OCDS iff it's an object with a `releases[]` array or an `ocid`. */
+function ocdsReleases(parsed: unknown): OcdsRelease[] | null {
+  if (typeof parsed !== "object" || parsed === null) return null;
+  const pkg = parsed as { releases?: unknown; ocid?: unknown };
+  if (Array.isArray(pkg.releases)) return pkg.releases as OcdsRelease[];
+  if (typeof pkg.ocid === "string") return [parsed as OcdsRelease];
+  return null;
+}
+
 /**
  * Stream `file` (a gzipped JSONL of OCDS release packages) and aggregate contract
  * spend per supplier ABN. Each ocid is counted once (a defensive guard — the OCP
  * compiled file is already one-release-per-ocid). The contract's full value is
  * attributed to every listed supplier ABN (≈1% of contracts list more than one).
+ *
+ * **Fail-fast on bad source data** (the data must be complete before shipping): a
+ * malformed JSON line or a line that isn't a recognizable OCDS shape THROWS (with
+ * its line number) rather than being skipped — a truncated/corrupt/wrong download
+ * must not silently yield a plausible-but-incomplete aggregate that still clears the
+ * floor. Returns the per-ABN map plus diagnostic counters; an empty file (0
+ * releases) also throws.
  */
-export async function aggregateGovSpend(file: string): Promise<Map<string, SpendAccumulator>> {
+export async function aggregateGovSpend(
+  file: string,
+): Promise<{ agg: Map<string, SpendAccumulator>; stats: GovSpendStats }> {
   const agg = new Map<string, SpendAccumulator>();
   const seenOcids = new Set<string>();
+  const stats: GovSpendStats = {
+    releases: 0,
+    withSupplierAbn: 0,
+    withValue: 0,
+    withDate: 0,
+    distinctAbns: 0,
+  };
   const rl = createInterface({
     input: createReadStream(file).pipe(createGunzip()),
     crlfDelay: Infinity,
   });
+  let lineNo = 0;
   for await (const line of rl) {
+    lineNo += 1;
     if (line.length === 0) continue;
     let parsed: unknown;
     try {
       parsed = JSON.parse(line);
-    } catch {
-      continue; // skip a malformed line rather than abort the whole load
+    } catch (err) {
+      throw new Error(`malformed JSON at line ${lineNo} of ${file}: ${(err as Error).message}`);
     }
-    const pkg = parsed as { releases?: OcdsRelease[] };
-    const releases = Array.isArray(pkg.releases) ? pkg.releases : [parsed as OcdsRelease];
+    const releases = ocdsReleases(parsed);
+    if (releases === null) {
+      throw new Error(`line ${lineNo} of ${file} is not a recognizable OCDS release/package`);
+    }
     for (const release of releases) {
       const ocid = release.ocid;
       if (typeof ocid === "string") {
         if (seenOcids.has(ocid)) continue;
         seenOcids.add(ocid);
       }
+      stats.releases += 1;
       const { abns, cents, date } = extractRelease(release);
+      if (abns.length > 0) stats.withSupplierAbn += 1;
+      if (cents > 0) stats.withValue += 1;
+      if (date !== null) stats.withDate += 1;
       for (const abn of abns) {
         const cur = agg.get(abn) ?? { cents: 0, contractCount: 0, firstDate: null, lastDate: null };
         cur.cents += cents;
@@ -152,7 +194,11 @@ export async function aggregateGovSpend(file: string): Promise<Map<string, Spend
       }
     }
   }
-  return agg;
+  if (stats.releases === 0) {
+    throw new Error(`no OCDS releases found in ${file} (empty or wrong file?)`);
+  }
+  stats.distinctAbns = agg.size;
+  return { agg, stats };
 }
 
 /** Convert the in-memory aggregate into typed rows (cents → 2-dp dollar string). */
@@ -195,7 +241,13 @@ export async function loadGovSpend(options: {
 }): Promise<number> {
   const { connectionString, schemaVersion, file } = options;
   const schema = `abn_${schemaVersion}`;
-  const rows = aggregateToRows(await aggregateGovSpend(file));
+  const { agg, stats } = await aggregateGovSpend(file);
+  const rows = aggregateToRows(agg);
+  console.error(
+    `[gov-spend] ${stats.releases} releases → ${stats.distinctAbns} ABNs ` +
+      `(${stats.withSupplierAbn} with a supplier ABN, ${stats.withValue} with a value, ` +
+      `${stats.withDate} with a signed date)`,
+  );
 
   const sql = postgres(connectionString, { max: 1, max_lifetime: null });
   try {

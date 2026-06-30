@@ -1,11 +1,11 @@
 # Data Sources — long-black
 
-Most sources are published on [data.gov.au](https://data.gov.au) under **CC-BY 3.0
-AU** (AusTender is sourced from the OCP Data Registry under **CC-BY 4.0** — see
-below), and each carries the **ABN** (or, for the banned register, the **ACN**) as
-a common join key. This is what makes a pre-joined super-dataset possible — and is
-why long-black uses a relational store (Postgres) rather than a direct XML→NDJSON
-stream.
+All sources are licensed **CC-BY 3.0 AU** — most are published on
+[data.gov.au](https://data.gov.au); AusTender is accessed via the OCP Data Registry
+but its dataset licence is the source's CC-BY 3.0 AU (see below). Each carries the
+**ABN** (or, for the banned register, the **ACN**) as a common join key. This is
+what makes a pre-joined super-dataset possible — and is why long-black uses a
+relational store (Postgres) rather than a direct XML→NDJSON stream.
 
 | Source                          | CKAN id                        | Format           | Size                                | Cadence      | Join key                | Contributes                                                                            |
 | ------------------------------- | ------------------------------ | ---------------- | ----------------------------------- | ------------ | ----------------------- | -------------------------------------------------------------------------------------- |
@@ -239,7 +239,8 @@ contracts).
 - © Commonwealth of Australia (Australian Business Register) — CC-BY 3.0 AU
 - © Australian Securities and Investments Commission (ASIC) — CC-BY 3.0 AU
 - © Australian Charities and Not-for-profits Commission (ACNC) — CC-BY 3.0 AU
-- © Commonwealth of Australia (Department of Finance / AusTender), sourced via the
-  Open Contracting Partnership Data Registry — CC-BY 4.0
+- © Commonwealth of Australia (Department of Finance / AusTender) — CC-BY 3.0 AU
+  (the dataset licence; the OCP Data Registry is only the access route for the bulk
+  file)
 
 These appear in every build's `metadata.json` (`sources[].attribution`).

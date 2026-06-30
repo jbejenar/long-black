@@ -119,9 +119,8 @@ describe("aggregateGovSpend (gzip stream)", () => {
       rel("b", "51000000761", "9999.00", "2023-01-01"), // duplicate ocid 'b' → skipped
       rel("c", "51000000793", "250000.00", "2021-11-20"),
     ]);
-    const rows = aggregateToRows(await aggregateGovSpend(file)).sort((a, b) =>
-      a.abn.localeCompare(b.abn),
-    );
+    const { agg, stats } = await aggregateGovSpend(file);
+    const rows = aggregateToRows(agg).sort((a, b) => a.abn.localeCompare(b.abn));
     expect(rows).toEqual([
       {
         abn: "51000000761",
@@ -138,5 +137,33 @@ describe("aggregateGovSpend (gzip stream)", () => {
         lastContractDate: "2021-11-20",
       },
     ]);
+    expect(stats).toEqual({
+      releases: 3, // 4 lines, one is a duplicate ocid
+      withSupplierAbn: 3,
+      withValue: 3,
+      withDate: 3,
+      distinctAbns: 2,
+    });
+  });
+
+  it("THROWS on a malformed JSON line (no silent skip)", async () => {
+    const d = mkdtempSync(join(tmpdir(), "lb-gov-"));
+    dirs.push(d);
+    const p = join(d, "bad.jsonl.gz");
+    writeFileSync(p, gzipSync(Buffer.from('{"ocid":"a","parties":[]}\n{ this is not json\n')));
+    await expect(aggregateGovSpend(p)).rejects.toThrow(/malformed JSON at line 2/);
+  });
+
+  it("THROWS on a non-OCDS line (wrong file)", async () => {
+    const file = writeJsonlGz([{ hello: "world" }]);
+    await expect(aggregateGovSpend(file)).rejects.toThrow(/not a recognizable OCDS/);
+  });
+
+  it("THROWS on an empty file (no releases)", async () => {
+    const d = mkdtempSync(join(tmpdir(), "lb-gov-"));
+    dirs.push(d);
+    const p = join(d, "empty.jsonl.gz");
+    writeFileSync(p, gzipSync(Buffer.from("\n")));
+    await expect(aggregateGovSpend(p)).rejects.toThrow(/no OCDS releases/);
   });
 });

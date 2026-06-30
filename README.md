@@ -94,9 +94,9 @@ gh release download --repo jbejenar/long-black --pattern 'long-black-*-nsw.ndjso
 
 ABR ABN Bulk Extract + ASIC Company + ASIC Business Names + ACNC Charities + ACNC
 Annual Information Statement + ASIC AFS Licensees + ASIC Credit Licensees + ASIC
-Banned & Disqualified Orgs (all data.gov.au, **CC-BY 3.0 AU**) + AusTender contracts
-(OCDS, via the OCP Data Registry, **CC-BY 4.0**) — joined on the ABN (the banned
-register on the ACN). See [docs/DATA-SOURCES.md](docs/DATA-SOURCES.md).
+Banned & Disqualified Orgs (all data.gov.au) + AusTender contracts (OCDS, via the
+OCP Data Registry) — all **CC-BY 3.0 AU**, joined on the ABN (the banned register on
+the ACN). See [docs/DATA-SOURCES.md](docs/DATA-SOURCES.md).
 
 ## Tech stack
 

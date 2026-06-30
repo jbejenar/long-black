@@ -11,7 +11,14 @@ import { split, compress, writeMetadata, convertToParquet, type SourceInfo } fro
 import { SPLIT_PREFIX } from "./sources.js";
 import { ABN_PARQUET_SCHEMA, abnParquetRow } from "./parquet-output.js";
 
-/** The four public sources, with their CC-BY attribution (licence requirement). */
+/**
+ * The public sources, with their CC-BY attribution (a licence requirement). All are
+ * CC-BY 3.0 AU, including AusTender — its data.gov.au record lists `cc-by` /
+ * "Creative Commons Attribution 3.0 Australia" (the OCP Data Registry is only the
+ * access route for the current bulk file; the dataset licence is the source's).
+ * Publisher-level: the ASIC/ACNC lines also cover the AFS/credit/banned and AIS
+ * datasets respectively; AusTender adds the Department of Finance.
+ */
 export const ABN_SOURCES: SourceInfo[] = [
   {
     name: "ABR ABN Bulk Extract",
@@ -36,6 +43,12 @@ export const ABN_SOURCES: SourceInfo[] = [
     url: "https://data.gov.au/data/dataset/acnc-register",
     licence: "CC-BY 3.0 AU",
     attribution: "© Australian Charities and Not-for-profits Commission",
+  },
+  {
+    name: "AusTender Contract Notices (OCDS)",
+    url: "https://data.open-contracting.org/en/publication/19",
+    licence: "CC-BY 3.0 AU",
+    attribution: "© Commonwealth of Australia (Department of Finance / AusTender)",
   },
 ];
 

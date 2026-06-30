@@ -59,23 +59,35 @@ function acnType(value: unknown): AbnDocument["acnType"] {
   return ACN_TYPES.has(s) ? (s as AbnDocument["acnType"]) : null;
 }
 
-const MS_PER_YEAR = 365.25 * 24 * 60 * 60 * 1000;
+/** Strict `YYYY-MM-DD` → calendar parts (with basic range checks), else null. */
+function parseYmd(value: string): { y: number; m: number; d: number } | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (m === null) return null;
+  const parts = { y: Number(m[1]), m: Number(m[2]), d: Number(m[3]) };
+  if (parts.m < 1 || parts.m > 12 || parts.d < 1 || parts.d > 31) return null;
+  return parts;
+}
 
 /**
- * Whole years from `abnStatusFromDate` to the data version date — a deterministic
- * "ABN age" signal (years since the ABN entered its current status; for an active
- * ABN this is effectively its registration age). Computed against the build's
- * `_version` (NOT wall-clock) so the output stays byte-deterministic for the
- * regression baseline. Null when the from-date is absent/unparseable; clamped to 0
- * if the from-date somehow post-dates the version.
+ * Whole CALENDAR years from `abnStatusFromDate` to the data version date — a
+ * deterministic "ABN age" signal (years since the ABN entered its current status;
+ * for an active ABN this is effectively its registration age). Uses date COMPONENTS
+ * (year diff, minus one if the version's month/day is before the start's) — NOT
+ * elapsed-ms / 365.25, which undercounts exact anniversaries (2025-01-01 →
+ * 2026-01-01 is 1 year, but floor(365 / 365.25) = 0). Computed against the build's
+ * `_version` (NOT wall-clock) and free of timezone/Date.parse ambiguity, so the
+ * output stays byte-deterministic for the regression baseline. Null when either date
+ * is absent or not a strict `YYYY-MM-DD`; clamped to 0 if the from-date post-dates
+ * the version.
  */
-function ageYears(abnStatusFromDate: string | null, version: string): number | null {
+export function computeAgeYears(abnStatusFromDate: string | null, version: string): number | null {
   if (abnStatusFromDate === null) return null;
-  const start = Date.parse(abnStatusFromDate);
-  const end = Date.parse(version.replace(/\./g, "-"));
-  if (Number.isNaN(start) || Number.isNaN(end)) return null;
-  if (end <= start) return 0;
-  return Math.floor((end - start) / MS_PER_YEAR);
+  const start = parseYmd(abnStatusFromDate);
+  const end = parseYmd(version.replace(/\./g, "-"));
+  if (start === null || end === null) return null;
+  let years = end.y - start.y;
+  if (end.m < start.m || (end.m === start.m && end.d < start.d)) years -= 1;
+  return years < 0 ? 0 : years;
 }
 
 export function composeAbnDocument(row: Record<string, unknown>, version: string): AbnDocument {
@@ -122,7 +134,7 @@ export function composeAbnDocument(row: Record<string, unknown>, version: string
     creditLicence,
     bannedDisqualified,
     // Derived signals — computed here from the fields above, no extra source.
-    ageYears: ageYears(abnStatusFromDate, version),
+    ageYears: computeAgeYears(abnStatusFromDate, version),
     isActive: status === "ACT",
     flags: {
       isIndividual: entityTypeCode === "IND",

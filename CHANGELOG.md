@@ -17,10 +17,12 @@ The NDJSON document is the contract (`docs/DOCUMENT-SCHEMA.md`).
 - **0.11.0** — **Derived signals** — three new fields computed in `compose.ts` from
   data already in each document, **no new source, no join, no coverage gate**.
   Additive, minor bump:
-  - `ageYears` (`number | null`) — whole years from `abnStatusFromDate` to the
-    `_version` date. Computed against the build version, **never wall-clock**, so the
-    output stays byte-deterministic for the regression baseline; null when the
-    from-date is absent (~0% of rows), clamped to 0 if the date post-dates the build.
+  - `ageYears` (`number | null`) — whole **calendar** years from `abnStatusFromDate`
+    to the `_version` date, computed from date components (not elapsed-ms/365.25,
+    which undercounts exact anniversaries). Computed against the build version,
+    **never wall-clock**, so the output stays byte-deterministic; null when the
+    from-date is absent (~0% of rows) or malformed, clamped to 0 if it post-dates the
+    build.
   - `isActive` (`boolean`) — `abnStatus === 'ACT'`. **44.2%** of the 2026.06.24
     extract (most ABNs are cancelled — 11.3M of 20.3M).
   - `flags` (`EntityFlags`) — always-present convenience booleans so consumers can

@@ -194,11 +194,13 @@ no enforcement action"). Shape: `EntityFlagsSchema`. Approximate prevalence on t
 | `hasEnforcementAction` | boolean | `bannedDisqualified` non-empty (12 entities) |
 | `isDgr`                | boolean | `dgr` non-empty (~0.16%)                     |
 
-`ageYears` and `isActive` are likewise derived: `ageYears` is whole years from
-`abnStatusFromDate` to the `_version` date (deterministic — never wall-clock — so the
-output stays byte-reproducible; null when the from-date is absent, ~0% of rows);
-`isActive` is `abnStatus === 'ACT'` (**44.2%** of the extract — most ABNs are
-cancelled).
+`ageYears` and `isActive` are likewise derived: `ageYears` is whole **calendar**
+years from `abnStatusFromDate` to the `_version` date — computed from date components
+(year diff, minus one before the anniversary), **not** elapsed-ms/365.25 (which
+undercounts exact anniversaries). Deterministic (never wall-clock) so the output
+stays byte-reproducible; null when the from-date is absent (~0% of rows) or not a
+strict `YYYY-MM-DD`, clamped to 0 if it post-dates the build. `isActive` is
+`abnStatus === 'ACT'` (**44.2%** of the extract — most ABNs are cancelled).
 
 ## Enums
 

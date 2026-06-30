@@ -30,6 +30,9 @@ function validDoc(overrides: Partial<AbnDocument> = {}): AbnDocument {
     registeredBusinessNames: [],
     company: null,
     charity: null,
+    financialServicesLicence: null,
+    creditLicence: null,
+    bannedDisqualified: [],
     ...overrides,
   };
 }
@@ -71,5 +74,32 @@ describe("AbnDocumentSchema", () => {
   it("accepts a populated dgr array", () => {
     const doc = validDoc({ dgr: [{ name: "ACME FOUNDATION", statusFromDate: "2010-01-01" }] });
     expect(AbnDocumentSchema.safeParse(doc).success).toBe(true);
+  });
+
+  it("accepts regulated & risk enrichment (AFS/credit licence + banned)", () => {
+    const doc = validDoc({
+      financialServicesLicence: {
+        number: "240001",
+        name: "ACME PTY LTD",
+        startDate: "2003-05-01",
+        conditions: null,
+      },
+      creditLicence: {
+        number: "390001",
+        name: "ACME PTY LTD",
+        status: "APPR",
+        startDate: "2011-03-01",
+        endDate: null,
+      },
+      bannedDisqualified: [
+        { type: "AFS banning", startDate: "2019-07-01", endDate: null, comment: null },
+      ],
+    });
+    expect(AbnDocumentSchema.safeParse(doc).success).toBe(true);
+  });
+
+  it("requires bannedDisqualified to be an array (not null)", () => {
+    const r = AbnDocumentSchema.safeParse(validDoc({ bannedDisqualified: null as unknown as [] }));
+    expect(r.success).toBe(false);
   });
 });

@@ -124,3 +124,24 @@ INSERT INTO abn___SCHEMA_VERSION__.acnc_charity (
 ) VALUES
 ('51000000923','GIVING CO CHARITABLE FOUNDATION','Registered','Medium','Advancing education',DATE '2012-06-01'),
 ('51000000810','THE SMITH FAMILY CHARITABLE TRUST','Registered','Small','Advancing social or public welfare',DATE '2011-01-01');
+
+-- ASIC AFS licence enrichment fixtures (1:0..1 on ABN; AFS_LIC_ABN_ACN is the ABN).
+INSERT INTO abn___SCHEMA_VERSION__.asic_afs_licence (
+  abn, licence_number, name, start_date, conditions
+) VALUES
+('51000000761','240001','ACME PRIVATE PTY LTD',DATE '2003-05-01',NULL);
+
+-- ASIC Credit licence enrichment fixtures (1:0..1 on ABN). Status raw ASIC code.
+INSERT INTO abn___SCHEMA_VERSION__.asic_credit_licence (
+  abn, licence_number, name, status, start_date, end_date
+) VALUES
+('51000000793','390001','BIGCORP LIMITED','APPR',DATE '2011-03-01',NULL);
+
+-- ASIC Banned & Disqualified fixtures (0..N, keyed on ACN → joined via
+-- abn.asic_number). 51000000987's asic_number '000000987' gets TWO banning
+-- actions (the 1:N aggregation + ACN-join guard).
+INSERT INTO abn___SCHEMA_VERSION__.asic_banned_disqualified (
+  acn, name, type, start_date, end_date, comment
+) VALUES
+('000000987','EXPIRED GST PTY LTD','Australian Financial Services banning',DATE '2019-07-01',DATE '2022-07-01','No comment made'),
+('000000987','EXPIRED GST PTY LTD','Credit banning',DATE '2020-01-01',NULL,NULL);

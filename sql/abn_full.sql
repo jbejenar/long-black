@@ -38,6 +38,32 @@ charity AS (
     abn, charity_name, status, size, subtype, registration_date
   FROM abn___SCHEMA_VERSION__.acnc_charity
   ORDER BY abn, registration_date DESC NULLS LAST, charity_name
+),
+-- 1:0..1 — ASIC AFS + credit licences (DISTINCT ON keeps the latest if an ABN
+-- ever holds more than one). Keyed on ABN (the source *_ABN_ACN is an 11-digit ABN).
+afs AS (
+  SELECT DISTINCT ON (abn)
+    abn, licence_number, name, start_date, conditions
+  FROM abn___SCHEMA_VERSION__.asic_afs_licence
+  ORDER BY abn, start_date DESC NULLS LAST, licence_number
+),
+credit AS (
+  SELECT DISTINCT ON (abn)
+    abn, licence_number, name, status, start_date, end_date
+  FROM abn___SCHEMA_VERSION__.asic_credit_licence
+  ORDER BY abn, start_date DESC NULLS LAST, licence_number
+),
+-- 0..N banning/disqualification actions, keyed on 9-digit ACN → joined via
+-- a.asic_number (not ABN). Aggregate per ACN so the join never fans out base rows.
+banned_agg AS (
+  SELECT acn, json_agg(json_build_object(
+    'type', type,
+    'startDate', start_date::text,
+    'endDate', end_date::text,
+    'comment', comment
+  ) ORDER BY start_date, type) AS items
+  FROM abn___SCHEMA_VERSION__.asic_banned_disqualified
+  GROUP BY acn
 )
 SELECT
   a.abn                                                AS _id,
@@ -82,9 +108,26 @@ SELECT
     'size', ch.size,
     'subtype', ch.subtype,
     'registrationDate', ch.registration_date::text
-  ) END                                                AS charity
+  ) END                                                AS charity,
+  CASE WHEN afs.abn IS NULL THEN NULL ELSE json_build_object(
+    'number', afs.licence_number,
+    'name', afs.name,
+    'startDate', afs.start_date::text,
+    'conditions', afs.conditions
+  ) END                                                AS financial_services_licence,
+  CASE WHEN cr.abn IS NULL THEN NULL ELSE json_build_object(
+    'number', cr.licence_number,
+    'name', cr.name,
+    'status', cr.status,
+    'startDate', cr.start_date::text,
+    'endDate', cr.end_date::text
+  ) END                                                AS credit_licence,
+  COALESCE(bd.items, '[]'::json)                       AS banned_disqualified
 FROM abn___SCHEMA_VERSION__.abn a
 LEFT JOIN company c ON c.abn = a.abn
 LEFT JOIN business_names_agg bn ON bn.abn = a.abn
 LEFT JOIN charity ch ON ch.abn = a.abn
+LEFT JOIN afs ON afs.abn = a.abn
+LEFT JOIN credit cr ON cr.abn = a.abn
+LEFT JOIN banned_agg bd ON bd.acn = a.asic_number
 ORDER BY a.abn;

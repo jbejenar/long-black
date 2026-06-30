@@ -48,3 +48,19 @@ CREATE UNLOGGED TABLE IF NOT EXISTS abn___SCHEMA_VERSION__.acnc_charity (
   abn char(11), charity_name text, status text, size text, subtype text,
   registration_date date
 );
+
+-- Regulated & risk SOURCES (ASIC). AFS + credit licences are 1:0..1 on ABN
+-- (the *_ABN_ACN column carries an 11-digit ABN). Banned/disqualified orgs are
+-- keyed on 9-digit ACN (no ABN in the source) → joined via abn.asic_number.
+CREATE UNLOGGED TABLE IF NOT EXISTS abn___SCHEMA_VERSION__.asic_afs_licence (
+  abn char(11), licence_number text, name text, start_date date, conditions text
+);
+
+CREATE UNLOGGED TABLE IF NOT EXISTS abn___SCHEMA_VERSION__.asic_credit_licence (
+  abn char(11), licence_number text, name text, status text,
+  start_date date, end_date date
+);
+
+CREATE UNLOGGED TABLE IF NOT EXISTS abn___SCHEMA_VERSION__.asic_banned_disqualified (
+  acn text, name text, type text, start_date date, end_date date, comment text
+);

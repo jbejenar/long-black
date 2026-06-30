@@ -13,6 +13,9 @@ import type {
   CompanyEnrichment,
   CharityEnrichment,
   RegisteredBusinessName,
+  AfsLicence,
+  CreditLicence,
+  BannedDisqualified,
 } from "./schema.js";
 
 function emptyToNull(value: unknown): string | null {
@@ -86,5 +89,10 @@ export function composeAbnDocument(row: Record<string, unknown>, version: string
       : [],
     company: (row.company as CompanyEnrichment | null) ?? null,
     charity: (row.charity as CharityEnrichment | null) ?? null,
+    financialServicesLicence: (row.financial_services_licence as AfsLicence | null) ?? null,
+    creditLicence: (row.credit_licence as CreditLicence | null) ?? null,
+    bannedDisqualified: Array.isArray(row.banned_disqualified)
+      ? (row.banned_disqualified as BannedDisqualified[])
+      : [],
   };
 }

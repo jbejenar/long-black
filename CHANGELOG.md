@@ -14,6 +14,29 @@ The NDJSON document is the contract (`docs/DOCUMENT-SCHEMA.md`).
 
 ### Added
 
+- **0.9.0** — **Regulated & risk enrichment bundle** (three new ASIC registers →
+  three new document fields). long-black now carries whether an ABN holds a current
+  financial-services or consumer-credit licence, and whether its corporate entity
+  has been actioned by the regulator — turning the dataset from a registry mirror
+  into a trust/risk signal. **Additive, minor bump** (no existing field changed):
+  - `financialServicesLicence` (`AfsLicence | null`) — ASIC AFS Licensees
+    (`asic-afs-licensee`), 1:0..1 on the holder ABN.
+  - `creditLicence` (`CreditLicence | null`) — ASIC Credit Licensees
+    (`asic-credit-licensee`), 1:0..1 on the holder ABN; `status` is the raw ASIC
+    code (e.g. `APPR`).
+  - `bannedDisqualified` (`Banned[]`, `[]` when none) — ASIC Banned & Disqualified
+    Orgs (`asic-banned-disqualified-org`). The one register keyed on **ACN**, so it
+    joins via `asic_number`, not ABN; `endDate` is null for permanent bannings.
+  - Wired through the same enrichment seam: `ENRICHMENT_SOURCES` config (now six),
+    three `normalize-asic-*.sql`, three `abn_full.sql` CTEs/joins, `compose.ts`,
+    and the coverage gate (`src/coverage.ts` — production floors 1,000 / 1,000 / 5,
+    fixture floors 1).
+  - Proven on the real 2026.06.24 extract: **6,300** AFS licensees, **3,939**
+    credit licensees, **12** banned orgs joined across 20,295,936 ABNs, 0
+    composition errors (`docs/PERFORMANCE.md`).
+  - Contract docs moved in lockstep (`src/schema.ts`, `docs/DOCUMENT-SCHEMA.md`,
+    `fixtures/expected-output.ndjson`, `fixtures/schema-baseline.json`,
+    `opensearch/abn-mappings.json`, `docs/DATA-SOURCES.md`, `fixtures/edge-cases.md`).
 - **0.8.0** — **Data-completeness gates** ("all four sources of truth must be
   complete before shipping"). Enrichment was proven on the real 2026.06.24 extract
   — 2,341,897 ASIC companies, 1,977,574 business-name holders, 65,265 charities

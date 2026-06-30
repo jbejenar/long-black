@@ -20,12 +20,24 @@ function ndjson(lines: object[]): string {
   return p;
 }
 
+const ZERO: CoverageFloors = {
+  company: 0,
+  charity: 0,
+  registeredBusinessNames: 0,
+  financialServicesLicence: 0,
+  creditLicence: 0,
+  bannedDisqualified: 0,
+};
+
 // A document with all enrichment present.
 const full = {
   _id: "51824753556",
   company: { acn: "000000019", name: "X" },
   charity: { name: "Y", status: "Registered" },
   registeredBusinessNames: [{ name: "Z" }],
+  financialServicesLicence: { number: "240001" },
+  creditLicence: { number: "390001" },
+  bannedDisqualified: [{ type: "AFS banning" }],
   businessNames: ["B"],
   dgr: [{ name: "D", statusFromDate: "2020-01-01" }],
 };
@@ -35,6 +47,9 @@ const bare = {
   company: null,
   charity: null,
   registeredBusinessNames: [],
+  financialServicesLicence: null,
+  creditLicence: null,
+  bannedDisqualified: [],
   businessNames: [],
   dgr: [],
 };
@@ -49,15 +64,14 @@ afterAll(() => {
 describe("checkEnrichmentCoverage", () => {
   it("tallies coverage across the stream", async () => {
     const path = ndjson([full, bare, { ...full, _id: "a" }]);
-    const cov = await checkEnrichmentCoverage(path, {
-      company: 0,
-      charity: 0,
-      registeredBusinessNames: 0,
-    });
+    const cov = await checkEnrichmentCoverage(path, ZERO);
     expect(cov.total).toBe(3);
     expect(cov.company).toBe(2);
     expect(cov.charity).toBe(2);
     expect(cov.registeredBusinessNames).toBe(2);
+    expect(cov.financialServicesLicence).toBe(2);
+    expect(cov.creditLicence).toBe(2);
+    expect(cov.bannedDisqualified).toBe(2);
     expect(cov.businessNames).toBe(2);
     expect(cov.dgr).toBe(2);
     expect(cov.ok).toBe(true);
@@ -79,9 +93,16 @@ describe("checkEnrichmentCoverage", () => {
   });
 
   it("reports every source below its floor", async () => {
-    const floors: CoverageFloors = { company: 5, charity: 5, registeredBusinessNames: 5 };
+    const floors: CoverageFloors = {
+      company: 5,
+      charity: 5,
+      registeredBusinessNames: 5,
+      financialServicesLicence: 5,
+      creditLicence: 5,
+      bannedDisqualified: 5,
+    };
     const cov = await checkEnrichmentCoverage(ndjson([full, bare]), floors);
     expect(cov.ok).toBe(false);
-    expect(cov.shortfalls).toHaveLength(3);
+    expect(cov.shortfalls).toHaveLength(6);
   });
 });

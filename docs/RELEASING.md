@@ -61,14 +61,15 @@ ABN checksum, schema violation, duplicate or out-of-order `_id` — because
 
 ### Data completeness (the data must be complete before shipping)
 
-A clean, schema-valid output is not sufficient: the join is across four sources of
-truth, and a silently-missing enrichment source would still produce valid (but
+A clean, schema-valid output is not sufficient: the join is across seven sources
+of truth, and a silently-missing enrichment source would still produce valid (but
 hollow) documents. Three gates make incompleteness fatal rather than invisible:
 
 1. **Per-source load floor.** `enrich-cli` fails if any source loads fewer than
-   its `minRows` (company / business-names 1,000,000, charities 20,000 — ≈⅓ of the
-   real volumes in `docs/PERFORMANCE.md`). Catches an empty/truncated CSV or the
-   wrong resource being picked.
+   its `minRows` (company / business-names 1,000,000, charities 20,000, AFS/credit
+   licensees 1,000, banned orgs 5 — ≈⅓ of the real volumes in
+   `docs/PERFORMANCE.md`, except the tiny volatile banned register). Catches an
+   empty/truncated CSV or the wrong resource being picked.
 2. **Enrichment required.** `build.yml` treats an enrichment failure as fatal — no
    silent partial release. A deliberate manual run may set
    `allow_partial_enrichment=true` to ship with a degraded source (which also
@@ -76,8 +77,10 @@ hollow) documents. Three gates make incompleteness fatal rather than invisible:
 3. **Output coverage gate.** After verify, `cli.js`
    (`LONG_BLACK_COVERAGE_PROFILE=production`) streams the output and fails unless
    each nested source populated at least its floor (`company` ≥ 1,000,000,
-   `registeredBusinessNames` ≥ 1,000,000, `charity` ≥ 20,000). Catches a broken
-   join even when the load itself succeeded.
+   `registeredBusinessNames` ≥ 1,000,000, `charity` ≥ 20,000,
+   `financialServicesLicence` ≥ 1,000, `creditLicence` ≥ 1,000,
+   `bannedDisqualified` ≥ 5). Catches a broken join even when the load itself
+   succeeded.
 
 The fixture loop runs the same coverage gate at fixture scale
 (`LONG_BLACK_COVERAGE_PROFILE=fixture` → each source ≥ 1 document), so a broken

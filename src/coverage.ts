@@ -26,6 +26,12 @@ export interface CoverageFloors {
   charity: number;
   /** Min docs with ≥1 `registeredBusinessNames[]` entry (ASIC Business Names). */
   registeredBusinessNames: number;
+  /** Min docs with a non-null `financialServicesLicence` (ASIC AFS). */
+  financialServicesLicence: number;
+  /** Min docs with a non-null `creditLicence` (ASIC Credit). */
+  creditLicence: number;
+  /** Min docs with ≥1 `bannedDisqualified[]` entry (ASIC Banned/Disqualified). */
+  bannedDisqualified: number;
 }
 
 export interface CoverageResult {
@@ -33,6 +39,9 @@ export interface CoverageResult {
   company: number;
   charity: number;
   registeredBusinessNames: number;
+  financialServicesLicence: number;
+  creditLicence: number;
+  bannedDisqualified: number;
   /** ABR-owned arrays — reported for visibility, not gated (always present). */
   businessNames: number;
   dgr: number;
@@ -52,6 +61,13 @@ export const ABN_COVERAGE_FLOORS: CoverageFloors = {
   company: 1_000_000,
   charity: 20_000,
   registeredBusinessNames: 1_000_000,
+  // Regulated & risk sources are small populations; floors confirmed on the real
+  // extract (see docs/PERFORMANCE.md) and set well below observed. The banned-org
+  // register is tiny (~12 matched ABNs) and volatile, so its floor is just enough
+  // to catch a 0-row/wrong-file failure, not a hard expectation.
+  financialServicesLicence: 1_000, // real: 6,300
+  creditLicence: 1_000, // real: 3,939
+  bannedDisqualified: 5, // real: 12
 };
 
 /**
@@ -64,6 +80,9 @@ export const FIXTURE_COVERAGE_FLOORS: CoverageFloors = {
   company: 1,
   charity: 1,
   registeredBusinessNames: 1,
+  financialServicesLicence: 1,
+  creditLicence: 1,
+  bannedDisqualified: 1,
 };
 
 function isNonEmptyArray(value: unknown): boolean {
@@ -83,6 +102,9 @@ export async function checkEnrichmentCoverage(
     company: 0,
     charity: 0,
     registeredBusinessNames: 0,
+    financialServicesLicence: 0,
+    creditLicence: 0,
+    bannedDisqualified: 0,
     businessNames: 0,
     dgr: 0,
     ok: true,
@@ -100,6 +122,9 @@ export async function checkEnrichmentCoverage(
     if (doc.company != null) result.company += 1;
     if (doc.charity != null) result.charity += 1;
     if (isNonEmptyArray(doc.registeredBusinessNames)) result.registeredBusinessNames += 1;
+    if (doc.financialServicesLicence != null) result.financialServicesLicence += 1;
+    if (doc.creditLicence != null) result.creditLicence += 1;
+    if (isNonEmptyArray(doc.bannedDisqualified)) result.bannedDisqualified += 1;
     if (isNonEmptyArray(doc.businessNames)) result.businessNames += 1;
     if (isNonEmptyArray(doc.dgr)) result.dgr += 1;
   }
@@ -108,6 +133,9 @@ export async function checkEnrichmentCoverage(
     ["company", result.company, floors.company],
     ["charity", result.charity, floors.charity],
     ["registeredBusinessNames", result.registeredBusinessNames, floors.registeredBusinessNames],
+    ["financialServicesLicence", result.financialServicesLicence, floors.financialServicesLicence],
+    ["creditLicence", result.creditLicence, floors.creditLicence],
+    ["bannedDisqualified", result.bannedDisqualified, floors.bannedDisqualified],
   ];
   for (const [name, got, min] of gates) {
     if (got < min) {

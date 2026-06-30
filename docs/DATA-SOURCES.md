@@ -113,38 +113,48 @@ order — and null when none is flagged.
 
 **ASIC AFS Licensees** (`sql/normalize-asic-afs-licence.sql`) — the register lists
 **current** AFS licence holders (the "- Current" CSV). `AFS_LIC_ABN_ACN` carries
-the holder's 11-digit ABN; rows without one can't join the ABR base and are
-skipped. Presence of a row = the ABN holds a current AFSL (there is no per-row
-status column). 1:0..1 per ABN (`DISTINCT ON (abn)`).
+the holder's identifier, which is **either an 11-digit ABN or a 9-digit ACN** (on
+the 2026.06.24 extract: ~6,300 ABN rows, ~164 ACN rows). The normalizer strips any
+separators and routes the value to the `abn` **or** `acn` column accordingly; the
+flatten then resolves an ABN row by `a.abn` directly and an ACN row by
+`a.asic_number` **only when `a.asic_number_type = 'ACN'`** (so an ARBN/ARSN/ARFN
+sharing the 9 digits is never matched). ACN-keyed rows that were previously dropped
+would have falsely reported a null AFSL. Presence of a row = a current AFSL (there
+is no per-row status column). 1:0..1 per entity.
 
-| Output (`financialServicesLicence.*`) | ASIC column       |
-| ------------------------------------- | ----------------- |
-| `number`                              | AFS_LIC_NUM       |
-| `name`                                | AFS_LIC_NAME      |
-| `startDate`                           | AFS_LIC_START_DT  |
-| `conditions`                          | AFS_LIC_CONDITION |
+| Output (`financialServicesLicence.*`) | ASIC column                                   |
+| ------------------------------------- | --------------------------------------------- |
+| _join key_                            | AFS_LIC_ABN_ACN (11-digit ABN or 9-digit ACN) |
+| `number`                              | AFS_LIC_NUM                                   |
+| `name`                                | AFS_LIC_NAME                                  |
+| `startDate`                           | AFS_LIC_START_DT                              |
+| `conditions`                          | AFS_LIC_CONDITION                             |
 
 **ASIC Credit Licensees** (`sql/normalize-asic-credit-licence.sql`) — same shape
-as the AFS register, keyed on the 11-digit `CRED_LIC_ABN_ACN`. `status` is the
-raw ASIC code (e.g. `APPR`) passed through unchanged rather than risk an inexact
-expansion. 1:0..1 per ABN.
+and same ABN-**or**-ACN keying as the AFS register (`CRED_LIC_ABN_ACN`; on
+2026.06.24: ~3,939 ABN rows, ~357 ACN rows, resolved by the identical two-path,
+type-guarded join). `status` is the raw ASIC code (e.g. `APPR`) passed through
+unchanged rather than risk an inexact expansion. 1:0..1 per entity.
 
-| Output (`creditLicence.*`) | ASIC column       |
-| -------------------------- | ----------------- |
-| `number`                   | CRED_LIC_NUM      |
-| `name`                     | CRED_LIC_NAME     |
-| `status`                   | CRED_LIC_STATUS   |
-| `startDate`                | CRED_LIC_START_DT |
-| `endDate`                  | CRED_LIC_END_DT   |
+| Output (`creditLicence.*`) | ASIC column                                    |
+| -------------------------- | ---------------------------------------------- |
+| _join key_                 | CRED_LIC_ABN_ACN (11-digit ABN or 9-digit ACN) |
+| `number`                   | CRED_LIC_NUM                                   |
+| `name`                     | CRED_LIC_NAME                                  |
+| `status`                   | CRED_LIC_STATUS                                |
+| `startDate`                | CRED_LIC_START_DT                              |
+| `endDate`                  | CRED_LIC_END_DT                                |
 
 **ASIC Banned & Disqualified Orgs** (`sql/normalize-asic-banned-disqualified.sql`)
-— the one register keyed on **ACN, not ABN**: `BD_ORG_ACN` is a 9-digit ACN, so
-it joins via `asic_number` (the ABR-supplied ACN/ARBN), not the ABN. Non-digits
-are stripped and only valid 9-digit ACNs are kept. Dates are guarded — `BD_ORG_END_DT`
-holds free text such as "Permanent banning" for permanent actions, parsed to null
-(a permanent ban has no end date). 0..N actions per org (`json_agg`, ordered by
-start date then type). Tiny, volatile source (~15 rows — most ASIC bannings are of
-persons, not orgs).
+— the one register keyed on **ACN, not ABN**: `BD_ORG_ACN` is a 9-digit ACN, so it
+joins via `asic_number` **only when `asic_number_type = 'ACN'`** — the ABR
+`asic_number` can also hold an ARBN/ARSN/ARFN, and matching a non-ACN value that
+shares the same 9 digits would attach another org's enforcement record (a material
+false positive on a risk signal). Non-digits are stripped and only valid 9-digit
+ACNs are kept. Dates are guarded — `BD_ORG_END_DT` holds free text such as
+"Permanent banning" for permanent actions, parsed to null (a permanent ban has no
+end date). 0..N actions per org (`json_agg`, ordered by start date then type).
+Tiny, volatile source (~15 rows — most ASIC bannings are of persons, not orgs).
 
 | Output (`bannedDisqualified[].*`) | ASIC column                                                   |
 | --------------------------------- | ------------------------------------------------------------- |

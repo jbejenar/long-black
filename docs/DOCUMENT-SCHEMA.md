@@ -106,9 +106,12 @@ the charitable purposes in ACNC Act order), null when none is flagged.
 
 ## Nested: `financialServicesLicence` (ASIC AFS)
 
-Populated when the ABN holds a current Australian Financial Services licence
-(1:0..1; `AFS_LIC_ABN_ACN` carries the ABN). The register lists current holders,
-so presence = a current AFSL. Shape: `AfsLicenceSchema` in `src/schema.ts`.
+Populated when the entity holds a current Australian Financial Services licence
+(1:0..1). `AFS_LIC_ABN_ACN` carries **either an 11-digit ABN or a 9-digit ACN**:
+ABN rows match `abn` directly, ACN rows match `asic_number` when
+`asic_number_type = 'ACN'` (so an ARBN/ARSN/ARFN sharing the digits is never
+matched). The register lists current holders, so presence = a current AFSL. Shape:
+`AfsLicenceSchema` in `src/schema.ts`.
 
 | Field        | Type              | Nullable | Description                       |
 | ------------ | ----------------- | -------- | --------------------------------- |
@@ -119,8 +122,9 @@ so presence = a current AFSL. Shape: `AfsLicenceSchema` in `src/schema.ts`.
 
 ## Nested: `creditLicence` (ASIC Credit)
 
-Populated when the ABN holds an ASIC credit licence (1:0..1). Shape:
-`CreditLicenceSchema`. `status` is the raw ASIC code (e.g. `APPR`).
+Populated when the entity holds an ASIC credit licence (1:0..1). Same ABN-**or**-ACN
+keying as the AFS licence above (`CRED_LIC_ABN_ACN`, type-guarded ACN fallback).
+Shape: `CreditLicenceSchema`. `status` is the raw ASIC code (e.g. `APPR`).
 
 | Field       | Type              | Nullable | Description              |
 | ----------- | ----------------- | -------- | ------------------------ |
@@ -134,9 +138,10 @@ Populated when the ABN holds an ASIC credit licence (1:0..1). Shape:
 
 Each element is an ASIC banning/disqualification action against the organisation.
 Unlike the other ASIC sources this register is keyed on **ACN** (`BD_ORG_ACN`), so
-it joins via `asic_number`, not ABN; 0..N actions per entity (`bannedDisqualified`
-is `[]` when none). `endDate` is null for permanent bannings. Shape:
-`BannedDisqualifiedSchema`.
+it joins via `asic_number` **only when `asic_number_type = 'ACN'`** — matching a
+non-ACN value (ARBN/ARSN/ARFN) that shares the 9 digits would attach another org's
+enforcement record. 0..N actions per entity (`bannedDisqualified` is `[]` when
+none). `endDate` is null for permanent bannings. Shape: `BannedDisqualifiedSchema`.
 
 | Field       | Type              | Nullable | Description                                                 |
 | ----------- | ----------------- | -------- | ----------------------------------------------------------- |

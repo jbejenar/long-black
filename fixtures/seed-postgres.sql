@@ -79,9 +79,13 @@ INSERT INTO abn___SCHEMA_VERSION__.abn (
 ('51000001765','ACT',DATE '2009-01-01','IND','Individual/Sole Trader',
  NULL,NULL,'MONONYM',NULL,NULL,NULL,NULL,'SA','5001',
  NULL,NULL,NULL,NULL,20260601),
--- 18. ARBN (foreign company) — acnType must be ARBN, not mislabelled ACN
+-- 18. ARBN (foreign company) — acnType must be ARBN, not mislabelled ACN.
+-- asic_number is deliberately set to '000000987' — the SAME 9 digits as the ACN
+-- carried by the banned actions and the ACN-keyed licences below. Because its
+-- asic_number_type is ARBN (not ACN), the type-guarded joins must NOT attach any of
+-- them: this proves the ACN-path fallbacks never false-positive on a digit collision.
 ('51000001797','ACT',DATE '2006-01-01','PUB','Australian Public Company',
- 'FOREIGN CO PTY LTD',NULL,NULL,'000001797','ARBN','ACT',DATE '2006-07-01','NSW','2003',
+ 'FOREIGN CO PTY LTD',NULL,NULL,'000000987','ARBN','ACT',DATE '2006-07-01','NSW','2003',
  NULL,NULL,NULL,NULL,20260601),
 -- 19. Minimal record: no names, no address
 ('51000001814','ACT',NULL,'IND','Individual/Sole Trader',
@@ -125,21 +129,30 @@ INSERT INTO abn___SCHEMA_VERSION__.acnc_charity (
 ('51000000923','GIVING CO CHARITABLE FOUNDATION','Registered','Medium','Advancing education',DATE '2012-06-01'),
 ('51000000810','THE SMITH FAMILY CHARITABLE TRUST','Registered','Small','Advancing social or public welfare',DATE '2011-01-01');
 
--- ASIC AFS licence enrichment fixtures (1:0..1 on ABN; AFS_LIC_ABN_ACN is the ABN).
+-- ASIC AFS licence enrichment fixtures (1:0..1 per entity). The source key is
+-- EITHER an ABN or an ACN, so two paths are exercised: 51000000761 is keyed by ABN
+-- (direct match); the second row is keyed by ACN '000000987' (abn NULL) and must
+-- resolve to 51000000987 via its asic_number — NOT to the ARBN 51000001797 that
+-- shares the same digits.
 INSERT INTO abn___SCHEMA_VERSION__.asic_afs_licence (
-  abn, licence_number, name, start_date, conditions
+  abn, acn, licence_number, name, start_date, conditions
 ) VALUES
-('51000000761','240001','ACME PRIVATE PTY LTD',DATE '2003-05-01',NULL);
+('51000000761',NULL,'240001','ACME PRIVATE PTY LTD',DATE '2003-05-01',NULL),
+(NULL,'000000987','240777','EXPIRED GST PTY LTD',DATE '2018-02-01',NULL);
 
--- ASIC Credit licence enrichment fixtures (1:0..1 on ABN). Status raw ASIC code.
+-- ASIC Credit licence enrichment fixtures (1:0..1 per entity). Status raw ASIC code.
+-- 51000000793 keyed by ABN; the second row keyed by ACN '000000987' (→ 51000000987).
 INSERT INTO abn___SCHEMA_VERSION__.asic_credit_licence (
-  abn, licence_number, name, status, start_date, end_date
+  abn, acn, licence_number, name, status, start_date, end_date
 ) VALUES
-('51000000793','390001','BIGCORP LIMITED','APPR',DATE '2011-03-01',NULL);
+('51000000793',NULL,'390001','BIGCORP LIMITED','APPR',DATE '2011-03-01',NULL),
+(NULL,'000000987','390777','EXPIRED GST PTY LTD','APPR',DATE '2018-03-01',NULL);
 
 -- ASIC Banned & Disqualified fixtures (0..N, keyed on ACN → joined via
--- abn.asic_number). 51000000987's asic_number '000000987' gets TWO banning
--- actions (the 1:N aggregation + ACN-join guard).
+-- abn.asic_number WHERE asic_number_type = 'ACN'). 51000000987 (an ACN) gets TWO
+-- banning actions (1:N aggregation + ACN-join). The ARBN 51000001797 shares the
+-- same '000000987' digits but must get an empty array — the type guard is what
+-- prevents the false positive.
 INSERT INTO abn___SCHEMA_VERSION__.asic_banned_disqualified (
   acn, name, type, start_date, end_date, comment
 ) VALUES

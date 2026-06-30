@@ -20,15 +20,21 @@ The NDJSON document is the contract (`docs/DOCUMENT-SCHEMA.md`).
   has been actioned by the regulator — turning the dataset from a registry mirror
   into a trust/risk signal. **Additive, minor bump** (no existing field changed):
   - `financialServicesLicence` (`AfsLicence | null`) — ASIC AFS Licensees
-    (`asic-afs-licensee`), 1:0..1 on the holder ABN.
+    (`asic-afs-licensee`), 1:0..1 per entity. `AFS_LIC_ABN_ACN` carries **either an
+    11-digit ABN or a 9-digit ACN**, so the licence resolves by two paths: a direct
+    ABN match, or an ACN match against `asic_number` **only when
+    `asic_number_type = 'ACN'`** (an ARBN/ARSN/ARFN sharing the digits is never
+    matched). Without the ACN path ~164 real licensees would falsely report null.
   - `creditLicence` (`CreditLicence | null`) — ASIC Credit Licensees
-    (`asic-credit-licensee`), 1:0..1 on the holder ABN; `status` is the raw ASIC
-    code (e.g. `APPR`).
+    (`asic-credit-licensee`), 1:0..1 per entity; same ABN-or-ACN type-guarded keying
+    (~357 real ACN-keyed rows recovered); `status` is the raw ASIC code (e.g. `APPR`).
   - `bannedDisqualified` (`Banned[]`, `[]` when none) — ASIC Banned & Disqualified
     Orgs (`asic-banned-disqualified-org`). The one register keyed on **ACN**, so it
-    joins via `asic_number`, not ABN; `endDate` is null for permanent bannings.
+    joins via `asic_number` **only when `asic_number_type = 'ACN'`** — guarding
+    against a non-ACN entity inheriting another org's enforcement record on a 9-digit
+    collision; `endDate` is null for permanent bannings.
   - Wired through the same enrichment seam: `ENRICHMENT_SOURCES` config (now six),
-    three `normalize-asic-*.sql`, three `abn_full.sql` CTEs/joins, `compose.ts`,
+    three `normalize-asic-*.sql`, type-guarded `abn_full.sql` CTEs/joins, `compose.ts`,
     and the coverage gate (`src/coverage.ts` — production floors 1,000 / 1,000 / 5,
     fixture floors 1).
   - Proven on the real 2026.06.24 extract: **6,300** AFS licensees, **3,939**

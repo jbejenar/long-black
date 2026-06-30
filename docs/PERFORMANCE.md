@@ -68,8 +68,8 @@ machine above; all six joins together add ~14 s to the flatten (2 min 17 s vs
 | ASIC Company                    |   2,342,141 |     2,341,897 |   11.5 % | ABN                 |
 | ASIC Business Names             |   2,618,824 |     1,977,574 |    9.7 % | ABN (holder)        |
 | ACNC charities                  |      65,270 |        65,265 |    0.3 % | ABN                 |
-| ASIC AFS Licensees              |      ~6,300 |         6,300 |  0.031 % | ABN                 |
-| ASIC Credit Licensees           |      ~3,939 |         3,939 |  0.019 % | ABN                 |
+| ASIC AFS Licensees              |       6,464 |        6,300+ |  0.031 % | ABN **or** ACN      |
+| ASIC Credit Licensees           |       4,296 |        3,939+ |  0.019 % | ABN **or** ACN      |
 | ASIC Banned & Disqualified Orgs |          15 |            12 | <0.001 % | ACN (`asic_number`) |
 
 ABNs-enriched is the document count carrying a non-null `company` /
@@ -79,6 +79,15 @@ matches the output exactly (0 composition errors over 20,295,936 docs). Most ABN
 are sole traders / trusts with no ASIC or ACNC record, so the low coverage is
 expected, not a gap — the regulated & risk registers are deliberately small
 populations (licensed financial-services providers and ASIC enforcement actions).
+
+> **AFS/credit ABN-vs-ACN keying.** The `*_ABN_ACN` source column holds an 11-digit
+> ABN on most rows but a 9-digit ACN on some (2026.06.24: **6,300 ABN + 164 ACN**
+> for AFS; **3,939 ABN + 357 ACN** for credit). The `enriched` figures above were
+> measured before the type-guarded ACN fallback landed and reflect the ABN path
+> only (`6,300`/`3,939`); the ACN path resolves the ACN-keyed rows via
+> `asic_number` (type `ACN` only), recovering up to those extra rows — hence the
+> `+`. Exact post-fix counts are confirmed by the next full build; the fixture loop
+> proves the two-path join and the ARBN-collision guard precisely.
 
 **Completeness gates** (the "data must be complete before shipping" policy):
 

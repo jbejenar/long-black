@@ -49,6 +49,31 @@ export const CharityEnrichmentSchema = z.object({
   registrationDate: z.string().nullable(),
 });
 
+/** ASIC Australian Financial Services licence (1:0..1 on ABN). Presence = a current AFSL holder. */
+export const AfsLicenceSchema = z.object({
+  number: z.string(),
+  name: z.string().nullable(),
+  startDate: z.string().nullable(),
+  conditions: z.string().nullable(),
+});
+
+/** ASIC Credit licence (1:0..1 on ABN). */
+export const CreditLicenceSchema = z.object({
+  number: z.string(),
+  name: z.string().nullable(),
+  status: z.string().nullable(),
+  startDate: z.string().nullable(),
+  endDate: z.string().nullable(),
+});
+
+/** An ASIC banning/disqualification action against an organisation (0..N, joined via ACN). */
+export const BannedDisqualifiedSchema = z.object({
+  type: z.string().nullable(),
+  startDate: z.string().nullable(),
+  endDate: z.string().nullable(),
+  comment: z.string().nullable(),
+});
+
 export const AbnDocumentSchema = z.object({
   /** The ABN — 11 digits, string (never numeric). */
   _id: z.string(),
@@ -76,6 +101,12 @@ export const AbnDocumentSchema = z.object({
   registeredBusinessNames: z.array(RegisteredBusinessNameSchema),
   company: CompanyEnrichmentSchema.nullable(),
   charity: CharityEnrichmentSchema.nullable(),
+  /** ASIC AFS licence held by this ABN, if any (regulatory/trust signal). */
+  financialServicesLicence: AfsLicenceSchema.nullable(),
+  /** ASIC credit licence held by this ABN, if any. */
+  creditLicence: CreditLicenceSchema.nullable(),
+  /** ASIC banning/disqualification actions against this entity (via ACN); empty if none. */
+  bannedDisqualified: z.array(BannedDisqualifiedSchema),
 });
 
 export type AbnDocument = z.infer<typeof AbnDocumentSchema>;
@@ -83,3 +114,6 @@ export type DgrEndorsement = z.infer<typeof DgrSchema>;
 export type RegisteredBusinessName = z.infer<typeof RegisteredBusinessNameSchema>;
 export type CompanyEnrichment = z.infer<typeof CompanyEnrichmentSchema>;
 export type CharityEnrichment = z.infer<typeof CharityEnrichmentSchema>;
+export type AfsLicence = z.infer<typeof AfsLicenceSchema>;
+export type CreditLicence = z.infer<typeof CreditLicenceSchema>;
+export type BannedDisqualified = z.infer<typeof BannedDisqualifiedSchema>;

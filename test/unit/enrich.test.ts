@@ -9,19 +9,27 @@ import type { CkanResource } from "crema";
 import { ENRICHMENT_SOURCES, selectEnrichmentResource } from "../../src/enrich.js";
 
 describe("ENRICHMENT_SOURCES config", () => {
-  it("covers the three enrichment sources with distinct staging tables", () => {
+  it("covers the six enrichment sources with distinct staging tables", () => {
     expect(ENRICHMENT_SOURCES.map((s) => s.key).sort()).toEqual([
       "acnc_charity",
+      "asic_afs_licence",
+      "asic_banned_disqualified",
       "asic_business_name",
       "asic_company",
+      "asic_credit_licence",
     ]);
   });
 
-  it("uses TSV-no-quoting for ASIC and CSV-quoting for ACNC", () => {
+  it("uses the right delimiter/quoting per source", () => {
     const byKey = Object.fromEntries(ENRICHMENT_SOURCES.map((s) => [s.key, s]));
+    // Company/business-names + banned-org .csv files are tab-delimited (ASIC quirk).
     expect(byKey.asic_company).toMatchObject({ delimiter: "\t", quoting: false });
     expect(byKey.asic_business_name).toMatchObject({ delimiter: "\t", quoting: false });
+    expect(byKey.asic_banned_disqualified).toMatchObject({ delimiter: "\t", quoting: false });
+    // ACNC + AFS/credit "- Current" CSVs are real comma CSVs.
     expect(byKey.acnc_charity).toMatchObject({ delimiter: ",", quoting: true });
+    expect(byKey.asic_afs_licence).toMatchObject({ delimiter: ",", quoting: true });
+    expect(byKey.asic_credit_licence).toMatchObject({ delimiter: ",", quoting: true });
   });
 
   it("sets a positive completeness floor (minRows) below the real volume", () => {

@@ -38,6 +38,54 @@ charity AS (
     abn, charity_name, status, size, subtype, registration_date
   FROM abn___SCHEMA_VERSION__.acnc_charity
   ORDER BY abn, registration_date DESC NULLS LAST, charity_name
+),
+-- 1:0..1 — ASIC AFS + credit licences. The source `*_ABN_ACN` column holds EITHER
+-- an 11-digit ABN or a 9-digit ACN (the normalizer routes each to the abn/acn
+-- column). So each licence resolves to a base row by TWO paths: a direct ABN match,
+-- or an ACN match against a.asic_number — but only when that number is an actual ACN
+-- (asic_number can also be ARBN/ARSN/ARFN; matching those would be a false positive).
+-- Kept as four small DISTINCT ON CTEs (one per key per source) so each is a hash join
+-- from the base; the SELECT prefers the whole ABN-path object, else the ACN-path one.
+afs_by_abn AS (
+  SELECT DISTINCT ON (abn)
+    abn, licence_number, name, start_date, conditions
+  FROM abn___SCHEMA_VERSION__.asic_afs_licence
+  WHERE abn IS NOT NULL
+  ORDER BY abn, start_date DESC NULLS LAST, licence_number
+),
+afs_by_acn AS (
+  SELECT DISTINCT ON (acn)
+    acn, licence_number, name, start_date, conditions
+  FROM abn___SCHEMA_VERSION__.asic_afs_licence
+  WHERE acn IS NOT NULL
+  ORDER BY acn, start_date DESC NULLS LAST, licence_number
+),
+credit_by_abn AS (
+  SELECT DISTINCT ON (abn)
+    abn, licence_number, name, status, start_date, end_date
+  FROM abn___SCHEMA_VERSION__.asic_credit_licence
+  WHERE abn IS NOT NULL
+  ORDER BY abn, start_date DESC NULLS LAST, licence_number
+),
+credit_by_acn AS (
+  SELECT DISTINCT ON (acn)
+    acn, licence_number, name, status, start_date, end_date
+  FROM abn___SCHEMA_VERSION__.asic_credit_licence
+  WHERE acn IS NOT NULL
+  ORDER BY acn, start_date DESC NULLS LAST, licence_number
+),
+-- 0..N banning/disqualification actions, keyed on 9-digit ACN → joined via
+-- a.asic_number (only when asic_number_type = 'ACN'; see join). Aggregate per ACN
+-- so the join never fans out base rows.
+banned_agg AS (
+  SELECT acn, json_agg(json_build_object(
+    'type', type,
+    'startDate', start_date::text,
+    'endDate', end_date::text,
+    'comment', comment
+  ) ORDER BY start_date, type) AS items
+  FROM abn___SCHEMA_VERSION__.asic_banned_disqualified
+  GROUP BY acn
 )
 SELECT
   a.abn                                                AS _id,
@@ -82,9 +130,45 @@ SELECT
     'size', ch.size,
     'subtype', ch.subtype,
     'registrationDate', ch.registration_date::text
-  ) END                                                AS charity
+  ) END                                                AS charity,
+  -- Prefer the direct ABN-path licence; fall back to the ACN-path match. Take the
+  -- whole object from one source (never field-mix the two).
+  CASE
+    WHEN afsa.abn IS NOT NULL THEN json_build_object(
+      'number', afsa.licence_number,
+      'name', afsa.name,
+      'startDate', afsa.start_date::text,
+      'conditions', afsa.conditions)
+    WHEN afsc.acn IS NOT NULL THEN json_build_object(
+      'number', afsc.licence_number,
+      'name', afsc.name,
+      'startDate', afsc.start_date::text,
+      'conditions', afsc.conditions)
+    ELSE NULL
+  END                                                  AS financial_services_licence,
+  CASE
+    WHEN cra.abn IS NOT NULL THEN json_build_object(
+      'number', cra.licence_number,
+      'name', cra.name,
+      'status', cra.status,
+      'startDate', cra.start_date::text,
+      'endDate', cra.end_date::text)
+    WHEN crc.acn IS NOT NULL THEN json_build_object(
+      'number', crc.licence_number,
+      'name', crc.name,
+      'status', crc.status,
+      'startDate', crc.start_date::text,
+      'endDate', crc.end_date::text)
+    ELSE NULL
+  END                                                  AS credit_licence,
+  COALESCE(bd.items, '[]'::json)                       AS banned_disqualified
 FROM abn___SCHEMA_VERSION__.abn a
 LEFT JOIN company c ON c.abn = a.abn
 LEFT JOIN business_names_agg bn ON bn.abn = a.abn
 LEFT JOIN charity ch ON ch.abn = a.abn
+LEFT JOIN afs_by_abn afsa ON afsa.abn = a.abn
+LEFT JOIN afs_by_acn afsc ON afsc.acn = a.asic_number AND a.asic_number_type = 'ACN'
+LEFT JOIN credit_by_abn cra ON cra.abn = a.abn
+LEFT JOIN credit_by_acn crc ON crc.acn = a.asic_number AND a.asic_number_type = 'ACN'
+LEFT JOIN banned_agg bd ON bd.acn = a.asic_number AND a.asic_number_type = 'ACN'
 ORDER BY a.abn;

@@ -80,6 +80,40 @@
           "subtype": { "type": "keyword" },
           "registrationDate": { "type": "date", "format": "yyyy-MM-dd", "ignore_malformed": true }
         }
+      },
+      "financialServicesLicence": {
+        "type": "object",
+        "properties": {
+          "number": { "type": "keyword" },
+          "name": {
+            "type": "text",
+            "fields": { "keyword": { "type": "keyword", "ignore_above": 256 } }
+          },
+          "startDate": { "type": "date", "format": "yyyy-MM-dd", "ignore_malformed": true },
+          "conditions": { "type": "text" }
+        }
+      },
+      "creditLicence": {
+        "type": "object",
+        "properties": {
+          "number": { "type": "keyword" },
+          "name": {
+            "type": "text",
+            "fields": { "keyword": { "type": "keyword", "ignore_above": 256 } }
+          },
+          "status": { "type": "keyword" },
+          "startDate": { "type": "date", "format": "yyyy-MM-dd", "ignore_malformed": true },
+          "endDate": { "type": "date", "format": "yyyy-MM-dd", "ignore_malformed": true }
+        }
+      },
+      "bannedDisqualified": {
+        "type": "nested",
+        "properties": {
+          "type": { "type": "keyword" },
+          "startDate": { "type": "date", "format": "yyyy-MM-dd", "ignore_malformed": true },
+          "endDate": { "type": "date", "format": "yyyy-MM-dd", "ignore_malformed": true },
+          "comment": { "type": "text" }
+        }
       }
     }
   }

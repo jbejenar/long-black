@@ -5,9 +5,10 @@
 long-black turns Australia's public **business-entity** data into a single flat
 file of pre-joined records — **one NDJSON document per ABN**. It spins up an
 ephemeral Postgres, streams in the ABR ABN Bulk Extract (~15M ABNs), joins it
-with ASIC Company, ASIC Business Names, and ACNC charity data on the ABN,
-flattens to one document per ABN, and writes per-state gzipped NDJSON. Then it
-dies. Postgres is a build tool, not infrastructure.
+with ASIC Company, ASIC Business Names, ACNC charity, ASIC AFS & credit licence,
+and ASIC banned & disqualified data, flattens to one document per ABN, and writes
+per-state gzipped NDJSON. Then it dies. Postgres is a build tool, not
+infrastructure.
 
 The pipeline spine lives in [`crema`](../crema) — a shared streaming-pipeline core
 extracted from its sister project [`flat-white`](../flat-white) (addresses).
@@ -33,7 +34,10 @@ long-black is the thin ABN **domain layer** on top.
   "dgr": [],
   "registeredBusinessNames": [{ "name": "ACME BRANDS", "status": "Registered" }],
   "company": { "status": "Registered", "type": "APTY", "...": "..." },
-  "charity": null
+  "charity": null,
+  "financialServicesLicence": { "number": "240001", "startDate": "2003-05-01", "...": "..." },
+  "creditLicence": null,
+  "bannedDisqualified": []
 }
 ```
 
@@ -82,9 +86,10 @@ gh release download --repo jbejenar/long-black --pattern 'long-black-*-nsw.ndjso
 
 ## Data sources
 
-ABR ABN Bulk Extract + ASIC Company + ASIC Business Names + ACNC Charities — all
-data.gov.au, **CC-BY 3.0 AU**, joined on the ABN. See
-[docs/DATA-SOURCES.md](docs/DATA-SOURCES.md).
+ABR ABN Bulk Extract + ASIC Company + ASIC Business Names + ACNC Charities + ASIC
+AFS Licensees + ASIC Credit Licensees + ASIC Banned & Disqualified Orgs — all
+data.gov.au, **CC-BY 3.0 AU**, joined on the ABN (the banned register on the ACN).
+See [docs/DATA-SOURCES.md](docs/DATA-SOURCES.md).
 
 ## Tech stack
 

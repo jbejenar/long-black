@@ -1,10 +1,11 @@
 # Fixture edge cases — long-black
 
 The fixture (`fixtures/seed-postgres.sql`) seeds ~20 representative ABNs into the
-`abn` staging table, plus example rows into the three enrichment stub tables
-(`asic_company`, `asic_business_name`, `acnc_charity`) so the join seam is
-exercised end-to-end (not just stubbed). All ABNs are checksum-valid (mod-89).
-Each row exercises a distinct edge case the flatten + schema + verify must handle.
+`abn` staging table, plus example rows into the six enrichment stub tables
+(`asic_company`, `asic_business_name`, `acnc_charity`, `asic_afs_licence`,
+`asic_credit_licence`, `asic_banned_disqualified`) so the join seam is exercised
+end-to-end (not just stubbed). All ABNs are checksum-valid (mod-89). Each row
+exercises a distinct edge case the flatten + schema + verify must handle.
 
 | ABN         | Case                                                    | What it guards                                               |
 | ----------- | ------------------------------------------------------- | ------------------------------------------------------------ |
@@ -25,7 +26,7 @@ Each row exercises a distinct edge case the flatten + schema + verify must handl
 | 51000001701 | ACN present, no GST                                     | ACN without GST                                              |
 | 51000001733 | Names with `&`, apostrophe, unicode (`Ø`,`É`)           | escaping / UTF-8 round-trip                                  |
 | 51000001765 | Individual with **only a family name**                  | the `concat_ws` fix — entityName must be `MONONYM`, not null |
-| 51000001797 | **ARBN** (foreign company)                              | `acnType=ARBN`, not mislabelled `ACN`                        |
+| 51000001797 | **ARBN** sharing the banned/licence ACN digits          | `acnType=ARBN`; ACN-path joins must NOT attach (type guard)  |
 | 51000001814 | Minimal record: no names, no address                    | all-null tolerance                                           |
 | 51000001846 | Trading name only                                       | `tradingNames[]` populated, others empty                     |
 
@@ -34,12 +35,18 @@ Each row exercises a distinct edge case the flatten + schema + verify must handl
 These rows in the enrichment stub tables prove each cardinality joins correctly
 and lands in the nullable nested objects of `expected-output.ndjson`.
 
-| ABN         | Source              | Case                                             | What it guards                                            |
-| ----------- | ------------------- | ------------------------------------------------ | --------------------------------------------------------- |
-| 51000000761 | ASIC Company        | Company matched on ABN (active)                  | `company{}` populated (1:1 via `DISTINCT ON`)             |
-| 51000000793 | ASIC Company        | Public company match                             | `company{}` populated for a second entity type            |
-| 51000001846 | ASIC Company        | Deregistered company (deregistrationDate set)    | `company{}` carries the deregistration path               |
-| 51000000761 | ASIC Business Names | One registered business name (incl. a cancelled) | `registeredBusinessNames[]` (1:N agg) + cancellation date |
-| 51000001571 | ASIC Business Names | **Multiple** registered names for one ABN        | fan-out guard (1:N `json_agg`, ordered)                   |
-| 51000000810 | ACNC                | Charity on a discretionary-trust ABN             | `charity{}` populated (1:0..1 LEFT JOIN)                  |
-| 51000000923 | ACNC                | Charity on a DGR-endorsed ABN                    | `charity{}` co-exists with `dgr[]`                        |
+| ABN         | Source                | Case                                                                                             | What it guards                                                                      |
+| ----------- | --------------------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| 51000000761 | ASIC Company          | Company matched on ABN (active)                                                                  | `company{}` populated (1:1 via `DISTINCT ON`)                                       |
+| 51000000793 | ASIC Company          | Public company match                                                                             | `company{}` populated for a second entity type                                      |
+| 51000001846 | ASIC Company          | Deregistered company (deregistrationDate set)                                                    | `company{}` carries the deregistration path                                         |
+| 51000000761 | ASIC Business Names   | One registered business name (incl. a cancelled)                                                 | `registeredBusinessNames[]` (1:N agg) + cancellation date                           |
+| 51000001571 | ASIC Business Names   | **Multiple** registered names for one ABN                                                        | fan-out guard (1:N `json_agg`, ordered)                                             |
+| 51000000810 | ACNC                  | Charity on a discretionary-trust ABN                                                             | `charity{}` populated (1:0..1 LEFT JOIN)                                            |
+| 51000000923 | ACNC                  | Charity on a DGR-endorsed ABN                                                                    | `charity{}` co-exists with `dgr[]`                                                  |
+| 51000000761 | ASIC AFS Licensee     | AFS licence keyed by **ABN** (direct match)                                                      | `financialServicesLicence{}` populated via the ABN path                             |
+| 51000000987 | ASIC AFS Licensee     | AFS licence keyed by **ACN** `000000987` (abn NULL)                                              | ACN-path fallback resolves to the ABN via `asic_number` (Bug-1 false-negative)      |
+| 51000000793 | ASIC Credit Licensee  | Credit licence keyed by **ABN** (`APPR`)                                                         | `creditLicence{}` populated via the ABN path; raw status code passed through        |
+| 51000000987 | ASIC Credit Licensee  | Credit licence keyed by **ACN** `000000987` (abn NULL)                                           | ACN-path fallback resolves to the ABN via `asic_number`                             |
+| 51000000987 | ASIC Banned & Disq.   | **Two** banning actions, joined via **ACN** (`asic_number='000000987'`, type ACN), one permanent | `bannedDisqualified[]` fan-out (1:N via ACN) + permanent-ban null `endDate`         |
+| 51000001797 | AFS / Credit / Banned | **ARBN** with the SAME `000000987` digits but `asic_number_type=ARBN`                            | all three ACN-path joins must skip it → null/null/`[]` (Bug-1/Bug-2 false-positive) |

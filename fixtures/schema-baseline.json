@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-28",
+  "generatedAt": "2026-06-30",
   "schemas": {
     "AbnDocument": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -394,6 +394,160 @@
               "type": "null"
             }
           ]
+        },
+        "financialServicesLicence": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "number": {
+                  "type": "string"
+                },
+                "name": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "startDate": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "conditions": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": ["number", "name", "startDate", "conditions"],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "creditLicence": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "number": {
+                  "type": "string"
+                },
+                "name": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "status": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "startDate": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "endDate": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": ["number", "name", "status", "startDate", "endDate"],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "bannedDisqualified": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "startDate": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "endDate": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "comment": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["type", "startDate", "endDate", "comment"],
+            "additionalProperties": false
+          }
         }
       },
       "required": [
@@ -419,7 +573,10 @@
         "dgr",
         "registeredBusinessNames",
         "company",
-        "charity"
+        "charity",
+        "financialServicesLicence",
+        "creditLicence",
+        "bannedDisqualified"
       ],
       "additionalProperties": false
     }

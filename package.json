@@ -1,6 +1,6 @@
 {
   "name": "long-black",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Australian business (ABN) data → pre-joined, normalized NDJSON. One document per ABN. Built on crema.",
   "type": "module",
   "main": "./dist/index.js",

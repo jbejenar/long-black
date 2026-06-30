@@ -27,7 +27,13 @@ const SQL_DIR = resolve(__dirname, "..", "sql");
 
 export interface EnrichmentSource {
   /** Staging table name — also the local raw-file basename. */
-  key: "asic_company" | "asic_business_name" | "acnc_charity";
+  key:
+    | "asic_company"
+    | "asic_business_name"
+    | "acnc_charity"
+    | "asic_afs_licence"
+    | "asic_credit_licence"
+    | "asic_banned_disqualified";
   /** Human label for logs. */
   label: string;
   /** Stable data.gov.au package id. */
@@ -81,6 +87,39 @@ export const ENRICHMENT_SOURCES: EnrichmentSource[] = [
     resourceMatch: "datadotgov_main",
     normalizeSqlFile: "normalize-acnc-charity.sql",
     minRows: 20_000, // real 2026.06.24: 65,270
+  },
+  {
+    key: "asic_afs_licence",
+    label: "ASIC AFS Licensee",
+    packageId: "asic-afs-licensee",
+    delimiter: ",", // the "- Current" CSV is a real comma CSV (quoted)
+    quoting: true,
+    resourceMatch: "current", // distinguishes the data CSV from "National Map"/"Help File"
+    normalizeSqlFile: "normalize-asic-afs-licence.sql",
+    minRows: 1_000,
+  },
+  {
+    key: "asic_credit_licence",
+    label: "ASIC Credit Licensee",
+    packageId: "asic-credit-licensee",
+    delimiter: ",",
+    quoting: true,
+    resourceMatch: "current",
+    normalizeSqlFile: "normalize-asic-credit-licence.sql",
+    minRows: 1_000,
+  },
+  {
+    key: "asic_banned_disqualified",
+    label: "ASIC Banned & Disqualified Orgs",
+    packageId: "asic-banned-disqualified-org",
+    delimiter: "\t", // the "- Current" .csv is tab-delimited (ASIC quirk)
+    quoting: false,
+    resourceMatch: "current",
+    normalizeSqlFile: "normalize-asic-banned-disqualified.sql",
+    // Tiny, volatile source: the "Current" banned-org register is ~15 rows (most
+    // bannings are of persons, not orgs). Floor catches a 0-row/wrong-file load
+    // without tripping on natural fluctuation. Real 2026.06.24: 15 rows.
+    minRows: 5,
   },
 ];
 

@@ -58,10 +58,11 @@ null/empty state; `AAT`, when present, is its own bucket — this extract had no
 
 ## Enrichment (real extract, 2026.06.24)
 
-All seven enrichment sources were downloaded from data.gov.au and loaded against
-the real 20.3M-ABN table, then joined through `abn_full.sql`. Measured on the
-machine above; the enrichment joins together add ~15 s to the flatten and stay
-well under the memory budget.
+All eight enrichment sources were loaded against the real 20.3M-ABN table (seven
+from data.gov.au; AusTender from the OCP Data Registry), then joined through
+`abn_full.sql`. Measured on the machine above; the enrichment joins together add
+~15 s to the flatten and stay well under the memory budget. The AusTender
+aggregation (851k OCDS releases → 52,800 per-ABN rows) streams in constant memory.
 
 | Source                          | Rows loaded | ABNs enriched | Coverage | Join key            |
 | ------------------------------- | ----------: | ------------: | -------: | ------------------- |
@@ -72,11 +73,13 @@ well under the memory budget.
 | ASIC AFS Licensees              |       6,464 |         6,315 |  0.031 % | ABN **or** ACN      |
 | ASIC Credit Licensees           |       4,296 |         3,943 |  0.019 % | ABN **or** ACN      |
 | ASIC Banned & Disqualified Orgs |          15 |            12 | <0.001 % | ACN (`asic_number`) |
+| AusTender govSpend              |      52,800 |        52,779 |    0.3 % | ABN (supplier)      |
 
 ABNs-enriched is the document count carrying a non-null `company` /
-`financialServicesLicence` / `creditLicence` / `charity` (or `charity.financials`
-for the AIS row) or a non-empty `registeredBusinessNames[]` / `bannedDisqualified[]`;
-it matches the output exactly (0 composition errors over 20,295,936 docs). Most ABNs
+`financialServicesLicence` / `creditLicence` / `charity` / `govSpend` (or
+`charity.financials` for the AIS row) or a non-empty `registeredBusinessNames[]` /
+`bannedDisqualified[]`; it matches the output exactly (0 composition errors, 0
+duplicate `_id` over 20,295,936 docs). Most ABNs
 are sole traders / trusts with no ASIC or ACNC record, so the low coverage is
 expected, not a gap — the regulated & risk registers are deliberately small
 populations (licensed financial-services providers and ASIC enforcement actions).
@@ -100,17 +103,25 @@ populations (licensed financial-services providers and ASIC enforcement actions)
 > caught this; the fixture now seeds `undetermined` to lock it in). With the
 > exclusion guard, `bannedDisqualified` is back to **12**.
 
+> **govSpend (AusTender).** The OCP bulk `full.jsonl.gz` (851k OCDS releases) loaded
+> in one streaming pass to **52,800** distinct supplier ABNs (one release per ocid;
+> a defensive ocid de-dup guard is kept). **52,779** of those join the 20.3M ABR base
+> (the other 21 supplier ABNs aren't in the extract). Aggregate face value across all
+> history (2004→2026): **AUD ~1.20 trillion**; busiest supplier has **22,727**
+> contracts. Values are summed in integer cents for an exact, order-deterministic
+> total.
+
 **Completeness gates** (the "data must be complete before shipping" policy):
 
 - `enrich-cli` fails if any source loads below its floor (`minRows`: company/
   business-names 1,000,000, charities 20,000, AIS 20,000, AFS/credit 1,000, banned
-  5 — ≈⅓ of the counts above, except the tiny volatile banned register whose floor
-  just catches a 0-row/wrong-file load).
+  5, AusTender suppliers 30,000 — ≈⅓ of the counts above, except the tiny volatile
+  banned register whose floor just catches a 0-row/wrong-file load).
 - `cli.js` runs an enrichment-coverage gate after verify
   (`LONG_BLACK_COVERAGE_PROFILE=production`): the build fails unless `company` ≥
   1,000,000, `registeredBusinessNames` ≥ 1,000,000, `charity` ≥ 20,000,
   `charityFinancials` ≥ 20,000, `financialServicesLicence` ≥ 1,000,
-  `creditLicence` ≥ 1,000, and `bannedDisqualified` ≥ 5 docs.
+  `creditLicence` ≥ 1,000, `bannedDisqualified` ≥ 5, and `govSpend` ≥ 30,000 docs.
 - `build.yml` treats an incomplete enrichment as fatal (no silent partial
   release) unless a deliberate `allow_partial_enrichment=true` manual override,
   and diffs the build against the prior release (`compare-cli`) to hold anomalous

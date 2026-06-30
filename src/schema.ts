@@ -92,6 +92,19 @@ export const BannedDisqualifiedSchema = z.object({
 });
 
 /**
+ * AusTender government-contract spend, aggregated per supplier ABN (1:0..1).
+ * Null when the ABN has never been a listed supplier on an Australian Government
+ * contract. Values cover all AusTender history (from 2007); `totalValueAud` is the
+ * summed face value of those contracts (whole-of-history, not annual).
+ */
+export const GovSpendSchema = z.object({
+  totalValueAud: z.number(),
+  contractCount: z.number(),
+  firstContractDate: z.string().nullable(),
+  lastContractDate: z.string().nullable(),
+});
+
+/**
  * Derived convenience booleans — composed from the fields above, not a new source.
  * Every flag is always present (a true/false), so consumers can filter without
  * digging into nested null/empty objects.
@@ -109,6 +122,8 @@ export const EntityFlagsSchema = z.object({
   hasEnforcementAction: z.boolean(),
   /** Has ≥1 Deductible Gift Recipient endorsement. */
   isDgr: z.boolean(),
+  /** Has won ≥1 Australian Government contract (`govSpend != null`). */
+  hasGovContracts: z.boolean(),
 });
 
 export const AbnDocumentSchema = z.object({
@@ -144,6 +159,8 @@ export const AbnDocumentSchema = z.object({
   creditLicence: CreditLicenceSchema.nullable(),
   /** ASIC banning/disqualification actions against this entity (via ACN); empty if none. */
   bannedDisqualified: z.array(BannedDisqualifiedSchema),
+  /** AusTender government-contract spend (as a supplier); null if none. */
+  govSpend: GovSpendSchema.nullable(),
   /** Whole years since `abnStatusFromDate` relative to `_version`; null if no date. */
   ageYears: z.number().nullable(),
   /** `abnStatus === 'ACT'` — a convenience boolean. */
@@ -154,6 +171,7 @@ export const AbnDocumentSchema = z.object({
 
 export type AbnDocument = z.infer<typeof AbnDocumentSchema>;
 export type EntityFlags = z.infer<typeof EntityFlagsSchema>;
+export type GovSpend = z.infer<typeof GovSpendSchema>;
 export type DgrEndorsement = z.infer<typeof DgrSchema>;
 export type RegisteredBusinessName = z.infer<typeof RegisteredBusinessNameSchema>;
 export type CompanyEnrichment = z.infer<typeof CompanyEnrichmentSchema>;

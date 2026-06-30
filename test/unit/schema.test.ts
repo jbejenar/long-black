@@ -33,6 +33,7 @@ function validDoc(overrides: Partial<AbnDocument> = {}): AbnDocument {
     financialServicesLicence: null,
     creditLicence: null,
     bannedDisqualified: [],
+    govSpend: null,
     ageYears: 26,
     isActive: true,
     flags: {
@@ -42,6 +43,7 @@ function validDoc(overrides: Partial<AbnDocument> = {}): AbnDocument {
       isLicensed: false,
       hasEnforcementAction: false,
       isDgr: false,
+      hasGovContracts: false,
     },
     ...overrides,
   };
@@ -162,6 +164,39 @@ describe("AbnDocumentSchema", () => {
       validDoc({ charity: charity as unknown as AbnDocument["charity"] }),
     );
     expect(r.success).toBe(false);
+  });
+
+  it("accepts a govSpend object (numbers) with hasGovContracts flag", () => {
+    const doc = validDoc({
+      govSpend: {
+        totalValueAud: 1500000.5,
+        contractCount: 3,
+        firstContractDate: "2018-03-15",
+        lastContractDate: "2024-09-01",
+      },
+      flags: {
+        isIndividual: false,
+        isCompany: true,
+        isCharity: false,
+        isLicensed: false,
+        hasEnforcementAction: false,
+        isDgr: false,
+        hasGovContracts: true,
+      },
+    });
+    expect(AbnDocumentSchema.safeParse(doc).success).toBe(true);
+  });
+
+  it("rejects govSpend with a string totalValueAud", () => {
+    const doc = validDoc({
+      govSpend: {
+        totalValueAud: "1500000.50" as unknown as number,
+        contractCount: 3,
+        firstContractDate: null,
+        lastContractDate: null,
+      },
+    });
+    expect(AbnDocumentSchema.safeParse(doc).success).toBe(false);
   });
 
   it("accepts a null ageYears (no abnStatusFromDate)", () => {

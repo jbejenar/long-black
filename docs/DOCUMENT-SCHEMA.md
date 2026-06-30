@@ -1,13 +1,13 @@
 # Document Schema Reference — long-black
 
-> **Schema version:** 0.11.0
+> **Schema version:** 0.12.0
 > **Runtime validation:** `src/schema.ts` (`AbnDocumentSchema`, Zod)
 > **Breaking changes:** require a major version bump.
 
-> 0.11.0 adds **derived signals** (additive, minor): `ageYears`, `isActive`, and a
-> `flags` object — all computed from existing fields, no new source. 0.10.0 added a
-> nested `charity.financials` object (ACNC Annual Information Statement). 0.9.0 added
-> the **regulated & risk** bundle (`financialServicesLicence`, `creditLicence`,
+> 0.12.0 adds **`govSpend`** (additive, minor): per-ABN AusTender government-contract
+> spend, plus a `flags.hasGovContracts`. 0.11.0 added **derived signals** (`ageYears`,
+> `isActive`, `flags`). 0.10.0 added `charity.financials` (ACNC AIS). 0.9.0 added the
+> **regulated & risk** bundle (`financialServicesLicence`, `creditLicence`,
 > `bannedDisqualified`). 0.6.0 added an optional **Parquet** output (`--parquet`).
 
 One NDJSON document per ABN. This document is the contract: `src/schema.ts`,
@@ -51,6 +51,7 @@ seam (see `fixtures/edge-cases.md`).
 | `financialServicesLicence` | `AfsLicence`\|null                    | yes      | ASIC AFS licence held by this ABN (regulatory/trust signal)          | ASIC AFS Licensee                                     |
 | `creditLicence`            | `CreditLicence`\|null                 | yes      | ASIC credit licence held by this ABN                                 | ASIC Credit Licensee                                  |
 | `bannedDisqualified`       | `Banned[]`                            | no       | ASIC banning/disqualification actions (via ACN); empty if none       | ASIC Banned & Disqualified Orgs                       |
+| `govSpend`                 | `GovSpend`\|null                      | yes      | AusTender government-contract spend (as supplier); null if none      | AusTender (OCDS)                                      |
 | `ageYears`                 | number\|null                          | yes      | Whole years since `abnStatusFromDate` vs `_version`; null if no date | derived                                               |
 | `isActive`                 | boolean                               | no       | `abnStatus === 'ACT'`                                                | derived                                               |
 | `flags`                    | `EntityFlags`                         | no       | Derived convenience booleans (see below)                             | derived                                               |
@@ -177,6 +178,22 @@ none). `endDate` is null for permanent bannings. Shape: `BannedDisqualifiedSchem
 | `endDate`   | string (ISO date) | yes      | When it ends (null = permanent)                             |
 | `comment`   | string            | yes      | ASIC comment, if any                                        |
 
+## Nested: `govSpend` (AusTender)
+
+AusTender government-contract spend, aggregated per supplier ABN across **all
+AusTender history** (from 2007). Null when the ABN has never been a listed supplier
+on an Australian Government contract. Source + aggregation in `docs/DATA-SOURCES.md`
+and `src/gov-spend.ts`. Shape: `GovSpendSchema`. `totalValueAud` is a JSON number
+(summed exactly in integer cents upstream); for the ~1% of contracts with multiple
+suppliers the full value is attributed to each.
+
+| Field               | Type              | Nullable | Description                                       |
+| ------------------- | ----------------- | -------- | ------------------------------------------------- |
+| `totalValueAud`     | number            | no       | Σ face value of contracts this ABN supplied (AUD) |
+| `contractCount`     | number            | no       | Number of contracts (distinct `ocid`)             |
+| `firstContractDate` | string (ISO date) | yes      | Earliest contract `dateSigned`                    |
+| `lastContractDate`  | string (ISO date) | yes      | Most recent contract `dateSigned`                 |
+
 ## Nested: `flags` (EntityFlags)
 
 Derived convenience booleans — composed in `compose.ts` from the fields above, not a
@@ -193,6 +210,7 @@ no enforcement action"). Shape: `EntityFlagsSchema`. Approximate prevalence on t
 | `isLicensed`           | boolean | holds an AFS **or** credit licence (~0.05%)  |
 | `hasEnforcementAction` | boolean | `bannedDisqualified` non-empty (12 entities) |
 | `isDgr`                | boolean | `dgr` non-empty (~0.16%)                     |
+| `hasGovContracts`      | boolean | `govSpend != null` (won ≥1 govt contract)    |
 
 `ageYears` and `isActive` are likewise derived: `ageYears` is whole **calendar**
 years from `abnStatusFromDate` to the `_version` date — computed from date components

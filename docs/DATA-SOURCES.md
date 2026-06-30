@@ -1,10 +1,11 @@
 # Data Sources — long-black
 
-All sources are published on [data.gov.au](https://data.gov.au), licensed
-**Creative Commons Attribution 3.0 Australia (CC-BY 3.0 AU)**, and carry the
-**ABN** (or, for the banned register, the **ACN**) as a common join key. This is
-what makes a pre-joined super-dataset possible — and is why long-black uses a
-relational store (Postgres) rather than a direct XML→NDJSON stream.
+Most sources are published on [data.gov.au](https://data.gov.au) under **CC-BY 3.0
+AU** (AusTender is sourced from the OCP Data Registry under **CC-BY 4.0** — see
+below), and each carries the **ABN** (or, for the banned register, the **ACN**) as
+a common join key. This is what makes a pre-joined super-dataset possible — and is
+why long-black uses a relational store (Postgres) rather than a direct XML→NDJSON
+stream.
 
 | Source                          | CKAN id                        | Format           | Size                                | Cadence      | Join key                | Contributes                                                                            |
 | ------------------------------- | ------------------------------ | ---------------- | ----------------------------------- | ------------ | ----------------------- | -------------------------------------------------------------------------------------- |
@@ -16,6 +17,7 @@ relational store (Postgres) rather than a direct XML→NDJSON stream.
 | **ASIC AFS Licensees**          | `asic-afs-licensee`            | CSV (comma)      | ~1 MB, ~6.5k                        | Weekly       | **ABN** or ACN          | `financialServicesLicence{}` — AFS licence number, name, start date, conditions        |
 | **ASIC Credit Licensees**       | `asic-credit-licensee`         | CSV (comma)      | ~1 MB, ~4.3k                        | Weekly       | **ABN** or ACN          | `creditLicence{}` — credit licence number, name, status, start/end dates               |
 | **ASIC Banned & Disqualified**  | `asic-banned-disqualified-org` | CSV (tab)        | ~10 KB, ~15 rows                    | Weekly       | **ACN** (`asic_number`) | `bannedDisqualified[]` — banning/disqualification actions (type, dates, comment)       |
+| **AusTender contracts** (OCDS)  | OCP registry pub. `19`         | JSONL (gz)       | ~251 MB, ~852k contracts            | Monthly      | **ABN** of supplier     | `govSpend{}` — total value, contract count, first/last contract date (all history)     |
 
 **Why the regulated & risk bundle.** AFS and credit licences are the two
 ASIC-issued permissions that gate who may legally provide financial or consumer-
@@ -25,9 +27,13 @@ enforcement actions. Together they turn long-black from a registry mirror into a
 services provider and whether it (or its corporate entity) has been actioned by
 the regulator.
 
+**Why government spend.** `govSpend` answers "does this business win Australian
+Government contracts, and how much?" — a hard signal of scale, sector, and public-
+sector reliance that nothing else in the dataset carries.
+
 **Future tail** (same seam, when wanted): ASIC AFS authorised representatives,
-auditors, liquidators, banned & disqualified **persons** (vs orgs); AusTender
-government-contract spend — all data.gov.au, CC-BY, keyed on ABN/ACN.
+auditors, liquidators, banned & disqualified **persons** (vs orgs) — all
+data.gov.au, CC-BY, keyed on ABN/ACN.
 
 ## Notes
 
@@ -200,10 +206,40 @@ Tiny, volatile source (~15 rows — most ASIC bannings are of persons, not orgs)
 the match but `name`/`acn` are not re-emitted — the ABN's own `entityName`/`acn`
 already carry them.)
 
-## Attribution (required by CC-BY 3.0 AU)
+**AusTender government contracts** (`src/gov-spend.ts`) — the one source loaded by
+**aggregation, not COPY**. AusTender publishes Australian Government contract notices
+as OCDS; the only CURRENT bulk feed is the **Open Contracting Partnership Data
+Registry** ([publication 19](https://data.open-contracting.org/en/publication/19)),
+which mirrors the official `api.tenders.gov.au` data **monthly** as a single
+`full.jsonl.gz` (~251 MB, one compiled OCDS release per contract `ocid`, ~852k
+contracts from 2007). The data.gov.au mirror is dead (frozen at 2013); the official
+`api.tenders.gov.au` is a cursor-paginated crawl (~25–40k calls, no published rate
+limits) — see `docs/decisions/`. The loader streams the gzip line by line and, for
+each release, attributes the contract's value to every supplier party carrying an
+`AU-ABN` identifier, summing in **integer cents** (exact, order-deterministic). The
+per-ABN aggregate is the `gov_spend` table; the flatten joins it 1:0..1.
 
-- © Commonwealth of Australia (Australian Business Register)
-- © Australian Securities and Investments Commission (ASIC)
-- © Australian Charities and Not-for-profits Commission (ACNC)
+verify-on-first-load (2025 slice): 91% of suppliers carry an AU-ABN, one release per
+ocid (no amendments to dedupe), value always on `contract.value.amount`, signed date
+on `contract.dateSigned`, ~1% of contracts list >1 supplier (the full value is
+attributed to each — `govSpend.totalValueAud` is the face value of contracts the ABN
+was a supplier on, so summing it across all ABNs slightly over-counts shared
+contracts).
+
+| Output (`govSpend.*`) | OCDS path                                                                            |
+| --------------------- | ------------------------------------------------------------------------------------ |
+| _join key_            | `parties[role=supplier].additionalIdentifiers[scheme=AU-ABN].id` (also `identifier`) |
+| `totalValueAud`       | Σ `contracts[].value.amount` over the supplier's contracts                           |
+| `contractCount`       | count of distinct contract releases (`ocid`) the ABN supplied                        |
+| `firstContractDate`   | earliest `contracts[].dateSigned`                                                    |
+| `lastContractDate`    | latest `contracts[].dateSigned`                                                      |
+
+## Attribution (required by CC-BY)
+
+- © Commonwealth of Australia (Australian Business Register) — CC-BY 3.0 AU
+- © Australian Securities and Investments Commission (ASIC) — CC-BY 3.0 AU
+- © Australian Charities and Not-for-profits Commission (ACNC) — CC-BY 3.0 AU
+- © Commonwealth of Australia (Department of Finance / AusTender), sourced via the
+  Open Contracting Partnership Data Registry — CC-BY 4.0
 
 These appear in every build's `metadata.json` (`sources[].attribution`).

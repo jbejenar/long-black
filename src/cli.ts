@@ -103,7 +103,8 @@ export async function run(options: {
         `charityFinancials ${cov.charityFinancials} (${pct(cov.charityFinancials)}%) · ` +
         `registeredBusinessNames ${cov.registeredBusinessNames} (${pct(cov.registeredBusinessNames)}%) · ` +
         `afsLicence ${cov.financialServicesLicence} · creditLicence ${cov.creditLicence} · ` +
-        `bannedDisqualified ${cov.bannedDisqualified} · businessNames ${cov.businessNames} · dgr ${cov.dgr}`,
+        `bannedDisqualified ${cov.bannedDisqualified} · govSpend ${cov.govSpend} · ` +
+        `businessNames ${cov.businessNames} · dgr ${cov.dgr}`,
     );
     coverageOk = cov.ok;
     if (!cov.ok) {

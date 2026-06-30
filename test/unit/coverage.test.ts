@@ -28,6 +28,7 @@ const ZERO: CoverageFloors = {
   financialServicesLicence: 0,
   creditLicence: 0,
   bannedDisqualified: 0,
+  govSpend: 0,
 };
 
 // A document with all enrichment present.
@@ -39,6 +40,7 @@ const full = {
   financialServicesLicence: { number: "240001" },
   creditLicence: { number: "390001" },
   bannedDisqualified: [{ type: "AFS banning" }],
+  govSpend: { totalValueAud: 1000, contractCount: 1 },
   businessNames: ["B"],
   dgr: [{ name: "D", statusFromDate: "2020-01-01" }],
 };
@@ -51,6 +53,7 @@ const bare = {
   financialServicesLicence: null,
   creditLicence: null,
   bannedDisqualified: [],
+  govSpend: null,
   businessNames: [],
   dgr: [],
 };
@@ -74,6 +77,7 @@ describe("checkEnrichmentCoverage", () => {
     expect(cov.financialServicesLicence).toBe(2);
     expect(cov.creditLicence).toBe(2);
     expect(cov.bannedDisqualified).toBe(2);
+    expect(cov.govSpend).toBe(2);
     expect(cov.businessNames).toBe(2);
     expect(cov.dgr).toBe(2);
     expect(cov.ok).toBe(true);
@@ -116,9 +120,10 @@ describe("checkEnrichmentCoverage", () => {
       financialServicesLicence: 5,
       creditLicence: 5,
       bannedDisqualified: 5,
+      govSpend: 5,
     };
     const cov = await checkEnrichmentCoverage(ndjson([full, bare]), floors);
     expect(cov.ok).toBe(false);
-    expect(cov.shortfalls).toHaveLength(7);
+    expect(cov.shortfalls).toHaveLength(8);
   });
 });

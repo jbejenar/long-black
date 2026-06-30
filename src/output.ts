@@ -12,12 +12,12 @@ import { SPLIT_PREFIX } from "./sources.js";
 import { ABN_PARQUET_SCHEMA, abnParquetRow } from "./parquet-output.js";
 
 /**
- * The public sources, with their CC-BY attribution (a licence requirement). All are
- * CC-BY 3.0 AU, including AusTender — its data.gov.au record lists `cc-by` /
- * "Creative Commons Attribution 3.0 Australia" (the OCP Data Registry is only the
- * access route for the current bulk file; the dataset licence is the source's).
- * Publisher-level: the ASIC/ACNC lines also cover the AFS/credit/banned and AIS
- * datasets respectively; AusTender adds the Department of Finance.
+ * Every public dataset joined into a document, itemized with its CC-BY attribution
+ * (a licence requirement). All are **CC-BY 3.0 AU** — including AusTender, whose
+ * data.gov.au record lists `cc-by` / "Creative Commons Attribution 3.0 Australia"
+ * (the OCP Data Registry is only the access route for the bulk file; the dataset
+ * licence is the source's). Listed per-dataset (not per-publisher) so `metadata.json`
+ * `sources[]` fully accounts for what each release is derived from.
  */
 export const ABN_SOURCES: SourceInfo[] = [
   {
@@ -39,8 +39,32 @@ export const ABN_SOURCES: SourceInfo[] = [
     attribution: "© Australian Securities and Investments Commission",
   },
   {
+    name: "ASIC AFS Licensees",
+    url: "https://data.gov.au/data/dataset/asic-afs-licensee",
+    licence: "CC-BY 3.0 AU",
+    attribution: "© Australian Securities and Investments Commission",
+  },
+  {
+    name: "ASIC Credit Licensees",
+    url: "https://data.gov.au/data/dataset/asic-credit-licensee",
+    licence: "CC-BY 3.0 AU",
+    attribution: "© Australian Securities and Investments Commission",
+  },
+  {
+    name: "ASIC Banned & Disqualified Organisations",
+    url: "https://data.gov.au/data/dataset/asic-banned-disqualified-org",
+    licence: "CC-BY 3.0 AU",
+    attribution: "© Australian Securities and Investments Commission",
+  },
+  {
     name: "ACNC Registered Charities",
     url: "https://data.gov.au/data/dataset/acnc-register",
+    licence: "CC-BY 3.0 AU",
+    attribution: "© Australian Charities and Not-for-profits Commission",
+  },
+  {
+    name: "ACNC Annual Information Statement",
+    url: "https://data.gov.au/data/dataset/acnc-2024-annual-information-statement-ais-data",
     licence: "CC-BY 3.0 AU",
     attribution: "© Australian Charities and Not-for-profits Commission",
   },

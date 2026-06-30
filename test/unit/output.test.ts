@@ -55,19 +55,22 @@ describe("runOutput", () => {
     const vic = gunzipSync(readFileSync(vicGz!)).toString("utf-8").trim().split("\n");
     expect(vic).toHaveLength(2);
 
-    // metadata.json: counts + all five CC-BY sources + an extract date
+    // metadata.json: counts + all nine CC-BY sources + an extract date
     const meta = JSON.parse(readFileSync(result.metadataPath, "utf-8"));
     expect(meta.totalCount).toBe(4);
     expect(meta.counts).toEqual({ vic: 2, nsw: 1, other: 1 });
-    expect(meta.sources).toHaveLength(5);
+    expect(meta.sources).toHaveLength(9);
     expect(meta.sources.every((s: { licence: string }) => s.licence === "CC-BY 3.0 AU")).toBe(true);
     expect(meta.sources[0].extractDate).toBe("2026-06-25");
   });
 
-  it("lists all five sources with attribution", () => {
-    expect(ABN_SOURCES).toHaveLength(5);
+  it("itemizes all nine datasets with CC-BY 3.0 AU attribution", () => {
+    expect(ABN_SOURCES).toHaveLength(9);
     expect(ABN_SOURCES.every((s) => s.attribution?.startsWith("©"))).toBe(true);
     // AusTender's dataset licence is CC-BY 3.0 AU (not 4.0) — same as the others.
     expect(ABN_SOURCES.every((s) => s.licence === "CC-BY 3.0 AU")).toBe(true);
+    // No duplicate dataset names / URLs.
+    expect(new Set(ABN_SOURCES.map((s) => s.name)).size).toBe(9);
+    expect(new Set(ABN_SOURCES.map((s) => s.url)).size).toBe(9);
   });
 });

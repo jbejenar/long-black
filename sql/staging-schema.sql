@@ -49,6 +49,16 @@ CREATE UNLOGGED TABLE IF NOT EXISTS abn___SCHEMA_VERSION__.acnc_charity (
   registration_date date
 );
 
+-- ACNC Annual Information Statement — the charity's most recent AIS financials,
+-- folded into the charity{} object (1:0..1 on ABN). Monetary columns are numeric
+-- (whole dollars; can exceed int4), staff FTE is numeric (fractional), volunteers
+-- is an integer count.
+CREATE UNLOGGED TABLE IF NOT EXISTS abn___SCHEMA_VERSION__.acnc_ais (
+  abn char(11), reporting_period_start date, reporting_period_end date,
+  total_revenue numeric, total_expenses numeric, total_assets numeric,
+  total_liabilities numeric, staff_full_time_equivalent numeric, volunteers integer
+);
+
 -- Regulated & risk SOURCES (ASIC). AFS + credit licences are 1:0..1 per entity.
 -- Their *_ABN_ACN source column holds EITHER an 11-digit ABN or a 9-digit ACN, so
 -- the normalizer routes each value into `abn` OR `acn` (never both on one row); the

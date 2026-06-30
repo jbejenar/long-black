@@ -31,6 +31,7 @@ export interface EnrichmentSource {
     | "asic_company"
     | "asic_business_name"
     | "acnc_charity"
+    | "acnc_ais"
     | "asic_afs_licence"
     | "asic_credit_licence"
     | "asic_banned_disqualified";
@@ -87,6 +88,22 @@ export const ENRICHMENT_SOURCES: EnrichmentSource[] = [
     resourceMatch: "datadotgov_main",
     normalizeSqlFile: "normalize-acnc-charity.sql",
     minRows: 20_000, // real 2026.06.24: 65,270
+  },
+  {
+    key: "acnc_ais",
+    label: "ACNC AIS financials",
+    // Pinned to a known AIS year (a reproducible snapshot, like GNAF_VERSION) —
+    // each year is its own CKAN package. Bump the year here (a one-line change)
+    // when the next AIS is published; the year is recorded in metadata via the
+    // source. The main data CSV is `datadotgov_ais24`; the package also ships
+    // `_programs`/`_group_members` resources, but the main file is the largest CSV
+    // so selectEnrichmentResource picks it.
+    packageId: "acnc-2024-annual-information-statement-ais-data",
+    delimiter: ",",
+    quoting: true,
+    resourceMatch: "datadotgov_ais24",
+    normalizeSqlFile: "normalize-acnc-ais.sql",
+    minRows: 20_000, // real 2024 AIS: 53,665 filers
   },
   {
     key: "asic_afs_licence",

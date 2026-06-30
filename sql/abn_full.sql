@@ -39,11 +39,24 @@ charity AS (
   FROM abn___SCHEMA_VERSION__.acnc_charity
   ORDER BY abn, registration_date DESC NULLS LAST, charity_name
 ),
+-- 1:0..1 — the charity's most recent Annual Information Statement (financials),
+-- folded into the charity{} object. DISTINCT ON keeps the latest period if a
+-- charity ever has more than one filing in the snapshot (an amendment).
+ais AS (
+  SELECT DISTINCT ON (abn)
+    abn, reporting_period_start, reporting_period_end, total_revenue, total_expenses,
+    total_assets, total_liabilities, staff_full_time_equivalent, volunteers
+  FROM abn___SCHEMA_VERSION__.acnc_ais
+  ORDER BY abn, reporting_period_end DESC NULLS LAST
+),
 -- 1:0..1 — ASIC AFS + credit licences. The source `*_ABN_ACN` column holds EITHER
 -- an 11-digit ABN or a 9-digit ACN (the normalizer routes each to the abn/acn
 -- column). So each licence resolves to a base row by TWO paths: a direct ABN match,
--- or an ACN match against a.asic_number — but only when that number is an actual ACN
--- (asic_number can also be ARBN/ARSN/ARFN; matching those would be a false positive).
+-- or an ACN match against a.asic_number. The ACN match EXCLUDES asic_numbers we KNOW
+-- are non-ACN (ARBN/ARSN/ARFN), guarding against a 9-digit collision attaching the
+-- wrong entity. NB: the real ABR extract leaves @ASICNumberType = 'undetermined' on
+-- every ASIC number (see DATA-SOURCES.md), so an exact `= 'ACN'` would match nothing;
+-- the exclusion form matches ACN + undetermined while still dropping a typed ARBN.
 -- Kept as four small DISTINCT ON CTEs (one per key per source) so each is a hash join
 -- from the base; the SELECT prefers the whole ABN-path object, else the ACN-path one.
 afs_by_abn AS (
@@ -75,8 +88,8 @@ credit_by_acn AS (
   ORDER BY acn, start_date DESC NULLS LAST, licence_number
 ),
 -- 0..N banning/disqualification actions, keyed on 9-digit ACN → joined via
--- a.asic_number (only when asic_number_type = 'ACN'; see join). Aggregate per ACN
--- so the join never fans out base rows.
+-- a.asic_number, excluding asic_numbers typed ARBN/ARSN/ARFN (see join; real data
+-- is 'undetermined'). Aggregate per ACN so the join never fans out base rows.
 banned_agg AS (
   SELECT acn, json_agg(json_build_object(
     'type', type,
@@ -129,7 +142,17 @@ SELECT
     'status', ch.status,
     'size', ch.size,
     'subtype', ch.subtype,
-    'registrationDate', ch.registration_date::text
+    'registrationDate', ch.registration_date::text,
+    'financials', CASE WHEN ais.abn IS NULL THEN NULL ELSE json_build_object(
+      'reportingPeriodStart', ais.reporting_period_start::text,
+      'reportingPeriodEnd', ais.reporting_period_end::text,
+      'totalRevenue', ais.total_revenue,
+      'totalExpenses', ais.total_expenses,
+      'totalAssets', ais.total_assets,
+      'totalLiabilities', ais.total_liabilities,
+      'staffFullTimeEquivalent', ais.staff_full_time_equivalent,
+      'volunteers', ais.volunteers
+    ) END
   ) END                                                AS charity,
   -- Prefer the direct ABN-path licence; fall back to the ACN-path match. Take the
   -- whole object from one source (never field-mix the two).
@@ -166,9 +189,13 @@ FROM abn___SCHEMA_VERSION__.abn a
 LEFT JOIN company c ON c.abn = a.abn
 LEFT JOIN business_names_agg bn ON bn.abn = a.abn
 LEFT JOIN charity ch ON ch.abn = a.abn
+LEFT JOIN ais ON ais.abn = a.abn
 LEFT JOIN afs_by_abn afsa ON afsa.abn = a.abn
-LEFT JOIN afs_by_acn afsc ON afsc.acn = a.asic_number AND a.asic_number_type = 'ACN'
+LEFT JOIN afs_by_acn afsc
+  ON afsc.acn = a.asic_number AND COALESCE(a.asic_number_type, '') NOT IN ('ARBN', 'ARSN', 'ARFN')
 LEFT JOIN credit_by_abn cra ON cra.abn = a.abn
-LEFT JOIN credit_by_acn crc ON crc.acn = a.asic_number AND a.asic_number_type = 'ACN'
-LEFT JOIN banned_agg bd ON bd.acn = a.asic_number AND a.asic_number_type = 'ACN'
+LEFT JOIN credit_by_acn crc
+  ON crc.acn = a.asic_number AND COALESCE(a.asic_number_type, '') NOT IN ('ARBN', 'ARSN', 'ARFN')
+LEFT JOIN banned_agg bd
+  ON bd.acn = a.asic_number AND COALESCE(a.asic_number_type, '') NOT IN ('ARBN', 'ARSN', 'ARFN')
 ORDER BY a.abn;

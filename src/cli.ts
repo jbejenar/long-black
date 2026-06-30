@@ -100,6 +100,7 @@ export async function run(options: {
     console.log(
       `[coverage] company ${cov.company} (${pct(cov.company)}%) · ` +
         `charity ${cov.charity} (${pct(cov.charity)}%) · ` +
+        `charityFinancials ${cov.charityFinancials} (${pct(cov.charityFinancials)}%) · ` +
         `registeredBusinessNames ${cov.registeredBusinessNames} (${pct(cov.registeredBusinessNames)}%) · ` +
         `afsLicence ${cov.financialServicesLicence} · creditLicence ${cov.creditLicence} · ` +
         `bannedDisqualified ${cov.bannedDisqualified} · businessNames ${cov.businessNames} · dgr ${cov.dgr}`,

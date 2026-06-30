@@ -102,4 +102,78 @@ describe("AbnDocumentSchema", () => {
     const r = AbnDocumentSchema.safeParse(validDoc({ bannedDisqualified: null as unknown as [] }));
     expect(r.success).toBe(false);
   });
+
+  it("accepts a charity with AIS financials (numbers, not strings)", () => {
+    const doc = validDoc({
+      charity: {
+        name: "GIVING CO",
+        status: "Registered",
+        size: "Medium",
+        subtype: "Advancing education",
+        registrationDate: "2012-06-01",
+        financials: {
+          reportingPeriodStart: "2023-07-01",
+          reportingPeriodEnd: "2024-06-30",
+          totalRevenue: 1250000,
+          totalExpenses: 1180000,
+          totalAssets: 3400000,
+          totalLiabilities: 420000,
+          staffFullTimeEquivalent: 12.5,
+          volunteers: 45,
+        },
+      },
+    });
+    expect(AbnDocumentSchema.safeParse(doc).success).toBe(true);
+  });
+
+  it("accepts a charity that has not filed an AIS (financials null)", () => {
+    const doc = validDoc({
+      charity: {
+        name: "NO AIS TRUST",
+        status: "Registered",
+        size: "Small",
+        subtype: null,
+        registrationDate: "2011-01-01",
+        financials: null,
+      },
+    });
+    expect(AbnDocumentSchema.safeParse(doc).success).toBe(true);
+  });
+
+  it("rejects a charity missing the financials key (now required, nullable)", () => {
+    const charity = {
+      name: "X",
+      status: "Registered",
+      size: null,
+      subtype: null,
+      registrationDate: null,
+    };
+    const r = AbnDocumentSchema.safeParse(
+      validDoc({ charity: charity as unknown as AbnDocument["charity"] }),
+    );
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects non-numeric charity financials (revenue as string)", () => {
+    const doc = validDoc({
+      charity: {
+        name: "X",
+        status: "Registered",
+        size: null,
+        subtype: null,
+        registrationDate: null,
+        financials: {
+          reportingPeriodStart: null,
+          reportingPeriodEnd: null,
+          totalRevenue: "1250000" as unknown as number,
+          totalExpenses: null,
+          totalAssets: null,
+          totalLiabilities: null,
+          staffFullTimeEquivalent: null,
+          volunteers: null,
+        },
+      },
+    });
+    expect(AbnDocumentSchema.safeParse(doc).success).toBe(false);
+  });
 });

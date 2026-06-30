@@ -135,6 +135,19 @@
           "endDate": { "type": "date", "format": "yyyy-MM-dd", "ignore_malformed": true },
           "comment": { "type": "text" }
         }
+      },
+      "ageYears": { "type": "integer" },
+      "isActive": { "type": "boolean" },
+      "flags": {
+        "type": "object",
+        "properties": {
+          "isIndividual": { "type": "boolean" },
+          "isCompany": { "type": "boolean" },
+          "isCharity": { "type": "boolean" },
+          "isLicensed": { "type": "boolean" },
+          "hasEnforcementAction": { "type": "boolean" },
+          "isDgr": { "type": "boolean" }
+        }
       }
     }
   }

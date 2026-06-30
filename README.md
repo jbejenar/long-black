@@ -38,7 +38,10 @@ long-black is the thin ABN **domain layer** on top.
   "charity": null,
   "financialServicesLicence": { "number": "240001", "startDate": "2003-05-01", "...": "..." },
   "creditLicence": null,
-  "bannedDisqualified": []
+  "bannedDisqualified": [],
+  "ageYears": 25,
+  "isActive": true,
+  "flags": { "isCompany": true, "isLicensed": true, "isCharity": false, "...": false }
 }
 ```
 

@@ -652,6 +652,51 @@
             "additionalProperties": false
           }
         },
+        "govSpend": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "totalValueAud": {
+                  "type": "number"
+                },
+                "contractCount": {
+                  "type": "number"
+                },
+                "firstContractDate": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "lastContractDate": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "totalValueAud",
+                "contractCount",
+                "firstContractDate",
+                "lastContractDate"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "ageYears": {
           "anyOf": [
             {
@@ -685,6 +730,9 @@
             },
             "isDgr": {
               "type": "boolean"
+            },
+            "hasGovContracts": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -693,7 +741,8 @@
             "isCharity",
             "isLicensed",
             "hasEnforcementAction",
-            "isDgr"
+            "isDgr",
+            "hasGovContracts"
           ],
           "additionalProperties": false
         }
@@ -725,6 +774,7 @@
         "financialServicesLicence",
         "creditLicence",
         "bannedDisqualified",
+        "govSpend",
         "ageYears",
         "isActive",
         "flags"

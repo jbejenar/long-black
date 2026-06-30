@@ -77,3 +77,12 @@ CREATE UNLOGGED TABLE IF NOT EXISTS abn___SCHEMA_VERSION__.asic_credit_licence (
 CREATE UNLOGGED TABLE IF NOT EXISTS abn___SCHEMA_VERSION__.asic_banned_disqualified (
   acn text, name text, type text, start_date date, end_date date, comment text
 );
+
+-- AusTender government-contract spend, pre-aggregated per supplier ABN by
+-- src/gov-spend.ts (OCDS bulk → in-memory sum → COPY here). 1:0..1 on ABN.
+-- total_value_aud is numeric (summed in integer cents upstream for exactness; can
+-- reach tens of billions); dates are the earliest/latest contract dateSigned.
+CREATE UNLOGGED TABLE IF NOT EXISTS abn___SCHEMA_VERSION__.gov_spend (
+  abn char(11), total_value_aud numeric, contract_count integer,
+  first_contract_date date, last_contract_date date
+);

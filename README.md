@@ -6,8 +6,9 @@ long-black turns Australia's public **business-entity** data into a single flat
 file of pre-joined records — **one NDJSON document per ABN**. It spins up an
 ephemeral Postgres, streams in the ABR ABN Bulk Extract (~15M ABNs), joins it
 with ASIC Company, ASIC Business Names, ACNC charity + AIS financials, ASIC AFS &
-credit licence, and ASIC banned & disqualified data, flattens to one document per
-ABN, and writes per-state gzipped NDJSON. Then it dies. Postgres is a build tool,
+credit licence, ASIC banned & disqualified, and AusTender government-contract spend,
+flattens to one document per ABN, and writes per-state gzipped NDJSON. Then it dies.
+Postgres is a build tool,
 not
 infrastructure.
 
@@ -39,9 +40,10 @@ long-black is the thin ABN **domain layer** on top.
   "financialServicesLicence": { "number": "240001", "startDate": "2003-05-01", "...": "..." },
   "creditLicence": null,
   "bannedDisqualified": [],
+  "govSpend": { "totalValueAud": 1500000.5, "contractCount": 3, "lastContractDate": "2024-09-01" },
   "ageYears": 25,
   "isActive": true,
-  "flags": { "isCompany": true, "isLicensed": true, "isCharity": false, "...": false }
+  "flags": { "isCompany": true, "isLicensed": true, "hasGovContracts": true, "...": false }
 }
 ```
 
@@ -92,8 +94,9 @@ gh release download --repo jbejenar/long-black --pattern 'long-black-*-nsw.ndjso
 
 ABR ABN Bulk Extract + ASIC Company + ASIC Business Names + ACNC Charities + ACNC
 Annual Information Statement + ASIC AFS Licensees + ASIC Credit Licensees + ASIC
-Banned & Disqualified Orgs — all data.gov.au, **CC-BY 3.0 AU**, joined on the ABN
-(the banned register on the ACN). See [docs/DATA-SOURCES.md](docs/DATA-SOURCES.md).
+Banned & Disqualified Orgs (all data.gov.au) + AusTender contracts (OCDS, via the
+OCP Data Registry) — all **CC-BY 3.0 AU**, joined on the ABN (the banned register on
+the ACN). See [docs/DATA-SOURCES.md](docs/DATA-SOURCES.md).
 
 ## Tech stack
 

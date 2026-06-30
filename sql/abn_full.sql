@@ -49,6 +49,14 @@ ais AS (
   FROM abn___SCHEMA_VERSION__.acnc_ais
   ORDER BY abn, reporting_period_end DESC NULLS LAST
 ),
+-- 1:0..1 — AusTender government-contract spend, already aggregated per ABN by
+-- src/gov-spend.ts (DISTINCT ON is a defensive guard against a duplicate ABN row).
+gov_spend AS (
+  SELECT DISTINCT ON (abn)
+    abn, total_value_aud, contract_count, first_contract_date, last_contract_date
+  FROM abn___SCHEMA_VERSION__.gov_spend
+  ORDER BY abn, total_value_aud DESC NULLS LAST
+),
 -- 1:0..1 — ASIC AFS + credit licences. The source `*_ABN_ACN` column holds EITHER
 -- an 11-digit ABN or a 9-digit ACN (the normalizer routes each to the abn/acn
 -- column). So each licence resolves to a base row by TWO paths: a direct ABN match,
@@ -184,12 +192,19 @@ SELECT
       'endDate', crc.end_date::text)
     ELSE NULL
   END                                                  AS credit_licence,
-  COALESCE(bd.items, '[]'::json)                       AS banned_disqualified
+  COALESCE(bd.items, '[]'::json)                       AS banned_disqualified,
+  CASE WHEN gs.abn IS NULL THEN NULL ELSE json_build_object(
+    'totalValueAud', gs.total_value_aud,
+    'contractCount', gs.contract_count,
+    'firstContractDate', gs.first_contract_date::text,
+    'lastContractDate', gs.last_contract_date::text
+  ) END                                                AS gov_spend
 FROM abn___SCHEMA_VERSION__.abn a
 LEFT JOIN company c ON c.abn = a.abn
 LEFT JOIN business_names_agg bn ON bn.abn = a.abn
 LEFT JOIN charity ch ON ch.abn = a.abn
 LEFT JOIN ais ON ais.abn = a.abn
+LEFT JOIN gov_spend gs ON gs.abn = a.abn
 LEFT JOIN afs_by_abn afsa ON afsa.abn = a.abn
 LEFT JOIN afs_by_acn afsc
   ON afsc.acn = a.asic_number AND COALESCE(a.asic_number_type, '') NOT IN ('ARBN', 'ARSN', 'ARFN')

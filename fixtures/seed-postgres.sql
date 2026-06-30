@@ -174,3 +174,12 @@ INSERT INTO abn___SCHEMA_VERSION__.asic_banned_disqualified (
 ) VALUES
 ('000000987','EXPIRED GST PTY LTD','Australian Financial Services banning',DATE '2019-07-01',DATE '2022-07-01','No comment made'),
 ('000000987','EXPIRED GST PTY LTD','Credit banning',DATE '2020-01-01',NULL,NULL);
+
+-- AusTender government-spend fixtures (1:0..1 on ABN; pre-aggregated by gov-spend.ts).
+-- 51000000761 won 3 contracts (multi-contract sum + fractional cents); 51000000793 one.
+-- All other ABNs keep govSpend:null / flags.hasGovContracts:false.
+INSERT INTO abn___SCHEMA_VERSION__.gov_spend (
+  abn, total_value_aud, contract_count, first_contract_date, last_contract_date
+) VALUES
+('51000000761',1500000.50,3,DATE '2018-03-15',DATE '2024-09-01'),
+('51000000793',250000.00,1,DATE '2021-11-20',DATE '2021-11-20');

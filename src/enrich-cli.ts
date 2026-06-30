@@ -19,6 +19,16 @@ import {
   loadEnrichmentSource,
   type EnrichmentSource,
 } from "./enrich.js";
+import { downloadGovSpend, loadGovSpend } from "./gov-spend.js";
+
+/**
+ * AusTender government spend is loaded by a dedicated JSON-aggregation step (not a
+ * CSV COPY), so it sits alongside the CSV sources rather than in ENRICHMENT_SOURCES.
+ * Its key/label/floor mirror the CSV-source shape so the orchestration is uniform.
+ */
+const GOV_SPEND_KEY = "gov_spend";
+const GOV_SPEND_LABEL = "AusTender government spend";
+const GOV_SPEND_MIN_ROWS = 30_000; // distinct supplier ABNs, all history (~14k/year)
 
 async function main(): Promise<void> {
   const connectionString = process.env.DATABASE_URL ?? DEFAULT_DB_URL;
@@ -26,17 +36,20 @@ async function main(): Promise<void> {
   const schemaVersion = deriveSchemaVersion(version);
   const dataDir = process.env.DATA_DIR ?? "data";
 
+  const validKeys = [...ENRICHMENT_SOURCES.map((s) => s.key), GOV_SPEND_KEY];
   const requested = process.argv.slice(2);
-  const unknown = requested.filter((k) => !ENRICHMENT_SOURCES.some((s) => s.key === k));
+  const unknown = requested.filter((k) => !validKeys.includes(k));
   if (unknown.length > 0) {
     console.error(`[enrich] unknown source key(s): ${unknown.join(", ")}`);
-    console.error(`[enrich] valid keys: ${ENRICHMENT_SOURCES.map((s) => s.key).join(", ")}`);
+    console.error(`[enrich] valid keys: ${validKeys.join(", ")}`);
     process.exit(2);
   }
   const sources: EnrichmentSource[] =
     requested.length === 0
       ? ENRICHMENT_SOURCES
       : ENRICHMENT_SOURCES.filter((s) => requested.includes(s.key));
+  const runGovSpend = requested.length === 0 || requested.includes(GOV_SPEND_KEY);
+  const totalSources = sources.length + (runGovSpend ? 1 : 0);
 
   let failures = 0;
   for (const source of sources) {
@@ -67,11 +80,31 @@ async function main(): Promise<void> {
     }
   }
 
+  if (runGovSpend) {
+    try {
+      console.error(`[enrich] ${GOV_SPEND_LABEL}: downloading…`);
+      const file = await downloadGovSpend(dataDir);
+      console.error(`[enrich] ${GOV_SPEND_LABEL}: aggregating ${file}…`);
+      const inserted = await loadGovSpend({ connectionString, schemaVersion, file });
+      if (inserted < GOV_SPEND_MIN_ROWS) {
+        failures++;
+        console.error(
+          `[enrich] ${GOV_SPEND_LABEL}: FAILED — only ${inserted} ABN(s), below floor ${GOV_SPEND_MIN_ROWS} (incomplete source)`,
+        );
+      } else {
+        console.log(`[enrich] ${GOV_SPEND_LABEL}: ${inserted} ABN(s) → ${GOV_SPEND_KEY}`);
+      }
+    } catch (err) {
+      failures++;
+      console.error(`[enrich] ${GOV_SPEND_LABEL}: FAILED — ${(err as Error).message}`);
+    }
+  }
+
   if (failures > 0) {
-    console.error(`[enrich] ${failures}/${sources.length} source(s) failed`);
+    console.error(`[enrich] ${failures}/${totalSources} source(s) failed`);
     process.exit(1);
   }
-  console.error(`[enrich] all ${sources.length} source(s) loaded`);
+  console.error(`[enrich] all ${totalSources} source(s) loaded`);
 }
 
 main().catch((err) => {

@@ -136,6 +136,15 @@
           "comment": { "type": "text" }
         }
       },
+      "govSpend": {
+        "type": "object",
+        "properties": {
+          "totalValueAud": { "type": "double" },
+          "contractCount": { "type": "integer" },
+          "firstContractDate": { "type": "date", "format": "yyyy-MM-dd", "ignore_malformed": true },
+          "lastContractDate": { "type": "date", "format": "yyyy-MM-dd", "ignore_malformed": true }
+        }
+      },
       "ageYears": { "type": "integer" },
       "isActive": { "type": "boolean" },
       "flags": {
@@ -146,7 +155,8 @@
           "isCharity": { "type": "boolean" },
           "isLicensed": { "type": "boolean" },
           "hasEnforcementAction": { "type": "boolean" },
-          "isDgr": { "type": "boolean" }
+          "isDgr": { "type": "boolean" },
+          "hasGovContracts": { "type": "boolean" }
         }
       }
     }

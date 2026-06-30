@@ -16,6 +16,7 @@ import type {
   AfsLicence,
   CreditLicence,
   BannedDisqualified,
+  GovSpend,
 } from "./schema.js";
 
 function emptyToNull(value: unknown): string | null {
@@ -102,6 +103,7 @@ export function composeAbnDocument(row: Record<string, unknown>, version: string
   const bannedDisqualified = Array.isArray(row.banned_disqualified)
     ? (row.banned_disqualified as BannedDisqualified[])
     : [];
+  const govSpend = (row.gov_spend as GovSpend | null) ?? null;
 
   return {
     _id: String(row._id),
@@ -133,6 +135,7 @@ export function composeAbnDocument(row: Record<string, unknown>, version: string
     financialServicesLicence,
     creditLicence,
     bannedDisqualified,
+    govSpend,
     // Derived signals — computed here from the fields above, no extra source.
     ageYears: computeAgeYears(abnStatusFromDate, version),
     isActive: status === "ACT",
@@ -143,6 +146,7 @@ export function composeAbnDocument(row: Record<string, unknown>, version: string
       isLicensed: financialServicesLicence !== null || creditLicence !== null,
       hasEnforcementAction: bannedDisqualified.length > 0,
       isDgr: dgr.length > 0,
+      hasGovContracts: govSpend !== null,
     },
   };
 }

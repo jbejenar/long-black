@@ -14,6 +14,28 @@ The NDJSON document is the contract (`docs/DOCUMENT-SCHEMA.md`).
 
 ### Added
 
+- **0.12.0** — **Government spend** (`govSpend`) — per-ABN AusTender
+  government-contract spend, plus a `flags.hasGovContracts`. Additive, minor bump.
+  - Source: the **Open Contracting Partnership Data Registry** bulk mirror of
+    AusTender's OCDS data ([publication 19](https://data.open-contracting.org/en/publication/19))
+    — `full.jsonl.gz`, ~251 MB, **updated monthly**, ~852k contracts from 2007. The
+    only current bulk feed: the data.gov.au mirror is frozen at 2013 and the
+    `api.tenders.gov.au` API is a ~25–40k-call paginated crawl with no published rate
+    limits (verify-on-first-load; see `docs/DATA-SOURCES.md`).
+  - New JSON-aggregation loader (`src/gov-spend.ts`, **not** a CSV COPY): streams the
+    gzip, attributes each contract's value to every supplier party carrying an
+    `AU-ABN`, sums in **integer cents** (exact, order-deterministic), and bulk-loads
+    a per-ABN aggregate into `gov_spend`. De-dupes by `ocid`. ~1% of contracts list
+    multiple suppliers — the full value is attributed to each (documented).
+  - `govSpend` shape: `{ totalValueAud, contractCount, firstContractDate,
+lastContractDate }`, folded into the document via a 1:0..1 join; `null` when the
+    ABN never supplied a contract. Coverage gate floor 30,000 (`src/coverage.ts`).
+  - © Commonwealth of Australia (Department of Finance / AusTender) — **CC-BY 3.0
+    AU** (the data.gov.au record's dataset licence; the OCP Data Registry is the
+    access route). Added to `ABN_SOURCES` so it appears in `metadata.json`.
+  - Contract docs moved in lockstep (`src/schema.ts`, `docs/DOCUMENT-SCHEMA.md`,
+    `fixtures/expected-output.ndjson`, `fixtures/schema-baseline.json`,
+    `opensearch/abn-mappings.json`, `docs/DATA-SOURCES.md`, `fixtures/edge-cases.md`).
 - **0.11.0** — **Derived signals** — three new fields computed in `compose.ts` from
   data already in each document, **no new source, no join, no coverage gate**.
   Additive, minor bump:

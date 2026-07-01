@@ -10,8 +10,12 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readAbnXlsx, headerIndex, cellDigits, cellNumber } from "../../src/load-xlsx.js";
-import { selectLatestXlsxResource } from "../../src/xlsx-sources.js";
+import { selectLatestXlsxResource, mapXlsxRows, XLSX_SOURCES } from "../../src/xlsx-sources.js";
 import type { CkanResource } from "crema";
+import type { XlsxTable } from "../../src/load-xlsx.js";
+
+const CTT = XLSX_SOURCES.find((s) => s.key === "tax_transparency")!;
+const RD = XLSX_SOURCES.find((s) => s.key === "rd_tax_incentive")!;
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -101,5 +105,81 @@ describe("selectLatestXlsxResource", () => {
 
   it("returns undefined when nothing matches", () => {
     expect(selectLatestXlsxResource(resources, "banana")).toBeUndefined();
+  });
+});
+
+describe("mapXlsxRows — Corporate Tax Transparency", () => {
+  const table = (rows: unknown[][]): XlsxTable => ({
+    sheetName: "Income tax details",
+    header: ["Name", "ABN", "Total income $", "Taxable income $", "Tax payable $", "Income year"],
+    rows,
+  });
+
+  it("normalizes zero/negative/blank taxable & payable to null; keeps positive", () => {
+    const { columns, lines } = mapXlsxRows(
+      CTT,
+      table([
+        ["POS CO", 51000000793, 500000000, 45000000, 13500000, "2023-24"], // all positive
+        ["ZERO CO", 51000000761, 120000000, 0, -5, "2023-24"], // ≤0 → null
+        ["BLANK CO", 51000000842, 200000000, null, "", "2023-24"], // blank → null
+      ]),
+    );
+    expect(columns).toBe("abn, income_year, total_income, taxable_income, tax_payable");
+    expect(lines).toEqual([
+      "51000000793\t2023-24\t500000000\t45000000\t13500000\n",
+      "51000000761\t2023-24\t120000000\t\\N\t\\N\n",
+      "51000000842\t2023-24\t200000000\t\\N\t\\N\n",
+    ]);
+  });
+
+  it("skips a row with no total income (required) or a non-11-digit ABN", () => {
+    const { lines } = mapXlsxRows(
+      CTT,
+      table([
+        ["NO TOTAL", 51000000793, null, 1, 1, "2023-24"],
+        ["BAD ABN", 123, 500000000, 1, 1, "2023-24"],
+      ]),
+    );
+    expect(lines).toEqual([]);
+  });
+
+  it("throws if a required column is missing (format drift)", () => {
+    const bad: XlsxTable = { sheetName: "x", header: ["Name", "ABN"], rows: [["X", 51000000793]] };
+    expect(() => mapXlsxRows(CTT, bad)).toThrow(/column not found/);
+  });
+});
+
+describe("mapXlsxRows — R&D Tax Incentive", () => {
+  it("maps ABN and ACN rows; routes 9-digit ACN via padStart", () => {
+    const { lines } = mapXlsxRows(RD, {
+      sheetName: "2022-23 Report",
+      header: ["Company name", "ABN/ACN", "Total R&D expenditure (…) $", "Income Year"],
+      rows: [
+        ["ABN CO", 95608464535, 449266, "2022-23"],
+        ["ACN CO", 4000000, 70421, "2022-23"], // 7 digits → padStart to 9 → "004000000"
+      ],
+    });
+    expect(lines).toEqual([
+      "95608464535\t\\N\t2022-23\t449266\n",
+      "\\N\t004000000\t2022-23\t70421\n",
+    ]);
+  });
+
+  it("THROWS when only an 'amended' R&D column exists (Bug-1: no silent null)", () => {
+    const amendedOnly: XlsxTable = {
+      sheetName: "x",
+      header: ["Company name", "ABN/ACN", "Total amended R&D expenditure (…) $", "Income Year"],
+      rows: [["X", 95608464535, 1, "2022-23"]],
+    };
+    expect(() => mapXlsxRows(RD, amendedOnly)).toThrow(/R&D expenditure column/);
+  });
+
+  it("THROWS when the R&D expenditure column is missing entirely", () => {
+    const missing: XlsxTable = {
+      sheetName: "x",
+      header: ["Company name", "ABN/ACN", "Income Year"],
+      rows: [["X", 95608464535, "2022-23"]],
+    };
+    expect(() => mapXlsxRows(RD, missing)).toThrow(/R&D expenditure column/);
   });
 });

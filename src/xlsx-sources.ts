@@ -21,7 +21,7 @@ import { pipeline } from "node:stream/promises";
 import { resolve } from "node:path";
 import postgres from "postgres";
 import { ckanResources, downloadFile, type CkanResource } from "crema";
-import { readAbnXlsx, headerIndex, cellDigits, cellNumber } from "./load-xlsx.js";
+import { readAbnXlsx, headerIndex, cellDigits, cellNumber, type XlsxTable } from "./load-xlsx.js";
 
 export interface XlsxSource {
   key: "tax_transparency" | "rd_tax_incentive";
@@ -112,44 +112,61 @@ function abnAcn(cell: unknown): { abn: string | null; acn: string | null } {
 const N = (v: number | null): string => (v === null ? "\\N" : String(v));
 const S = (v: string | null): string => (v === null ? "\\N" : v);
 
-/** Build the COPY column list + a tab-delimited row line for each source. */
-function copyPlan(source: XlsxSource): {
-  columns: string;
-  line: (hix: Map<string, number>, row: unknown[]) => string | null;
-} {
+/** A monetary cell that is null unless it parses to a POSITIVE number (blank/≤0 → null). */
+function positiveOrNull(cell: unknown): number | null {
+  const n = cellNumber(cell);
+  return n !== null && n > 0 ? n : null;
+}
+
+/** The non-amended "total R&D expenditure …" column (throws if absent — see Bug-1). */
+function findRdCol(hix: Map<string, number>): number {
+  for (const [k, i] of hix) {
+    if (k.includes("total r&d expenditure") && !k.includes("amended")) return i;
+  }
+  throw new Error(`R&D expenditure column ("total r&d expenditure", non-amended) not found`);
+}
+
+/**
+ * Resolve + validate every column ONCE (each `findCol`/`findRdCol` throws if a
+ * required column is missing — so header/format drift fails the load rather than
+ * silently emitting hollow rows), then return the COPY column list and a per-row
+ * mapper over already-parsed cell arrays. Pure — testable without a DB or file.
+ */
+export function mapXlsxRows(
+  source: XlsxSource,
+  table: XlsxTable,
+): { columns: string; lines: string[] } {
+  const hix = headerIndex(table.header);
+  const lines: string[] = [];
   if (source.key === "tax_transparency") {
-    return {
-      columns: "abn, income_year, total_income, taxable_income, tax_payable",
-      line: (hix, row) => {
-        const abn = cellDigits(row[findCol(hix, "abn")]);
-        if (abn.length !== 11) return null; // CTT is ABN-only; skip a malformed key
-        const year = String(row[findCol(hix, "income year")] ?? "").trim();
-        const total = cellNumber(row[findCol(hix, "total income $", ["total income"])]);
-        const taxable = cellNumber(row[findCol(hix, "taxable income $", ["taxable income"])]);
-        const payable = cellNumber(row[findCol(hix, "tax payable $", ["tax payable"])]);
-        return `${abn}\t${S(year || null)}\t${N(total)}\t${N(taxable)}\t${N(payable)}\n`;
-      },
-    };
+    const abnC = findCol(hix, "abn");
+    const yearC = findCol(hix, "income year");
+    const totalC = findCol(hix, "total income $", ["total income"]);
+    const taxableC = findCol(hix, "taxable income $", ["taxable income"]);
+    const payableC = findCol(hix, "tax payable $", ["tax payable"]);
+    for (const row of table.rows) {
+      const abn = cellDigits(row[abnC]);
+      const total = cellNumber(row[totalC]);
+      if (abn.length !== 11 || total === null) continue; // ABN-only; totalIncome required
+      const year = String(row[yearC] ?? "").trim();
+      // taxableIncome / taxPayable are null when the ATO reports ≤0 (documented contract).
+      lines.push(
+        `${abn}\t${S(year || null)}\t${N(total)}\t${N(positiveOrNull(row[taxableC]))}\t${N(positiveOrNull(row[payableC]))}\n`,
+      );
+    }
+    return { columns: "abn, income_year, total_income, taxable_income, tax_payable", lines };
   }
   // rd_tax_incentive
-  return {
-    columns: "abn, acn, income_year, total_rd_expenditure",
-    line: (hix, row) => {
-      const { abn, acn } = abnAcn(row[findCol(hix, "abn/acn", ["abn"])]);
-      if (abn === null && acn === null) return null;
-      const year = String(row[findCol(hix, "income year")] ?? "").trim();
-      // The "total R&D expenditure …" column, not the "amended" one.
-      let rdCol = -1;
-      for (const [k, i] of hix) {
-        if (k.includes("total r&d expenditure") && !k.includes("amended")) {
-          rdCol = i;
-          break;
-        }
-      }
-      const rd = rdCol >= 0 ? cellNumber(row[rdCol]) : null;
-      return `${S(abn)}\t${S(acn)}\t${S(year || null)}\t${N(rd)}\n`;
-    },
-  };
+  const keyC = findCol(hix, "abn/acn", ["abn"]);
+  const yearC = findCol(hix, "income year");
+  const rdC = findRdCol(hix);
+  for (const row of table.rows) {
+    const { abn, acn } = abnAcn(row[keyC]);
+    if (abn === null && acn === null) continue;
+    const year = String(row[yearC] ?? "").trim();
+    lines.push(`${S(abn)}\t${S(acn)}\t${S(year || null)}\t${N(cellNumber(row[rdC]))}\n`);
+  }
+  return { columns: "abn, acn, income_year, total_rd_expenditure", lines };
 }
 
 /**
@@ -165,22 +182,15 @@ export async function loadXlsxSource(options: {
 }): Promise<number> {
   const { connectionString, schemaVersion, source, file } = options;
   const schema = `abn_${schemaVersion}`;
-  const { header, rows } = await readAbnXlsx(file);
-  const hix = headerIndex(header);
-  const plan = copyPlan(source);
-
-  const lines: string[] = [];
-  for (const row of rows) {
-    const line = plan.line(hix, row);
-    if (line !== null) lines.push(line);
-  }
+  const table = await readAbnXlsx(file);
+  const { columns, lines } = mapXlsxRows(source, table); // throws on missing required column
 
   const sql = postgres(connectionString, { max: 1, max_lifetime: null });
   try {
     await sql.unsafe(`TRUNCATE TABLE ${schema}.${source.key}`); // no cursor needed — DDL-like, returns no rows
     if (lines.length > 0) {
       const reserved = await sql.reserve();
-      const copy = `COPY ${schema}.${source.key} (${plan.columns}) FROM STDIN WITH (FORMAT text, NULL '\\N')`;
+      const copy = `COPY ${schema}.${source.key} (${columns}) FROM STDIN WITH (FORMAT text, NULL '\\N')`;
       const writable = await reserved.unsafe(copy).writable();
       await pipeline(Readable.from(lines), writable);
       reserved.release();

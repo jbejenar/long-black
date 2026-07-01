@@ -24,7 +24,7 @@ document per ABN, split per state and gzip-compressed, plus `metadata.json`.
   (a derived convenience encoding; scalars are columns, nested fields are JSON
   strings). Not a manifest source file — it duplicates the NDJSON records.
 - `metadata.json` — per-state counts, build timestamp, schema version, and the
-  CC-BY 3.0 AU source attribution.
+  per-source CC-BY attribution (mostly 3.0 AU; the ATO R&D dataset is CC-BY 2.5 AU).
 - `manifest.json` — the release provenance document (crema `buildManifestV2`,
   product `abn`): per-shard sha256 + record counts + the build pipeline
   (repo/commit/run). Its source files are the per-state NDJSON.gz shards, whose

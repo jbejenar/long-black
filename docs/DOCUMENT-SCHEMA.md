@@ -362,9 +362,10 @@ applied downstream (`crema` split/compress). Dates are ISO `YYYY-MM-DD`.
 
 The GitHub Release ships the **per-state** `*.ndjson.gz` shards (each well under
 GitHub's 2 GB per-asset limit). The **S3 mirror** additionally publishes a
-consolidated all-ABN `all.ndjson.gz` (the gzip concatenation of the shards) under
-`data/abn/<version>/` — for bulk/programmatic access. NDJSON is the only output
-format (a prior optional Parquet export was removed — see CHANGELOG).
+consolidated all-ABN `all.ndjson.gz` (an ABN-ordered merge of the shards, in the same
+global `ORDER BY abn` order) under `data/abn/<version>/` — for bulk/programmatic access.
+NDJSON is the only output format (a prior optional Parquet export was removed — see
+CHANGELOG).
 
 ## Data licensing
 

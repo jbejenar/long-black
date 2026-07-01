@@ -480,12 +480,27 @@ jobs:
           DEST="s3://${S3_BUCKET}/data/abn/${VER}"
           P="data/abn/${VER}/"
 
-          # Build the full all-ABN bundle from the per-state shards. gzip members
-          # concatenate into ONE valid .gz that every reader decompresses transparently,
-          # so there's no re-compression pass. The glob is sorted → deterministic order.
-          cat s3-staging/long-black-*.ndjson.gz > s3-staging/all.ndjson.gz
-          echo "all.ndjson.gz: $(du -h s3-staging/all.ndjson.gz | cut -f1) from" \
-            "$(ls s3-staging/long-black-*.ndjson.gz | wc -l | tr -d ' ') shards"
+          # Build the full all-ABN bundle from the per-state shards, PRESERVING the global
+          # ABN order the output contract documents (ORDER BY abn) — a plain cat would
+          # group by state. Each shard is already ABN-sorted (a subset of that output) and
+          # every line starts with the fixed prefix {"_id":"<11-digit abn>", so a byte-wise
+          # (LC_ALL=C) `sort -m` MERGE of the shards reproduces the global order. The shards
+          # stream through FIFOs (no multi-GB temp files), and the merged stream is counted
+          # (tee → wc) in the same pass so we can verify no records were lost/duplicated.
+          fifos=(); i=0
+          for f in s3-staging/long-black-*.ndjson.gz; do
+            mkfifo "s3-staging/.pipe$i"; gzip -dc "$f" > "s3-staging/.pipe$i" &
+            fifos+=("s3-staging/.pipe$i"); i=$((i + 1))
+          done
+          LC_ALL=C sort -m "${fifos[@]}" | gzip > s3-staging/all.ndjson.gz
+          wait
+          rm -f s3-staging/.pipe*
+          # Integrity: the merged bundle must have EXACTLY total_records lines — a dropped
+          # or duplicated record (a broken merge / truncated shard) fails the mirror here.
+          ALL_LINES=$(gzip -dc s3-staging/all.ndjson.gz | wc -l | tr -d ' ')
+          TOTAL=$(jq '.total_records' s3-staging/manifest.json)
+          [ "$ALL_LINES" = "$TOTAL" ] || { echo "::error::all.ndjson.gz has $ALL_LINES records, expected $TOTAL (merge lost/duplicated data)"; exit 1; }
+          echo "all.ndjson.gz: $(du -h s3-staging/all.ndjson.gz | cut -f1), $ALL_LINES records (ABN-ordered), from $i shards"
 
           # Licence guard: the CC-BY attribution must travel with every distribution
           # channel, so metadata.json (its per-source sources[] with licence + attribution)

@@ -146,12 +146,15 @@ s3://<bucket>/data/address/<version>/…   # flat-white (product "address"), for
 s3://<bucket>/manifests/address-<version>.json
 ```
 
-**`all.ndjson.gz`** is the consolidated all-ABN NDJSON — the gzip **concatenation** of
-the per-state shards (gzip members concatenate into one valid `.gz` every reader
-decompresses transparently, so there's no re-compression). It lives **only on S3** (not
-the GitHub Release, which stays lean per-state, matching flat-white). The `mirror-s3`
-job builds it from the shards it already downloads, so the build job still needs **no S3
-credentials**.
+**`all.ndjson.gz`** is the consolidated all-ABN NDJSON, in the **same global `ORDER BY
+abn` order** as the canonical output. Each per-state shard is already ABN-sorted (a
+subset of that output), so the mirror produces it by a streaming byte-wise **merge**
+(`LC_ALL=C sort -m` over the shards via FIFOs — no multi-GB temp files) rather than a
+plain concatenation (which would group by state and break the order). The merge is
+verified to contain exactly `total_records` lines before upload. It lives **only on S3**
+(not the GitHub Release, which stays lean per-state, matching flat-white). The
+`mirror-s3` job builds it from the shards it already downloads, so the build job still
+needs **no S3 credentials**.
 
 The **S3 manifest** (`manifests/abn-<version>.json`) rewrites each shard's `key` to its
 S3 key and adds `all.ndjson.gz` as an **aggregate** file — its own `sha256` + `bytes`,

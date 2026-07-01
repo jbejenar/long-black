@@ -24,11 +24,12 @@ The NDJSON document is the contract (`docs/DOCUMENT-SCHEMA.md`).
 ### Added
 
 - **Full-dataset `all.ndjson.gz` on the S3 mirror** — a consolidated all-ABN NDJSON
-  (~1.26 GB, the gzip concatenation of the per-state shards) is published to
-  `data/abn/<version>/all.ndjson.gz` on the S3 mirror only (not the GitHub Release,
-  which stays lean per-state — matching flat-white's split). The `mirror-s3` job
-  builds it from the shards it already downloads, so the build job still needs no S3
-  credentials.
+  (~1.26 GB) in the same global `ORDER BY abn` order as the canonical output, published
+  to `data/abn/<version>/all.ndjson.gz` on the S3 mirror only (not the GitHub Release,
+  which stays lean per-state — matching flat-white's split). The `mirror-s3` job builds
+  it by a streaming byte-wise **merge** of the (already ABN-sorted) shards it downloads
+  (`LC_ALL=C sort -m` via FIFOs — no multi-GB temp), verified to contain exactly
+  `total_records` lines. The build job still needs no S3 credentials.
 - **A+++ S3 manifest** — `manifests/abn-<version>.json` now lists `all.ndjson.gz` as an
   **aggregate** file with its own `sha256` + `bytes`, marked `aggregate: true` and
   **excluded from `total_records`** (it duplicates the shards), so the bundle is fully

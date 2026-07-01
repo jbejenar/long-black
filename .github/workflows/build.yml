@@ -1,6 +1,6 @@
 name: Build
 
-# Monthly production build: download the real ABR ABN Bulk Extract, run the full
+# Weekly production build: download the real ABR ABN Bulk Extract, run the full
 # pipeline (download → load → flatten → verify → split → compress), and publish
 # the per-state NDJSON(.gz) + all-ABN Parquet + metadata.json + manifest.json as a
 # GitHub Release.
@@ -29,9 +29,11 @@ on:
         required: false
         default: "0.25"
   schedule:
-    # 5th of each month, 03:00 UTC — the ABR refreshes weekly, so any week's
-    # extract is fresh; a monthly cadence avoids 52 artifact sets/year.
-    - cron: "0 3 5 * *"
+    # Weekly — Mondays 03:00 UTC. The ABR ABN Bulk Extract refreshes weekly, so this
+    # tracks the freshest core data; version-tagged releases + the S3 mirror are keyed
+    # on the extract date, so a week with no new extract just re-resolves the same
+    # version (the publish step refuses to mutate an already-published release).
+    - cron: "0 3 * * 1"
 
 permissions:
   contents: write # create the GitHub Release
@@ -171,7 +173,7 @@ jobs:
           # The data must be complete before shipping: every source of truth must
           # load (and clear its per-source row floor in enrich-cli) or the build
           # fails. A deliberate manual run can set allow_partial_enrichment=true to
-          # ship with a degraded source; the scheduled monthly build never does.
+          # ship with a degraded source; the scheduled weekly build never does.
           COVERAGE_PROFILE=production
           if DATA_DIR=data node dist/enrich-cli.js; then
             echo "enrichment complete — all sources loaded above floor"
@@ -398,25 +400,31 @@ jobs:
           fi
 
   # --- Optional S3 mirror (separate least-privilege job) -------------------------------
-  # Dormant until configured: runs only when the repo VARIABLE `S3_BUCKET` is set AND the
-  # build job actually published a non-anomalous release. It is a SEPARATE job (not a step
-  # in build) so that `id-token: write` (AWS OIDC assume-role) is granted ONLY here, never
-  # to the build job that runs the pipeline. It re-downloads the immutable published
-  # release assets into a clean dir, so a partial-mirror failure is repaired by simply
-  # re-running THIS job (no rebuild). Data goes only to immutable per-release prefixes;
-  # "latest" is a single atomic pointer object (latest.json), so no delete permission is
-  # needed. Auth is GitHub OIDC — set repo variable `AWS_ROLE_ARN` to an IAM role trusting
-  # this repo's Actions OIDC with s3:PutObject/ListBucket on `long-black/*`. See
-  # docs/RELEASING.md § "S3 mirror".
+  # Mirrors each published release to the SHARED S3 bucket, following flat-white's
+  # product-namespaced convention so the two products coexist (flat-white writes
+  # data/address/… + manifests/address-<ver>.json; long-black writes data/abn/… +
+  # manifests/abn-<ver>.json). Dormant until configured: runs only when the repo VARIABLE
+  # `AWS_ROLE_ARN` is set AND the build published a non-anomalous release. A SEPARATE job
+  # so `id-token: write` (AWS OIDC assume-role) is scoped here, never to the pipeline job.
+  # It re-downloads the immutable published release, so a partial-mirror failure is fixed
+  # by re-running THIS job (no rebuild); data prefixes are immutable (no in-place mutation,
+  # so no delete permission). Auth is GitHub OIDC — set repo variable `AWS_ROLE_ARN` to a
+  # NEW role (e.g. arn:aws:iam::493712557159:role/long-black-role) that trusts THIS repo's
+  # Actions OIDC (flat-white-role trusts only jbejenar/flat-white) with s3:PutObject +
+  # s3:ListBucket on `data/abn/*` and `manifests/abn-*`. The bucket + region default to
+  # flat-white's; override with vars S3_BUCKET / AWS_REGION. See docs/RELEASING.md.
   mirror-s3:
     needs: build
     if: >-
-      vars.S3_BUCKET != '' && needs.build.outputs.published == 'true' &&
+      vars.AWS_ROLE_ARN != '' && needs.build.outputs.published == 'true' &&
       needs.build.outputs.anomalies != 'true'
     runs-on: ubuntu-latest
     permissions:
       id-token: write # assume the AWS OIDC role (this job only)
       contents: read # gh release download
+    env:
+      S3_BUCKET: ${{ vars.S3_BUCKET || 'flat-white-address-493712557159-ap-southeast-2-an' }}
+      AWS_REGION: ${{ vars.AWS_REGION || 'ap-southeast-2' }}
     steps:
       - name: Download the published release assets (clean staging)
         env:
@@ -432,32 +440,27 @@ jobs:
           ls -lh s3-staging
 
       - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
-          aws-region: ${{ vars.AWS_REGION || 'ap-southeast-2' }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Mirror to S3 (immutable prefix + atomic latest pointer)
+      - name: Mirror to the shared bucket (data/abn/<ver>/ + manifests/abn-<ver>.json)
         env:
-          BUCKET: ${{ vars.S3_BUCKET }}
           TAG: ${{ needs.build.outputs.tag }}
         run: |
           set -euo pipefail
-          DEST="s3://${BUCKET}/long-black/${TAG}"
-          # Data goes ONLY to an immutable, per-release prefix. Upload the shards +
-          # Parquet FIRST, then metadata/manifest LAST, so the prefix is never observed
-          # with control files that describe data not yet present.
-          aws s3 cp s3-staging/ "${DEST}/" --recursive --no-progress \
-            --exclude 'metadata.json' --exclude 'manifest.json'
-          aws s3 cp s3-staging/metadata.json "${DEST}/metadata.json" --no-progress
-          aws s3 cp s3-staging/manifest.json "${DEST}/manifest.json" --no-progress
-
-          # "latest" is a SINGLE small pointer object, overwritten in ONE PutObject —
-          # atomic in S3. There is no live multi-object `latest/` prefix to leave half-
-          # updated; readers GET latest.json, then fetch the immutable prefix it names.
-          # (No delete permission needed — nothing is mutated in place.)
-          printf '{"version":"%s","prefix":"long-black/%s/","updated":"%s"}\n' \
-            "$TAG" "$TAG" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            | aws s3 cp - "s3://${BUCKET}/long-black/latest.json" \
-                --content-type application/json --no-progress
-          echo "mirrored ${TAG} → ${DEST}/ ; latest.json now points to ${TAG}"
+          VER="${TAG#v}"                       # strip the leading v (v2026.06.24 → 2026.06.24)
+          DEST="s3://${S3_BUCKET}/data/abn/${VER}"
+          # Immutable, product-namespaced data (matches flat-white's data/<product>/<ver>/).
+          # The manifest goes to a SEPARATE manifests/ prefix and is uploaded LAST, after
+          # all the data it references, so it never points at not-yet-present objects.
+          aws s3 cp s3-staging/ "${DEST}/" --recursive --no-progress --exclude 'manifest.json'
+          # Rewrite the manifest's file keys to their S3 keys (data/abn/<ver>/<basename>),
+          # matching flat-white's manifest convention, then publish it.
+          jq --arg p "data/abn/${VER}/" \
+            '.files |= map(.key = ($p + (.key | sub(".*/"; ""))))' \
+            s3-staging/manifest.json > manifest.s3.json
+          aws s3 cp manifest.s3.json "s3://${S3_BUCKET}/manifests/abn-${VER}.json" \
+            --content-type application/json --no-progress
+          echo "mirrored ${TAG} → ${DEST}/ ; manifest → manifests/abn-${VER}.json"

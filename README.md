@@ -79,13 +79,14 @@ Everything except `load`, `enrich`, `compose`, the schema, and the SQL comes fro
 
 ## Releases
 
-Each monthly [GitHub Release](https://github.com/jbejenar/long-black/releases)
+Each weekly [GitHub Release](https://github.com/jbejenar/long-black/releases)
 ships the per-state `long-black-<version>-<state>.ndjson.gz` shards, an all-ABN
 `.parquet`, `metadata.json` (per-state counts + CC-BY attribution), and
 `manifest.json` (per-shard sha256 + record counts + build provenance). A browsable
 [release catalogue](https://jbejenar.github.io/long-black/) is generated and
-published to GitHub Pages after each build. See
-[docs/RELEASING.md](docs/RELEASING.md).
+published to GitHub Pages after each build. Releases are also mirrored to a shared
+S3 bucket (`data/abn/<version>/` + `manifests/abn-<version>.json`) when configured —
+see [docs/RELEASING.md](docs/RELEASING.md).
 
 ```bash
 # grab one state's file from the latest release:

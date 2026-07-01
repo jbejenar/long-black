@@ -1,13 +1,14 @@
 # Releasing long-black
 
-long-black publishes a fresh dataset monthly as a GitHub Release: one NDJSON
+long-black publishes a fresh dataset weekly as a GitHub Release: one NDJSON
 document per ABN, split per state and gzip-compressed, plus `metadata.json`.
 
 ## Cadence & versioning
 
-- **Schedule:** `build.yml` runs on the 5th of each month (03:00 UTC). The ABR
-  ABN Bulk Extract refreshes weekly, so any week's snapshot is current; a monthly
-  artifact cadence avoids 52 sets/year.
+- **Schedule:** `build.yml` runs weekly (Mondays, 03:00 UTC) to track the weekly ABR
+  ABN Bulk Extract refresh. A week with no new extract re-resolves the same version;
+  the publish step refuses to mutate an already-published release, so no duplicate
+  artifact set is cut.
 - **`_version`** = the ABR extract date, `vYYYY.MM.DD` (e.g. `v2026.06.24`),
   derived from the CKAN resource `last_modified` (auto-discovered when the
   `version` input is blank). The schema suffix is the digits only (`abn_20260624`).
@@ -40,7 +41,7 @@ it back, so changing it requires updating the branding's `keyPattern`.
 
 ## Running a release
 
-Scheduled monthly, or on demand:
+Scheduled weekly, or on demand:
 
 ```bash
 # Auto-discover the current extract, build, and publish:
@@ -77,7 +78,7 @@ hollow) documents. Three gates make incompleteness fatal rather than invisible:
 2. **Enrichment required.** `build.yml` treats an enrichment failure as fatal — no
    silent partial release. A deliberate manual run may set
    `allow_partial_enrichment=true` to ship with a degraded source (which also
-   disables gate 3); the scheduled monthly build never does.
+   disables gate 3); the scheduled weekly build never does.
 3. **Output coverage gate.** After verify, `cli.js`
    (`LONG_BLACK_COVERAGE_PROFILE=production`) streams the output and fails unless
    each nested source populated at least its floor (`company` ≥ 1,000,000,
@@ -131,42 +132,42 @@ ships, and consumers never see a partial or changing public release:
 ## S3 mirror (optional)
 
 GitHub Releases are the primary distribution; `build.yml` can also mirror each
-published release's assets (per-state `*.ndjson.gz`, the all-ABN `.parquet`,
-`metadata.json`, `manifest.json`) to S3. This runs as a **separate `mirror-s3` job**
-(not a step in the build job) so that the AWS OIDC `id-token` permission is scoped to
-the mirror alone — the pipeline/build job never gets assume-role rights. It is
+published release to the **shared S3 bucket that also holds flat-white**, following
+flat-white's **product-namespaced layout** so the two coexist:
+
+```
+s3://<bucket>/data/abn/<version>/…       # long-black: shards + all-ABN Parquet + metadata
+s3://<bucket>/manifests/abn-<version>.json   # long-black manifest (files[].key → the S3 keys)
+
+s3://<bucket>/data/address/<version>/…   # flat-white (product "address"), for reference
+s3://<bucket>/manifests/address-<version>.json
+```
+
+Each release goes to an **immutable, per-version prefix** — nothing is ever mutated in
+place, so there is no `DeleteObject` and no `latest` pointer to leave half-updated
+(consumers find the newest via the versioned `manifests/abn-*.json` list / the release
+catalogue). Data uploads **before** the manifest, so the manifest never references
+objects that aren't present yet. The mirror **re-downloads the immutable published
+release**, so a partial-mirror failure is fixed by simply **re-running that job** (no
+rebuild).
+
+It runs as a **separate `mirror-s3` job** so the AWS OIDC `id-token` permission is
+scoped to the mirror alone — the pipeline/build job never gets assume-role rights. It is
 **dormant until configured** — it runs only when the build **published a non-anomalous
-release** _and_ the repo **variable** `S3_BUCKET` is set. Layout:
+release** _and_ the repo **variable** `AWS_ROLE_ARN` is set.
 
-```
-s3://<bucket>/long-black/v<version>/…   # immutable, per release (data + metadata + manifest)
-s3://<bucket>/long-black/latest.json    # atomic pointer → {"version","prefix","updated"}
-```
+**Auth is GitHub OIDC — no long-lived keys, and long-black needs its OWN role**
+(flat-white's `flat-white-role` trusts only `jbejenar/flat-white`). Create a new role,
+then set the repo **variable** `AWS_ROLE_ARN` (Settings → Actions → Variables):
 
-Data lives **only** in the immutable per-release prefix; **"latest" is a single small
-pointer object** (`latest.json`) overwritten in one `PutObject` — atomic in S3. There is
-no live multi-object `latest/` prefix that a failed/interrupted run could leave
-half-updated. Consumers **GET `latest.json`, read its `prefix`, then fetch the immutable
-prefix it names.** Within the release prefix, data shards + Parquet upload **before**
-`metadata.json`/`manifest.json`, so the prefix is never observed with control files
-describing absent data. The `mirror-s3` job **re-downloads the immutable published
-release** into a clean dir, so a partial-mirror failure is repaired by simply
-**re-running that job** (no rebuild).
-
-**Auth is GitHub OIDC — no long-lived keys.** To enable, set three repo **variables**
-(Settings → Secrets and variables → Actions → Variables):
-
-- `S3_BUCKET` — the bucket name (presence toggles the mirror on).
-- `AWS_ROLE_ARN` — an IAM role that trusts this repo's Actions OIDC provider and grants
-  `s3:PutObject` (+ `s3:ListBucket`) on the `long-black/*` prefix. No `DeleteObject` is
-  needed — data prefixes are immutable and `latest.json` is overwritten in place.
-- `AWS_REGION` — optional; defaults to `ap-southeast-2`.
-
-The role's trust policy conditions on
-`token.actions.githubusercontent.com:sub` = `repo:jbejenar/long-black:ref:refs/heads/main`
-(and `aud` = `sts.amazonaws.com`). The workflow already requests `id-token: write`.
-Prefer OIDC over access keys; if keys are unavoidable, swap the `configure-aws-credentials`
-inputs for `aws-access-key-id`/`aws-secret-access-key` secrets.
+- **`AWS_ROLE_ARN`** (required — presence toggles the mirror on) — e.g.
+  `arn:aws:iam::493712557159:role/long-black-role`. Its trust policy conditions on
+  `token.actions.githubusercontent.com:sub` = `repo:jbejenar/long-black:ref:refs/heads/main`
+  (and `aud` = `sts.amazonaws.com`). Grant it `s3:PutObject` (+ `s3:ListBucket`) scoped
+  to `data/abn/*` and `manifests/abn-*` on the bucket (no `DeleteObject`).
+- **`S3_BUCKET`** — optional; defaults to the shared
+  `flat-white-address-493712557159-ap-southeast-2-an`.
+- **`AWS_REGION`** — optional; defaults to `ap-southeast-2`.
 
 ## Docker image
 

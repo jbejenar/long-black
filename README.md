@@ -4,7 +4,7 @@
 
 long-black turns Australia's public **business-entity** data into a single flat
 file of pre-joined records — **one NDJSON document per ABN**. It spins up an
-ephemeral Postgres, streams in the ABR ABN Bulk Extract (~15M ABNs), joins it
+ephemeral Postgres, streams in the ABR ABN Bulk Extract (~20M ABNs), joins it
 with ASIC Company, ASIC Business Names, ACNC charity + AIS financials, ASIC AFS &
 credit licence, ASIC banned & disqualified, and AusTender government-contract spend,
 flattens to one document per ABN, and writes per-state gzipped NDJSON. Then it dies.

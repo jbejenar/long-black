@@ -9,7 +9,7 @@ relational store (Postgres) rather than a direct XML→NDJSON stream.
 
 | Source                          | CKAN id                        | Format           | Size                                | Cadence      | Join key                | Contributes                                                                            |
 | ------------------------------- | ------------------------------ | ---------------- | ----------------------------------- | ------------ | ----------------------- | -------------------------------------------------------------------------------------- |
-| **ABR ABN Bulk Extract** (core) | `abn-bulk-extract`             | XML, 2 ZIP parts | ~493 MB ×2 (~6–8 GB XML), ~15M ABNs | Weekly       | **ABN**, ACN/ARBN       | entity name/type, ABN status, GST, DGR, business/trading names, state+postcode         |
+| **ABR ABN Bulk Extract** (core) | `abn-bulk-extract`             | XML, 2 ZIP parts | ~493 MB ×2 (~6–8 GB XML), ~20M ABNs | Weekly       | **ABN**, ACN/ARBN       | entity name/type, ABN status, GST, DGR, business/trading names, state+postcode         |
 | **ASIC Company**                | `asic-companies`               | CSV (tab) / ZIP  | ~394 MB                             | Weekly (Tue) | **ABN** + ACN           | `company{}` — type/class/status, registration & deregistration dates, prior state      |
 | **ASIC Business Names**         | `asic-business-names`          | CSV (tab) / ZIP  | ~247 MB                             | Weekly (Wed) | **ABN** of holder       | `registeredBusinessNames[]` — authoritative names + status/dates                       |
 | **ACNC Registered Charities**   | `acnc-register`                | CSV / XLSX       | ~15 MB, ~60k                        | Weekly       | **ABN**                 | `charity{}` — status, size, subtype, registration date                                 |
@@ -54,10 +54,18 @@ data.gov.au, CC-BY, keyed on ABN/ACN.
   `metadata.json`; the document `_version` tracks the ABR `TransferInfo/ExtractTime`.
 - **Individual names** (sole traders' `givenName`/`familyName`) are public data
   published by the ABR under CC-BY; redistribution is permitted.
-- **Enrichment is additive + best-effort.** The typed staging tables start empty;
-  a transient data.gov.au failure for any one source leaves its nested object
-  null rather than failing the whole build (`enrich-cli.js` reports per-source
-  failures and the build logs a warning and continues).
+- **Enrichment is additive, but complete-or-fail at release.** Two distinct things:
+  - _Document fields_ are legitimately null/empty for an ABN with no matching source
+    row (most ABNs are sole traders with no ASIC/ACNC/AusTender record) — that's the
+    normal LEFT-JOIN semantics, not a failure.
+  - _Build behaviour_ is **fail-fast**, not best-effort: every configured source must
+    load above its `minRows` floor (`enrich-cli` exits non-zero otherwise) and the
+    flattened output must clear the per-source coverage gate, or the release aborts —
+    the "data must be complete before shipping" policy (`docs/RELEASING.md`,
+    `docs/PERFORMANCE.md`). A source that failed to load is a build failure, not a
+    silently-null column. Only a deliberate `allow_partial_enrichment=true` manual
+    run tolerates a degraded source (and it disables the coverage gate); the
+    scheduled monthly build never does.
 
 ## Enrichment column mappings (verify-on-first-load)
 
@@ -213,9 +221,10 @@ Registry** ([publication 19](https://data.open-contracting.org/en/publication/19
 which mirrors the official `api.tenders.gov.au` data **monthly** as a single
 `full.jsonl.gz` (~251 MB, one compiled OCDS release per contract `ocid`, ~852k
 contracts from 2007). The data.gov.au mirror is dead (frozen at 2013); the official
-`api.tenders.gov.au` is a cursor-paginated crawl (~25–40k calls, no published rate
-limits) — see `docs/decisions/`. The loader streams the gzip line by line and, for
-each release, attributes the contract's value to every supplier party carrying an
+`api.tenders.gov.au` is a cursor-paginated crawl (~25–40k calls for full history, no
+published rate limits) — hence the bulk mirror. The loader streams the gzip line by
+line and, for each release, attributes the contract's value to every supplier party
+carrying an
 `AU-ABN` identifier, summing in **integer cents** (exact, order-deterministic). The
 per-ABN aggregate is the `gov_spend` table; the flatten joins it 1:0..1.
 

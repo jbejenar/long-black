@@ -13,13 +13,13 @@
 One NDJSON document per ABN. This document is the contract: `src/schema.ts`,
 this file, and `fixtures/expected-output.ndjson` move together (additive field =
 minor bump; removal/rename = major). Enrichment objects (`company`, `charity`,
-`financialServicesLicence`, `creditLicence`) and the enrichment arrays
+`financialServicesLicence`, `creditLicence`, `govSpend`) and the enrichment arrays
 (`registeredBusinessNames`, `bannedDisqualified`) are nullable/empty and populate
 when a source row matches — on ABN, except `bannedDisqualified` which matches on
-ACN (`asic_number`). The real ASIC/ACNC CSV loaders are wired (`src/enrich.ts`,
-`sql/normalize-*.sql`); column mappings + verify-on-first-load confirmations are
-in `docs/DATA-SOURCES.md`. The fixture seeds example rows to exercise the join
-seam (see `fixtures/edge-cases.md`).
+ACN (`asic_number`). The real ASIC/ACNC/AusTender loaders are wired (`src/enrich.ts`,
+`src/gov-spend.ts`, `sql/normalize-*.sql`); column mappings + verify-on-first-load
+confirmations are in `docs/DATA-SOURCES.md`. The fixture seeds example rows to
+exercise the join seam (see `fixtures/edge-cases.md`).
 
 ## Top-level fields
 
@@ -239,10 +239,12 @@ NDJSON — one document per line, `ORDER BY abn`. Per-state split + gzip are
 applied downstream (`crema` split/compress). Dates are ISO `YYYY-MM-DD`.
 
 With `--parquet`, an all-ABN `long-black-<version>.parquet` is also emitted
-(`crema` `convertToParquet`): scalar fields become native Parquet columns and the
-nested/array fields (`businessNames`, `tradingNames`, `otherNames`, `dgr`,
-`registeredBusinessNames`, `company`, `charity`, `financialServicesLicence`,
-`creditLicence`, `bannedDisqualified`) are serialized to JSON strings. Consumers
+(`crema` `convertToParquet`): scalar fields become native Parquet columns
+(`gstRegistered`/`isActive` booleans, `ageYears` INT64) and the nested/array fields
+(`businessNames`, `tradingNames`, `otherNames`, `dgr`, `registeredBusinessNames`,
+`bannedDisqualified`, `flags`, `company`, `charity`, `financialServicesLicence`,
+`creditLicence`, `govSpend`) are serialized to JSON strings. Every document field is
+represented (`src/parquet-output.ts` is kept in lockstep with the schema). Consumers
 can filter by the native `state` column.
 
 ## Data licensing

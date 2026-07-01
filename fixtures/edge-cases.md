@@ -1,12 +1,12 @@
 # Fixture edge cases — long-black
 
 The fixture (`fixtures/seed-postgres.sql`) seeds ~20 representative ABNs into the
-`abn` staging table, plus example rows into the ten enrichment stub tables
+`abn` staging table, plus example rows into the twelve enrichment stub tables
 (`asic_company`, `asic_business_name`, `acnc_charity`, `acnc_ais`,
 `asic_afs_licence`, `asic_credit_licence`, `asic_banned_disqualified`, `gov_spend`,
-`tax_transparency`, `rd_tax_incentive`) so the join seam is exercised end-to-end (not
-just stubbed). All ABNs are checksum-valid (mod-89). Each row exercises a distinct
-edge case the flatten + schema + verify must handle.
+`tax_transparency`, `rd_tax_incentive`, `asic_afs_rep`, `asic_credit_rep`) so the join
+seam is exercised end-to-end (not just stubbed). All ABNs are checksum-valid (mod-89).
+Each row exercises a distinct edge case the flatten + schema + verify must handle.
 
 | ABN         | Case                                                            | What it guards                                                                                                   |
 | ----------- | --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
@@ -58,6 +58,9 @@ and lands in the nullable nested objects of `expected-output.ndjson`.
 | 51000000761 | ATO Tax Transparency  | Income only; **taxable/tax null** (ATO reported ≤0)                                                         | nullable `taxableIncome`/`taxPayable` when ≤0                                         |
 | 51000000761 | ATO R&D Incentive     | R&D claim keyed by **ABN**                                                                                  | `rdTaxIncentive{}` via ABN path; `flags.claimsRdTaxIncentive=true`                    |
 | 51000000987 | ATO R&D Incentive     | R&D claim keyed by **ACN** `000000987` (undetermined type)                                                  | ACN-path resolves via `asic_number` (same two-path as AFS/credit)                     |
+| 51000000761 | ASIC AFS Rep          | AFS authorised rep keyed by **ABN**                                                                         | `afsAuthorisedRep{}` via ABN path; `flags.isAfsAuthorisedRep=true`                    |
+| 51000000987 | ASIC AFS Rep          | AFS authorised rep keyed by **ACN** `000000987` (undetermined type)                                         | ACN-path resolves via `asic_number` (two-path, like the licence sources)              |
+| 51000000793 | ASIC Credit Rep       | Credit rep keyed by **ABN**                                                                                 | `creditRep{}` via ABN path; `flags.isCreditRep=true`                                  |
 
 > **ACN-path matching uses `asic_number_type` to EXCLUDE, not require.** The real ABR
 > extract sets `@ASICNumberType = 'undetermined'` on every ASIC number (it never

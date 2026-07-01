@@ -105,6 +105,7 @@ export async function run(options: {
         `afsLicence ${cov.financialServicesLicence} · creditLicence ${cov.creditLicence} · ` +
         `bannedDisqualified ${cov.bannedDisqualified} · govSpend ${cov.govSpend} · ` +
         `taxTransparency ${cov.taxTransparency} · rdTaxIncentive ${cov.rdTaxIncentive} · ` +
+        `afsRep ${cov.afsAuthorisedRep} · creditRep ${cov.creditRep} · ` +
         `businessNames ${cov.businessNames} · dgr ${cov.dgr}`,
     );
     coverageOk = cov.ok;

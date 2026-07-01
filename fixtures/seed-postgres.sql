@@ -200,3 +200,17 @@ INSERT INTO abn___SCHEMA_VERSION__.rd_tax_incentive (
 ) VALUES
 ('51000000761',NULL,'2022-23',2500000),
 (NULL,'000000987','2022-23',800000);
+
+-- ASIC AFS authorised reps (Bundle B; ABN-or-ACN, two-path like the licence sources).
+-- 51000000761 via ABN; the second row is ACN-keyed → resolves to 51000000987.
+INSERT INTO abn___SCHEMA_VERSION__.asic_afs_rep (
+  abn, acn, rep_number, licence_number, status, start_date, end_date
+) VALUES
+('51000000761',NULL,'1240001','240001','Current',DATE '2010-01-01',NULL),
+(NULL,'000000987','1240777','240777','Current',DATE '2018-06-01',NULL);
+
+-- ASIC credit reps (ABN-or-ACN). 51000000793 via ABN.
+INSERT INTO abn___SCHEMA_VERSION__.asic_credit_rep (
+  abn, acn, rep_number, licence_number, start_date, end_date
+) VALUES
+('51000000793',NULL,'390001','390001',DATE '2012-01-01',NULL);

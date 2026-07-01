@@ -21,6 +21,8 @@ rather than a direct XML→NDJSON stream.
 | **AusTender contracts** (OCDS)     | OCP registry pub. `19`                   | JSONL (gz)       | ~251 MB, ~852k contracts            | Monthly      | **ABN** of supplier     | `govSpend{}` — total value, contract count, first/last contract date (all history)       |
 | **ATO Corporate Tax Transparency** | `corporate-transparency`                 | XLSX             | ~280 KB, ~4.2k entities             | Annual       | **ABN**                 | `taxTransparency{}` — total income, taxable income, tax payable (≥$100M-income entities) |
 | **ATO R&D Tax Incentive**          | `research-and-development-tax-incentive` | XLSX             | ~660 KB, ~13k companies             | Annual       | **ABN** or ACN          | `rdTaxIncentive{}` — notional R&D expenditure for the year                               |
+| **ASIC AFS Authorised Reps**       | `asic-afs-authorised-representative`     | CSV (tab)        | ~40 MB, ~233k rows                  | Monthly      | **ABN** or ACN          | `afsAuthorisedRep{}` — rep number, AFS licensee, status, dates (~126k ABNs)              |
+| **ASIC Credit Reps**               | `asic-credit-representative`             | CSV (comma)      | ~4 MB, ~18k rows                    | Monthly      | **ABN** or ACN          | `creditRep{}` — rep number, credit licensee, dates                                       |
 
 **Why the regulated & risk bundle.** AFS and credit licences are the two
 ASIC-issued permissions that gate who may legally provide financial or consumer-
@@ -273,6 +275,41 @@ the loader picks the **latest** year, reads the ABN-bearing sheet (skipping the 
   | _join key_                  | ABN/ACN (11-digit ABN or 9-digit ACN)          |
   | `incomeYear`                | Income Year                                    |
   | `totalRdExpenditure`        | Total R&D expenditure (notional deductions…) $ |
+
+**ASIC representative registers** (`src/enrich.ts`, the standard CSV seam) — the
+authorised-representative counterparts to the AFS/credit **licence** sources. Both are
+monthly ASIC exports keyed on the entity's ABN or ACN, resolved via the same
+type-guarded two-path (a 9-digit ACN matches `asic_number` only when it is not a known
+foreign type). `DISTINCT ON` keeps the latest authorisation per entity.
+
+- **AFS Authorised Representatives** (`asic-afs-authorised-representative`,
+  `afs_rep_<yyyymm>.csv`, **tab-delimited**) — separate `AFS_REP_ABN` (11-digit) and
+  `AFS_REP_ACN` (9-digit) columns.
+
+  | Output (`afsAuthorisedRep.*`) | ASIC column                       |
+  | ----------------------------- | --------------------------------- |
+  | _join key_                    | AFS_REP_ABN / AFS_REP_ACN         |
+  | `number`                      | AFS_REP_NUM                       |
+  | `licenceNumber`               | AFS_LIC_NUM                       |
+  | `status`                      | AFS_REP_STATUS                    |
+  | `startDate` / `endDate`       | AFS_REP_START_DT / AFS_REP_END_DT |
+
+- **Credit Representatives** (`asic-credit-representative`, `credit_rep_<yyyymm>.csv`,
+  **comma CSV**) — combined `CRED_REP_ABN_ACN` key.
+
+  | Output (`creditRep.*`)  | ASIC column                         |
+  | ----------------------- | ----------------------------------- |
+  | _join key_              | CRED_REP_ABN_ACN                    |
+  | `number`                | CRED_REP_NUM                        |
+  | `licenceNumber`         | CRED_LIC_NUM                        |
+  | `startDate` / `endDate` | CRED_REP_START_DT / CRED_REP_END_DT |
+
+> **Not integrated — ASIC Financial Advisers Register (FAR):** evaluated for an
+> adviser-count-per-AFSL signal, but the published tab-delimited file has embedded
+> tabs in free-text columns that precede the ABN key (a field-count mismatch on real
+> data), so a reliable ABN-keyed load isn't possible without risking column
+> misalignment. Excluded under the data-completeness policy (don't ship a source that
+> can't be loaded cleanly and completely).
 
 ## Attribution (required by CC-BY)
 

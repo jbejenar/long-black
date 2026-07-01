@@ -79,6 +79,29 @@ rd_by_acn AS (
   WHERE acn IS NOT NULL
   ORDER BY acn, income_year DESC NULLS LAST
 ),
+-- 1:0..1 — ASIC AFS + credit authorised representatives (Bundle B). Same ABN-or-ACN
+-- two-path resolution as the licence sources; DISTINCT ON keeps the latest rep
+-- record per key (most recent start date).
+afs_rep_by_abn AS (
+  SELECT DISTINCT ON (abn) abn, rep_number, licence_number, status, start_date, end_date
+  FROM abn___SCHEMA_VERSION__.asic_afs_rep WHERE abn IS NOT NULL
+  ORDER BY abn, start_date DESC NULLS LAST, rep_number
+),
+afs_rep_by_acn AS (
+  SELECT DISTINCT ON (acn) acn, rep_number, licence_number, status, start_date, end_date
+  FROM abn___SCHEMA_VERSION__.asic_afs_rep WHERE acn IS NOT NULL
+  ORDER BY acn, start_date DESC NULLS LAST, rep_number
+),
+credit_rep_by_abn AS (
+  SELECT DISTINCT ON (abn) abn, rep_number, licence_number, start_date, end_date
+  FROM abn___SCHEMA_VERSION__.asic_credit_rep WHERE abn IS NOT NULL
+  ORDER BY abn, start_date DESC NULLS LAST, rep_number
+),
+credit_rep_by_acn AS (
+  SELECT DISTINCT ON (acn) acn, rep_number, licence_number, start_date, end_date
+  FROM abn___SCHEMA_VERSION__.asic_credit_rep WHERE acn IS NOT NULL
+  ORDER BY acn, start_date DESC NULLS LAST, rep_number
+),
 -- 1:0..1 — ASIC AFS + credit licences. The source `*_ABN_ACN` column holds EITHER
 -- an 11-digit ABN or a 9-digit ACN (the normalizer routes each to the abn/acn
 -- column). So each licence resolves to a base row by TWO paths: a direct ABN match,
@@ -233,7 +256,25 @@ SELECT
     WHEN rdc.acn IS NOT NULL THEN json_build_object(
       'incomeYear', rdc.income_year, 'totalRdExpenditure', rdc.total_rd_expenditure)
     ELSE NULL
-  END                                                  AS rd_tax_incentive
+  END                                                  AS rd_tax_incentive,
+  CASE
+    WHEN afra.abn IS NOT NULL THEN json_build_object(
+      'number', afra.rep_number, 'licenceNumber', afra.licence_number,
+      'status', afra.status, 'startDate', afra.start_date::text, 'endDate', afra.end_date::text)
+    WHEN afrc.acn IS NOT NULL THEN json_build_object(
+      'number', afrc.rep_number, 'licenceNumber', afrc.licence_number,
+      'status', afrc.status, 'startDate', afrc.start_date::text, 'endDate', afrc.end_date::text)
+    ELSE NULL
+  END                                                  AS afs_authorised_rep,
+  CASE
+    WHEN crra.abn IS NOT NULL THEN json_build_object(
+      'number', crra.rep_number, 'licenceNumber', crra.licence_number,
+      'startDate', crra.start_date::text, 'endDate', crra.end_date::text)
+    WHEN crrc.acn IS NOT NULL THEN json_build_object(
+      'number', crrc.rep_number, 'licenceNumber', crrc.licence_number,
+      'startDate', crrc.start_date::text, 'endDate', crrc.end_date::text)
+    ELSE NULL
+  END                                                  AS credit_rep
 FROM abn___SCHEMA_VERSION__.abn a
 LEFT JOIN company c ON c.abn = a.abn
 LEFT JOIN business_names_agg bn ON bn.abn = a.abn
@@ -244,6 +285,12 @@ LEFT JOIN tax_transparency tt ON tt.abn = a.abn
 LEFT JOIN rd_by_abn rda ON rda.abn = a.abn
 LEFT JOIN rd_by_acn rdc
   ON rdc.acn = a.asic_number AND COALESCE(a.asic_number_type, '') NOT IN ('ARBN', 'ARSN', 'ARFN')
+LEFT JOIN afs_rep_by_abn afra ON afra.abn = a.abn
+LEFT JOIN afs_rep_by_acn afrc
+  ON afrc.acn = a.asic_number AND COALESCE(a.asic_number_type, '') NOT IN ('ARBN', 'ARSN', 'ARFN')
+LEFT JOIN credit_rep_by_abn crra ON crra.abn = a.abn
+LEFT JOIN credit_rep_by_acn crrc
+  ON crrc.acn = a.asic_number AND COALESCE(a.asic_number_type, '') NOT IN ('ARBN', 'ARSN', 'ARFN')
 LEFT JOIN afs_by_abn afsa ON afsa.abn = a.abn
 LEFT JOIN afs_by_acn afsc
   ON afsc.acn = a.asic_number AND COALESCE(a.asic_number_type, '') NOT IN ('ARBN', 'ARSN', 'ARFN')

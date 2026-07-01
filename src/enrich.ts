@@ -34,7 +34,9 @@ export interface EnrichmentSource {
     | "acnc_ais"
     | "asic_afs_licence"
     | "asic_credit_licence"
-    | "asic_banned_disqualified";
+    | "asic_banned_disqualified"
+    | "asic_afs_rep"
+    | "asic_credit_rep";
   /** Human label for logs. */
   label: string;
   /** Stable data.gov.au package id. */
@@ -137,6 +139,31 @@ export const ENRICHMENT_SOURCES: EnrichmentSource[] = [
     // bannings are of persons, not orgs). Floor catches a 0-row/wrong-file load
     // without tripping on natural fluctuation. Real 2026.06.24: 15 rows.
     minRows: 5,
+  },
+  {
+    // ASIC AFS authorised representatives — businesses authorised to distribute
+    // financial products under an AFSL. Monthly tab-delimited CSV (afs_rep_<yyyymm>.csv)
+    // with separate AFS_REP_ABN + AFS_REP_ACN columns.
+    key: "asic_afs_rep",
+    label: "ASIC AFS Authorised Representatives",
+    packageId: "asic-afs-authorised-representative",
+    delimiter: "\t",
+    quoting: false,
+    resourceMatch: "afs_rep",
+    normalizeSqlFile: "normalize-asic-afs-rep.sql",
+    minRows: 50_000, // real 2026.06: ~112k ABN + ~107k ACN rows
+  },
+  {
+    // ASIC credit representatives — authorised under a credit licensee. Comma CSV
+    // (credit_rep_<yyyymm>.csv) with a combined CRED_REP_ABN_ACN column.
+    key: "asic_credit_rep",
+    label: "ASIC Credit Representatives",
+    packageId: "asic-credit-representative",
+    delimiter: ",",
+    quoting: true,
+    resourceMatch: "credit_rep",
+    normalizeSqlFile: "normalize-asic-credit-rep.sql",
+    minRows: 5_000, // real 2026.06: ~17.7k ABN/ACN
   },
 ];
 

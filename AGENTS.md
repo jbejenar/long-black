@@ -4,12 +4,13 @@
 
 long-black transforms Australia's public **business-entity** data into pre-joined,
 normalized NDJSON — one document per ABN. It spins up an ephemeral Postgres,
-streams the ABR ABN Bulk Extract XML in, joins it with **ten enrichment sources** —
-ASIC Company, ASIC Business Names, ASIC AFS Licensees, ASIC Credit Licensees, ASIC
+streams the ABR ABN Bulk Extract XML in, joins it with **twelve enrichment sources**
+— ASIC Company, ASIC Business Names, ASIC AFS Licensees, ASIC Credit Licensees, ASIC
 Banned & Disqualified, ACNC Registered Charities, ACNC Annual Information Statement,
-AusTender government-contract spend, and the ATO Corporate Tax Transparency + R&D Tax
-Incentive workbooks (see `docs/DATA-SOURCES.md`) — flattens to one document per ABN,
-streams out validated NDJSON (split per state, gzipped), then dies.
+AusTender government-contract spend, the ATO Corporate Tax Transparency + R&D Tax
+Incentive workbooks, and the ASIC AFS + credit authorised-representative registers
+(see `docs/DATA-SOURCES.md`) — flattens to one document per ABN, streams out validated
+NDJSON (split per state, gzipped), then dies.
 
 The pipeline spine lives in **`crema`** (a sibling package); long-black is the
 thin ABN **domain layer** on top. flat-white (addresses) is the sister project

@@ -8,6 +8,8 @@ import { gunzipSync } from "node:zlib";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runOutput, stateKey, ABN_SOURCES } from "../../src/output.js";
+import { ENRICHMENT_SOURCES } from "../../src/enrich.js";
+import { XLSX_SOURCES } from "../../src/xlsx-sources.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const TMP = resolve(__dirname, "../../.tmp-test-output");
@@ -55,23 +57,41 @@ describe("runOutput", () => {
     const vic = gunzipSync(readFileSync(vicGz!)).toString("utf-8").trim().split("\n");
     expect(vic).toHaveLength(2);
 
-    // metadata.json: counts + all eleven CC-BY sources + an extract date
+    // metadata.json: counts + all thirteen CC-BY sources + an extract date
     const meta = JSON.parse(readFileSync(result.metadataPath, "utf-8"));
     expect(meta.totalCount).toBe(4);
     expect(meta.counts).toEqual({ vic: 2, nsw: 1, other: 1 });
-    expect(meta.sources).toHaveLength(11);
+    expect(meta.sources).toHaveLength(13);
     expect(meta.sources.every((s: { licence: string }) => /^CC-BY \d/.test(s.licence))).toBe(true);
     expect(meta.sources[0].extractDate).toBe("2026-06-25");
   });
 
-  it("itemizes all eleven datasets with a CC-BY attribution", () => {
-    expect(ABN_SOURCES).toHaveLength(11);
+  it("itemizes all thirteen datasets with a CC-BY attribution", () => {
+    expect(ABN_SOURCES).toHaveLength(13);
     expect(ABN_SOURCES.every((s) => s.attribution?.startsWith("©"))).toBe(true);
     // All CC-BY (mostly 3.0 AU; the ATO R&D dataset is 2.5 AU — verified).
     expect(ABN_SOURCES.every((s) => /^CC-BY \d/.test(s.licence))).toBe(true);
     expect(ABN_SOURCES.some((s) => s.licence === "CC-BY 2.5 AU")).toBe(true);
     // No duplicate dataset names / URLs.
-    expect(new Set(ABN_SOURCES.map((s) => s.name)).size).toBe(11);
-    expect(new Set(ABN_SOURCES.map((s) => s.url)).size).toBe(11);
+    expect(new Set(ABN_SOURCES.map((s) => s.name)).size).toBe(13);
+    expect(new Set(ABN_SOURCES.map((s) => s.url)).size).toBe(13);
+  });
+
+  it("attributes every configured enrichment source in ABN_SOURCES (anti-drift)", () => {
+    // Every data.gov.au-derived source (CSV via ENRICHMENT_SOURCES, XLSX via
+    // XLSX_SOURCES) MUST have a matching ABN_SOURCES entry, so a future source
+    // addition can't update the loader without also emitting its CC-BY attribution
+    // in metadata.json. Each ABN_SOURCES url embeds the source's CKAN package id.
+    const urls = ABN_SOURCES.map((s) => s.url);
+    const packageIds = [
+      ...ENRICHMENT_SOURCES.map((s) => s.packageId),
+      ...XLSX_SOURCES.map((s) => s.packageId),
+    ];
+    for (const pkg of packageIds) {
+      expect(
+        urls.some((u) => u.includes(pkg)),
+        `ABN_SOURCES missing attribution for "${pkg}"`,
+      ).toBe(true);
+    }
   });
 });

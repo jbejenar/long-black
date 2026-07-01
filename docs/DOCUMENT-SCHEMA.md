@@ -1,14 +1,16 @@
 # Document Schema Reference — long-black
 
-> **Schema version:** 0.13.0
+> **Schema version:** 0.14.0
 > **Runtime validation:** `src/schema.ts` (`AbnDocumentSchema`, Zod)
 > **Breaking changes:** require a major version bump.
 
-> 0.13.0 adds the **financial-depth** ATO pair (additive, minor): `taxTransparency`
-> (income + tax paid, ≥$100M entities) and `rdTaxIncentive` (R&D spend), plus
-> `flags.isLargeCorporateTaxpayer`/`claimsRdTaxIncentive`. 0.12.0 added **`govSpend`**
-> (AusTender). 0.11.0 added **derived signals**. 0.10.0 added `charity.financials`.
-> 0.9.0 added the **regulated & risk** bundle. 0.6.0 added optional **Parquet**.
+> 0.14.0 adds the **ASIC representative** pair (additive, minor): `afsAuthorisedRep`
+> and `creditRep` (businesses authorised under a financial-services / credit
+> licensee), plus `flags.isAfsAuthorisedRep`/`isCreditRep`. 0.13.0 added the
+> **financial-depth** ATO pair (`taxTransparency`, `rdTaxIncentive`). 0.12.0 added
+> **`govSpend`** (AusTender). 0.11.0 added **derived signals**. 0.10.0 added
+> `charity.financials`. 0.9.0 added the **regulated & risk** bundle. 0.6.0 added
+> optional **Parquet**.
 
 One NDJSON document per ABN. This document is the contract: `src/schema.ts`,
 this file, and `fixtures/expected-output.ndjson` move together (additive field =
@@ -54,6 +56,8 @@ exercise the join seam (see `fixtures/edge-cases.md`).
 | `govSpend`                 | `GovSpend`\|null                      | yes      | AusTender government-contract spend (as supplier); null if none      | AusTender (OCDS)                                      |
 | `taxTransparency`          | `TaxTransparency`\|null               | yes      | ATO income + tax paid (≥$100M-income entities); null otherwise       | ATO Corporate Tax Transparency                        |
 | `rdTaxIncentive`           | `RdTaxIncentive`\|null                | yes      | ATO R&D Tax Incentive claim (R&D spend); null otherwise              | ATO R&D Tax Incentive                                 |
+| `afsAuthorisedRep`         | `AfsAuthorisedRep`\|null              | yes      | ASIC AFS authorised representative record; null otherwise            | ASIC AFS Authorised Representatives                   |
+| `creditRep`                | `CreditRep`\|null                     | yes      | ASIC credit representative record; null otherwise                    | ASIC Credit Representatives                           |
 | `ageYears`                 | number\|null                          | yes      | Whole years since `abnStatusFromDate` vs `_version`; null if no date | derived                                               |
 | `isActive`                 | boolean                               | no       | `abnStatus === 'ACT'`                                                | derived                                               |
 | `flags`                    | `EntityFlags`                         | no       | Derived convenience booleans (see below)                             | derived                                               |
@@ -223,6 +227,37 @@ source's `ABN/ACN` column, so the ~1.5% of ACN-keyed rows match via `asic_number
 | `incomeYear`         | string | no       | ATO income year, e.g. `2022-23`             |
 | `totalRdExpenditure` | number | yes      | Notional R&D expenditure for the year (AUD) |
 
+## Nested: `afsAuthorisedRep` (ASIC)
+
+The entity's ASIC **AFS authorised representative** record — a business authorised
+to distribute financial products under an Australian Financial Services Licence
+(`licenceNumber`). Present for ~126k ABNs (1:0..1). The source register carries
+separate ABN and ACN columns, so ACN-keyed reps resolve via `asic_number` (the same
+type-guarded two-path as the ASIC licence sources). Shape: `AfsAuthorisedRepSchema`.
+`DISTINCT ON` keeps the latest authorisation (most recent start date) per entity.
+
+| Field           | Type   | Nullable | Description                                   |
+| --------------- | ------ | -------- | --------------------------------------------- |
+| `number`        | string | no       | AFS authorised representative number          |
+| `licenceNumber` | string | yes      | The AFSL the rep is authorised under          |
+| `status`        | string | yes      | Authorisation status (e.g. `Current`)         |
+| `startDate`     | string | yes      | Authorisation start date (ISO)                |
+| `endDate`       | string | yes      | Authorisation end date (ISO); null if current |
+
+## Nested: `creditRep` (ASIC)
+
+The entity's ASIC **credit representative** record — a business authorised under an
+Australian Credit Licence (`licenceNumber`). Present for ~18k ABNs (1:0..1). The
+source `CRED_REP_ABN_ACN` column holds an ABN or ACN, resolved via the same two-path.
+Shape: `CreditRepSchema`.
+
+| Field           | Type   | Nullable | Description                                    |
+| --------------- | ------ | -------- | ---------------------------------------------- |
+| `number`        | string | no       | Credit representative number                   |
+| `licenceNumber` | string | yes      | The credit licence the rep is authorised under |
+| `startDate`     | string | yes      | Authorisation start date (ISO)                 |
+| `endDate`       | string | yes      | Authorisation end date (ISO); null if current  |
+
 ## Nested: `flags` (EntityFlags)
 
 Derived convenience booleans — composed in `compose.ts` from the fields above, not a
@@ -242,6 +277,8 @@ no enforcement action"). Shape: `EntityFlagsSchema`. Approximate prevalence on t
 | `hasGovContracts`          | boolean | `govSpend != null` (won ≥1 govt contract)    |
 | `isLargeCorporateTaxpayer` | boolean | `taxTransparency != null` (≥$100M income)    |
 | `claimsRdTaxIncentive`     | boolean | `rdTaxIncentive != null`                     |
+| `isAfsAuthorisedRep`       | boolean | `afsAuthorisedRep != null`                   |
+| `isCreditRep`              | boolean | `creditRep != null`                          |
 
 `ageYears` and `isActive` are likewise derived: `ageYears` is whole **calendar**
 years from `abnStatusFromDate` to the `_version` date — computed from date components

@@ -36,6 +36,8 @@ function validDoc(overrides: Partial<AbnDocument> = {}): AbnDocument {
     govSpend: null,
     taxTransparency: null,
     rdTaxIncentive: null,
+    afsAuthorisedRep: null,
+    creditRep: null,
     ageYears: 26,
     isActive: true,
     flags: {
@@ -48,6 +50,8 @@ function validDoc(overrides: Partial<AbnDocument> = {}): AbnDocument {
       hasGovContracts: false,
       isLargeCorporateTaxpayer: false,
       claimsRdTaxIncentive: false,
+      isAfsAuthorisedRep: false,
+      isCreditRep: false,
     },
     ...overrides,
   };
@@ -188,6 +192,8 @@ describe("AbnDocumentSchema", () => {
         hasGovContracts: true,
         isLargeCorporateTaxpayer: false,
         claimsRdTaxIncentive: false,
+        isAfsAuthorisedRep: false,
+        isCreditRep: false,
       },
     });
     expect(AbnDocumentSchema.safeParse(doc).success).toBe(true);

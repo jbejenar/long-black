@@ -20,6 +20,7 @@ import {
   type EnrichmentSource,
 } from "./enrich.js";
 import { downloadGovSpend, loadGovSpend } from "./gov-spend.js";
+import { XLSX_SOURCES, downloadXlsxSource, loadXlsxSource } from "./xlsx-sources.js";
 
 /**
  * AusTender government spend is loaded by a dedicated JSON-aggregation step (not a
@@ -36,7 +37,8 @@ async function main(): Promise<void> {
   const schemaVersion = deriveSchemaVersion(version);
   const dataDir = process.env.DATA_DIR ?? "data";
 
-  const validKeys = [...ENRICHMENT_SOURCES.map((s) => s.key), GOV_SPEND_KEY];
+  const xlsxKeys = XLSX_SOURCES.map((s) => s.key);
+  const validKeys = [...ENRICHMENT_SOURCES.map((s) => s.key), GOV_SPEND_KEY, ...xlsxKeys];
   const requested = process.argv.slice(2);
   const unknown = requested.filter((k) => !validKeys.includes(k));
   if (unknown.length > 0) {
@@ -49,7 +51,9 @@ async function main(): Promise<void> {
       ? ENRICHMENT_SOURCES
       : ENRICHMENT_SOURCES.filter((s) => requested.includes(s.key));
   const runGovSpend = requested.length === 0 || requested.includes(GOV_SPEND_KEY);
-  const totalSources = sources.length + (runGovSpend ? 1 : 0);
+  const xlsxSources =
+    requested.length === 0 ? XLSX_SOURCES : XLSX_SOURCES.filter((s) => requested.includes(s.key));
+  const totalSources = sources.length + (runGovSpend ? 1 : 0) + xlsxSources.length;
 
   let failures = 0;
   for (const source of sources) {
@@ -97,6 +101,26 @@ async function main(): Promise<void> {
     } catch (err) {
       failures++;
       console.error(`[enrich] ${GOV_SPEND_LABEL}: FAILED — ${(err as Error).message}`);
+    }
+  }
+
+  for (const source of xlsxSources) {
+    try {
+      console.error(`[enrich] ${source.label}: downloading…`);
+      const file = await downloadXlsxSource(source, dataDir);
+      console.error(`[enrich] ${source.label}: parsing ${file}…`);
+      const inserted = await loadXlsxSource({ connectionString, schemaVersion, source, file });
+      if (inserted < source.minRows) {
+        failures++;
+        console.error(
+          `[enrich] ${source.label}: FAILED — only ${inserted} row(s), below floor ${source.minRows} (incomplete source)`,
+        );
+      } else {
+        console.log(`[enrich] ${source.label}: ${inserted} row(s) → ${source.key}`);
+      }
+    } catch (err) {
+      failures++;
+      console.error(`[enrich] ${source.label}: FAILED — ${(err as Error).message}`);
     }
   }
 

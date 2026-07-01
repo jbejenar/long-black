@@ -33,6 +33,25 @@ The NDJSON document is the contract (`docs/DOCUMENT-SCHEMA.md`).
 
 ### Added
 
+- **0.13.0** — **Financial depth** (ATO) — two premium per-ABN money signals plus
+  `flags.isLargeCorporateTaxpayer` / `claimsRdTaxIncentive`. Additive, minor bump.
+  - `taxTransparency` (`{incomeYear, totalIncome, taxableIncome, taxPayable}` | null)
+    — ATO **Corporate Tax Transparency** (`corporate-transparency`), the ~4.2k
+    entities with ≥$100M total income and their actual income + tax paid.
+    `taxableIncome`/`taxPayable` are null when the ATO reported ≤0. ABN-only.
+  - `rdTaxIncentive` (`{incomeYear, totalRdExpenditure}` | null) — ATO **R&D Tax
+    Incentive** (`research-and-development-tax-incentive`), ~13k companies' notional
+    R&D spend. ABN-or-ACN keyed (the ~1.5% ACN rows resolve via `asic_number`, the
+    same type-guarded two-path as the ASIC AFS/credit sources).
+  - New **XLSX loader** (`src/load-xlsx.ts` + `src/xlsx-sources.ts`, using `exceljs`)
+    — the first Excel-workbook sources: finds the ABN-bearing sheet, picks the latest
+    income-year resource, routes ABN/ACN, COPYs into the staging table. Reusable
+    (Bundle D's Aged Care register will use it). Also extended `parquet-output.ts`.
+  - Both **CC-BY** but different versions (verified from the data.gov.au records):
+    Corporate Tax Transparency **CC-BY 3.0 AU**, R&D Tax Incentive **CC-BY 2.5 AU** —
+    © Commonwealth of Australia (Australian Taxation Office); added to `ABN_SOURCES`.
+  - Proven on the real 20.3M build: taxTransparency **4,119**, rdTaxIncentive
+    **13,019**; 0 composition errors, no duplicate `_id`, production gate green.
 - **0.12.0** — **Government spend** (`govSpend`) — per-ABN AusTender
   government-contract spend, plus a `flags.hasGovContracts`. Additive, minor bump.
   - Source: the **Open Contracting Partnership Data Registry** bulk mirror of

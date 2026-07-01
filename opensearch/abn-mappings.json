@@ -145,6 +145,22 @@
           "lastContractDate": { "type": "date", "format": "yyyy-MM-dd", "ignore_malformed": true }
         }
       },
+      "taxTransparency": {
+        "type": "object",
+        "properties": {
+          "incomeYear": { "type": "keyword" },
+          "totalIncome": { "type": "double" },
+          "taxableIncome": { "type": "double" },
+          "taxPayable": { "type": "double" }
+        }
+      },
+      "rdTaxIncentive": {
+        "type": "object",
+        "properties": {
+          "incomeYear": { "type": "keyword" },
+          "totalRdExpenditure": { "type": "double" }
+        }
+      },
       "ageYears": { "type": "integer" },
       "isActive": { "type": "boolean" },
       "flags": {
@@ -156,7 +172,9 @@
           "isLicensed": { "type": "boolean" },
           "hasEnforcementAction": { "type": "boolean" },
           "isDgr": { "type": "boolean" },
-          "hasGovContracts": { "type": "boolean" }
+          "hasGovContracts": { "type": "boolean" },
+          "isLargeCorporateTaxpayer": { "type": "boolean" },
+          "claimsRdTaxIncentive": { "type": "boolean" }
         }
       }
     }

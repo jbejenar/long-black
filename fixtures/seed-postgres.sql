@@ -183,3 +183,20 @@ INSERT INTO abn___SCHEMA_VERSION__.gov_spend (
 ) VALUES
 ('51000000761',1500000.50,3,DATE '2018-03-15',DATE '2024-09-01'),
 ('51000000793',250000.00,1,DATE '2021-11-20',DATE '2021-11-20');
+
+-- ATO Corporate Tax Transparency (1:0..1 on ABN, >$100M income). 51000000793 has
+-- income + taxable + tax; 51000000761 reports income only (taxable/tax ≤0 → null).
+INSERT INTO abn___SCHEMA_VERSION__.tax_transparency (
+  abn, income_year, total_income, taxable_income, tax_payable
+) VALUES
+('51000000793','2023-24',500000000,45000000,13500000),
+('51000000761','2023-24',120000000,NULL,NULL);
+
+-- ATO R&D Tax Incentive (1:0..1; ABN-or-ACN keyed). 51000000761 via ABN;
+-- the second row is ACN-keyed ('000000987') → resolves to 51000000987 via
+-- asic_number (undetermined type), exercising the two-path like AFS/credit.
+INSERT INTO abn___SCHEMA_VERSION__.rd_tax_incentive (
+  abn, acn, income_year, total_rd_expenditure
+) VALUES
+('51000000761',NULL,'2022-23',2500000),
+(NULL,'000000987','2022-23',800000);

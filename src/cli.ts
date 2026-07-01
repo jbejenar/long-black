@@ -104,6 +104,7 @@ export async function run(options: {
         `registeredBusinessNames ${cov.registeredBusinessNames} (${pct(cov.registeredBusinessNames)}%) · ` +
         `afsLicence ${cov.financialServicesLicence} · creditLicence ${cov.creditLicence} · ` +
         `bannedDisqualified ${cov.bannedDisqualified} · govSpend ${cov.govSpend} · ` +
+        `taxTransparency ${cov.taxTransparency} · rdTaxIncentive ${cov.rdTaxIncentive} · ` +
         `businessNames ${cov.businessNames} · dgr ${cov.dgr}`,
     );
     coverageOk = cov.ok;

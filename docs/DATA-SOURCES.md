@@ -1,23 +1,26 @@
 # Data Sources — long-black
 
-All sources are licensed **CC-BY 3.0 AU** — most are published on
-[data.gov.au](https://data.gov.au); AusTender is accessed via the OCP Data Registry
-but its dataset licence is the source's CC-BY 3.0 AU (see below). Each carries the
-**ABN** (or, for the banned register, the **ACN**) as a common join key. This is
-what makes a pre-joined super-dataset possible — and is why long-black uses a
-relational store (Postgres) rather than a direct XML→NDJSON stream.
+All sources are **CC-BY** (mostly 3.0 AU; the ATO R&D Tax Incentive dataset is CC-BY
+2.5 AU — verified). Most are published on [data.gov.au](https://data.gov.au);
+AusTender is accessed via the OCP Data Registry but its dataset licence is the
+source's CC-BY 3.0 AU (see below). Each carries the **ABN** (or, for the banned
+register, the **ACN**) as a common join key. This is what makes a pre-joined
+super-dataset possible — and is why long-black uses a relational store (Postgres)
+rather than a direct XML→NDJSON stream.
 
-| Source                          | CKAN id                        | Format           | Size                                | Cadence      | Join key                | Contributes                                                                            |
-| ------------------------------- | ------------------------------ | ---------------- | ----------------------------------- | ------------ | ----------------------- | -------------------------------------------------------------------------------------- |
-| **ABR ABN Bulk Extract** (core) | `abn-bulk-extract`             | XML, 2 ZIP parts | ~493 MB ×2 (~6–8 GB XML), ~20M ABNs | Weekly       | **ABN**, ACN/ARBN       | entity name/type, ABN status, GST, DGR, business/trading names, state+postcode         |
-| **ASIC Company**                | `asic-companies`               | CSV (tab) / ZIP  | ~394 MB                             | Weekly (Tue) | **ABN** + ACN           | `company{}` — type/class/status, registration & deregistration dates, prior state      |
-| **ASIC Business Names**         | `asic-business-names`          | CSV (tab) / ZIP  | ~247 MB                             | Weekly (Wed) | **ABN** of holder       | `registeredBusinessNames[]` — authoritative names + status/dates                       |
-| **ACNC Registered Charities**   | `acnc-register`                | CSV / XLSX       | ~15 MB, ~60k                        | Weekly       | **ABN**                 | `charity{}` — status, size, subtype, registration date                                 |
-| **ACNC Annual Info Statement**  | `acnc-<year>-...-ais-data`     | CSV              | ~38 MB, ~54k                        | Annual       | **ABN**                 | `charity.financials{}` — revenue, expenses, assets, liabilities, FTE staff, volunteers |
-| **ASIC AFS Licensees**          | `asic-afs-licensee`            | CSV (comma)      | ~1 MB, ~6.5k                        | Weekly       | **ABN** or ACN          | `financialServicesLicence{}` — AFS licence number, name, start date, conditions        |
-| **ASIC Credit Licensees**       | `asic-credit-licensee`         | CSV (comma)      | ~1 MB, ~4.3k                        | Weekly       | **ABN** or ACN          | `creditLicence{}` — credit licence number, name, status, start/end dates               |
-| **ASIC Banned & Disqualified**  | `asic-banned-disqualified-org` | CSV (tab)        | ~10 KB, ~15 rows                    | Weekly       | **ACN** (`asic_number`) | `bannedDisqualified[]` — banning/disqualification actions (type, dates, comment)       |
-| **AusTender contracts** (OCDS)  | OCP registry pub. `19`         | JSONL (gz)       | ~251 MB, ~852k contracts            | Monthly      | **ABN** of supplier     | `govSpend{}` — total value, contract count, first/last contract date (all history)     |
+| Source                             | CKAN id                                  | Format           | Size                                | Cadence      | Join key                | Contributes                                                                              |
+| ---------------------------------- | ---------------------------------------- | ---------------- | ----------------------------------- | ------------ | ----------------------- | ---------------------------------------------------------------------------------------- |
+| **ABR ABN Bulk Extract** (core)    | `abn-bulk-extract`                       | XML, 2 ZIP parts | ~493 MB ×2 (~6–8 GB XML), ~20M ABNs | Weekly       | **ABN**, ACN/ARBN       | entity name/type, ABN status, GST, DGR, business/trading names, state+postcode           |
+| **ASIC Company**                   | `asic-companies`                         | CSV (tab) / ZIP  | ~394 MB                             | Weekly (Tue) | **ABN** + ACN           | `company{}` — type/class/status, registration & deregistration dates, prior state        |
+| **ASIC Business Names**            | `asic-business-names`                    | CSV (tab) / ZIP  | ~247 MB                             | Weekly (Wed) | **ABN** of holder       | `registeredBusinessNames[]` — authoritative names + status/dates                         |
+| **ACNC Registered Charities**      | `acnc-register`                          | CSV / XLSX       | ~15 MB, ~60k                        | Weekly       | **ABN**                 | `charity{}` — status, size, subtype, registration date                                   |
+| **ACNC Annual Info Statement**     | `acnc-<year>-...-ais-data`               | CSV              | ~38 MB, ~54k                        | Annual       | **ABN**                 | `charity.financials{}` — revenue, expenses, assets, liabilities, FTE staff, volunteers   |
+| **ASIC AFS Licensees**             | `asic-afs-licensee`                      | CSV (comma)      | ~1 MB, ~6.5k                        | Weekly       | **ABN** or ACN          | `financialServicesLicence{}` — AFS licence number, name, start date, conditions          |
+| **ASIC Credit Licensees**          | `asic-credit-licensee`                   | CSV (comma)      | ~1 MB, ~4.3k                        | Weekly       | **ABN** or ACN          | `creditLicence{}` — credit licence number, name, status, start/end dates                 |
+| **ASIC Banned & Disqualified**     | `asic-banned-disqualified-org`           | CSV (tab)        | ~10 KB, ~15 rows                    | Weekly       | **ACN** (`asic_number`) | `bannedDisqualified[]` — banning/disqualification actions (type, dates, comment)         |
+| **AusTender contracts** (OCDS)     | OCP registry pub. `19`                   | JSONL (gz)       | ~251 MB, ~852k contracts            | Monthly      | **ABN** of supplier     | `govSpend{}` — total value, contract count, first/last contract date (all history)       |
+| **ATO Corporate Tax Transparency** | `corporate-transparency`                 | XLSX             | ~280 KB, ~4.2k entities             | Annual       | **ABN**                 | `taxTransparency{}` — total income, taxable income, tax payable (≥$100M-income entities) |
+| **ATO R&D Tax Incentive**          | `research-and-development-tax-incentive` | XLSX             | ~660 KB, ~13k companies             | Annual       | **ABN** or ACN          | `rdTaxIncentive{}` — notional R&D expenditure for the year                               |
 
 **Why the regulated & risk bundle.** AFS and credit licences are the two
 ASIC-issued permissions that gate who may legally provide financial or consumer-
@@ -243,6 +246,34 @@ contracts).
 | `firstContractDate`   | earliest `contracts[].dateSigned`                                                    |
 | `lastContractDate`    | latest `contracts[].dateSigned`                                                      |
 
+**ATO financial-depth XLSX** (`src/xlsx-sources.ts` + `src/load-xlsx.ts`) — the only
+Excel-workbook sources. Both are one annual `.xlsx` per income year on data.gov.au;
+the loader picks the **latest** year, reads the ABN-bearing sheet (skipping the prose
+"Information" tab), routes the key, and COPYs into the staging table.
+
+- **Corporate Tax Transparency** (`corporate-transparency`, sheet "Income tax
+  details") — entities with **≥$100M total income**. ABN-only (the key column is
+  literally "ABN", all 11-digit). `taxableIncome`/`taxPayable` are null when the ATO
+  reports ≤0 (legislation forbids reporting zero/negative). ~4.2k rows/year.
+
+  | Output (`taxTransparency.*`) | ATO column       |
+  | ---------------------------- | ---------------- |
+  | `incomeYear`                 | Income year      |
+  | `totalIncome`                | Total income $   |
+  | `taxableIncome`              | Taxable income $ |
+  | `taxPayable`                 | Tax payable $    |
+
+- **R&D Tax Incentive** (`research-and-development-tax-incentive`, sheet "&lt;year&gt;
+  Report") — ~13k companies' notional R&D expenditure. Its key column is "ABN/ACN", so
+  ~1.5% of 9-digit ACN rows are routed to `acn` and matched via `asic_number`
+  (ACN-type-guarded, like the ASIC sources) rather than dropped.
+
+  | Output (`rdTaxIncentive.*`) | ATO column                                     |
+  | --------------------------- | ---------------------------------------------- |
+  | _join key_                  | ABN/ACN (11-digit ABN or 9-digit ACN)          |
+  | `incomeYear`                | Income Year                                    |
+  | `totalRdExpenditure`        | Total R&D expenditure (notional deductions…) $ |
+
 ## Attribution (required by CC-BY)
 
 - © Commonwealth of Australia (Australian Business Register) — CC-BY 3.0 AU
@@ -251,5 +282,7 @@ contracts).
 - © Commonwealth of Australia (Department of Finance / AusTender) — CC-BY 3.0 AU
   (the dataset licence; the OCP Data Registry is only the access route for the bulk
   file)
+- © Commonwealth of Australia (Australian Taxation Office) — Corporate Tax
+  Transparency **CC-BY 3.0 AU**; R&D Tax Incentive **CC-BY 2.5 AU**
 
 These appear in every build's `metadata.json` (`sources[].attribution`).

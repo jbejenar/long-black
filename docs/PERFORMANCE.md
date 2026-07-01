@@ -58,11 +58,12 @@ null/empty state; `AAT`, when present, is its own bucket — this extract had no
 
 ## Enrichment (real extract, 2026.06.24)
 
-All eight enrichment sources were loaded against the real 20.3M-ABN table (seven
-from data.gov.au; AusTender from the OCP Data Registry), then joined through
-`abn_full.sql`. Measured on the machine above; the enrichment joins together add
-~15 s to the flatten and stay well under the memory budget. The AusTender
-aggregation (851k OCDS releases → 52,800 per-ABN rows) streams in constant memory.
+All ten enrichment sources were loaded against the real 20.3M-ABN table (seven CSVs
+from data.gov.au; AusTender from the OCP Data Registry; two ATO XLSX workbooks), then
+joined through `abn_full.sql`. Measured on the machine above; the enrichment joins
+together add ~15 s to the flatten and stay well under the memory budget. The
+AusTender aggregation (851k OCDS releases → 52,800 per-ABN rows) streams in constant
+memory; the XLSX sources are tiny (<1 MB each) and parse in-memory.
 
 | Source                          | Rows loaded | ABNs enriched | Coverage | Join key            |
 | ------------------------------- | ----------: | ------------: | -------: | ------------------- |
@@ -74,6 +75,8 @@ aggregation (851k OCDS releases → 52,800 per-ABN rows) streams in constant mem
 | ASIC Credit Licensees           |       4,296 |         3,943 |  0.019 % | ABN **or** ACN      |
 | ASIC Banned & Disqualified Orgs |          15 |            12 | <0.001 % | ACN (`asic_number`) |
 | AusTender govSpend              |      52,800 |        52,779 |    0.3 % | ABN (supplier)      |
+| ATO Corporate Tax Transparency  |       4,162 |         4,119 |  0.020 % | ABN                 |
+| ATO R&D Tax Incentive           |      13,133 |        13,019 |  0.064 % | ABN **or** ACN      |
 
 ABNs-enriched is the document count carrying a non-null `company` /
 `financialServicesLicence` / `creditLicence` / `charity` / `govSpend` (or
@@ -115,13 +118,15 @@ populations (licensed financial-services providers and ASIC enforcement actions)
 
 - `enrich-cli` fails if any source loads below its floor (`minRows`: company/
   business-names 1,000,000, charities 20,000, AIS 20,000, AFS/credit 1,000, banned
-  5, AusTender suppliers 30,000 — ≈⅓ of the counts above, except the tiny volatile
-  banned register whose floor just catches a 0-row/wrong-file load).
+  5, AusTender suppliers 30,000, tax-transparency 2,000, R&D 5,000 — ≈⅓ of the
+  counts above, except the tiny volatile banned register whose floor just catches a
+  0-row/wrong-file load).
 - `cli.js` runs an enrichment-coverage gate after verify
   (`LONG_BLACK_COVERAGE_PROFILE=production`): the build fails unless `company` ≥
   1,000,000, `registeredBusinessNames` ≥ 1,000,000, `charity` ≥ 20,000,
   `charityFinancials` ≥ 20,000, `financialServicesLicence` ≥ 1,000,
-  `creditLicence` ≥ 1,000, `bannedDisqualified` ≥ 5, and `govSpend` ≥ 30,000 docs.
+  `creditLicence` ≥ 1,000, `bannedDisqualified` ≥ 5, `govSpend` ≥ 30,000,
+  `taxTransparency` ≥ 2,000, and `rdTaxIncentive` ≥ 5,000 docs.
 - `build.yml` treats an incomplete enrichment as fatal (no silent partial
   release) unless a deliberate `allow_partial_enrichment=true` manual override,
   and diffs the build against the prior release (`compare-cli`) to hold anomalous

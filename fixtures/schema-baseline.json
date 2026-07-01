@@ -697,6 +697,73 @@
             }
           ]
         },
+        "taxTransparency": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "incomeYear": {
+                  "type": "string"
+                },
+                "totalIncome": {
+                  "type": "number"
+                },
+                "taxableIncome": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "taxPayable": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": ["incomeYear", "totalIncome", "taxableIncome", "taxPayable"],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rdTaxIncentive": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "incomeYear": {
+                  "type": "string"
+                },
+                "totalRdExpenditure": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": ["incomeYear", "totalRdExpenditure"],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "ageYears": {
           "anyOf": [
             {
@@ -733,6 +800,12 @@
             },
             "hasGovContracts": {
               "type": "boolean"
+            },
+            "isLargeCorporateTaxpayer": {
+              "type": "boolean"
+            },
+            "claimsRdTaxIncentive": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -742,7 +815,9 @@
             "isLicensed",
             "hasEnforcementAction",
             "isDgr",
-            "hasGovContracts"
+            "hasGovContracts",
+            "isLargeCorporateTaxpayer",
+            "claimsRdTaxIncentive"
           ],
           "additionalProperties": false
         }
@@ -775,6 +850,8 @@
         "creditLicence",
         "bannedDisqualified",
         "govSpend",
+        "taxTransparency",
+        "rdTaxIncentive",
         "ageYears",
         "isActive",
         "flags"

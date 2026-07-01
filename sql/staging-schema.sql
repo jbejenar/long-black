@@ -86,3 +86,18 @@ CREATE UNLOGGED TABLE IF NOT EXISTS abn___SCHEMA_VERSION__.gov_spend (
   abn char(11), total_value_aud numeric, contract_count integer,
   first_contract_date date, last_contract_date date
 );
+
+-- ATO financial-depth SOURCES (Excel, loaded by src/xlsx-sources.ts). 1:0..1 on ABN.
+-- Corporate Tax Transparency lists entities with ≥$100M total income — its key column
+-- is literally "ABN" (always 11-digit) so it's ABN-only; taxable_income / tax_payable
+-- are null when the ATO reports ≤0 (legislation forbids reporting zero/negative).
+CREATE UNLOGGED TABLE IF NOT EXISTS abn___SCHEMA_VERSION__.tax_transparency (
+  abn char(11), income_year text,
+  total_income numeric, taxable_income numeric, tax_payable numeric
+);
+
+-- R&D Tax Incentive uses an "ABN/ACN" key → routed to abn XOR acn (the ~1.5% of
+-- 9-digit ACN rows join via abn.asic_number, ACN-type-guarded, like the ASIC sources).
+CREATE UNLOGGED TABLE IF NOT EXISTS abn___SCHEMA_VERSION__.rd_tax_incentive (
+  abn char(11), acn text, income_year text, total_rd_expenditure numeric
+);

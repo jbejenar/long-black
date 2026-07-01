@@ -13,11 +13,11 @@ import { ABN_PARQUET_SCHEMA, abnParquetRow } from "./parquet-output.js";
 
 /**
  * Every public dataset joined into a document, itemized with its CC-BY attribution
- * (a licence requirement). All are **CC-BY 3.0 AU** — including AusTender, whose
- * data.gov.au record lists `cc-by` / "Creative Commons Attribution 3.0 Australia"
- * (the OCP Data Registry is only the access route for the bulk file; the dataset
- * licence is the source's). Listed per-dataset (not per-publisher) so `metadata.json`
- * `sources[]` fully accounts for what each release is derived from.
+ * (a licence requirement). Most are **CC-BY 3.0 AU**; the ATO R&D Tax Incentive
+ * dataset's data.gov.au record is **CC-BY 2.5 AU** (verified). AusTender is CC-BY
+ * 3.0 AU too — the OCP Data Registry is only the access route for the bulk file; the
+ * dataset licence is the source's. Listed per-dataset (not per-publisher) so
+ * `metadata.json` `sources[]` fully accounts for what each release is derived from.
  */
 export const ABN_SOURCES: SourceInfo[] = [
   {
@@ -73,6 +73,19 @@ export const ABN_SOURCES: SourceInfo[] = [
     url: "https://data.open-contracting.org/en/publication/19",
     licence: "CC-BY 3.0 AU",
     attribution: "© Commonwealth of Australia (Department of Finance / AusTender)",
+  },
+  {
+    name: "ATO Corporate Tax Transparency",
+    url: "https://data.gov.au/data/dataset/corporate-transparency",
+    licence: "CC-BY 3.0 AU",
+    attribution: "© Commonwealth of Australia (Australian Taxation Office)",
+  },
+  {
+    name: "ATO R&D Tax Incentive",
+    url: "https://data.gov.au/data/dataset/research-and-development-tax-incentive",
+    // This dataset's data.gov.au record is CC-BY 2.5 Australia (not 3.0) — verified.
+    licence: "CC-BY 2.5 AU",
+    attribution: "© Commonwealth of Australia (Australian Taxation Office)",
   },
 ];
 

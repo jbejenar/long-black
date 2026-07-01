@@ -12,15 +12,29 @@ The NDJSON document is the contract (`docs/DOCUMENT-SCHEMA.md`).
 
 ## [Unreleased]
 
-### Fixed
+### Removed
 
-- **Parquet output completeness** — the optional `--parquet` export
-  (`src/parquet-output.ts`) had never been extended past 0.8.0, so the `.parquet`
-  asset was silently missing every field added since: `financialServicesLicence`,
-  `creditLicence`, `bannedDisqualified`, `govSpend`, `ageYears`, `isActive`, `flags`.
-  All are now represented (scalars native — `isActive` BOOLEAN, `ageYears` INT64 —
-  nested/array fields as JSON strings), so the Parquet asset matches the NDJSON
-  contract. A round-trip test asserts the new fields appear. NDJSON output unchanged.
+- **Parquet output** — dropped the optional all-ABN `.parquet` asset
+  (`src/parquet-output.ts`, `--parquet`). At real scale the file was written
+  **uncompressed with every field as a UTF8/JSON-string column**, so it came out
+  **~12 GB — ~10× the ~1.26 GB gzipped NDJSON** and delivered no columnar benefit
+  (it also blew GitHub's 2 GB per-asset release limit). NDJSON is the contract; the
+  document schema is unchanged.
+
+### Added
+
+- **Full-dataset `all.ndjson.gz` on the S3 mirror** — a consolidated all-ABN NDJSON
+  (~1.26 GB) in the same global `ORDER BY abn` order as the canonical output, published
+  to `data/abn/<version>/all.ndjson.gz` on the S3 mirror only (not the GitHub Release,
+  which stays lean per-state — matching flat-white's split). The `mirror-s3` job builds
+  it by a streaming byte-wise **merge** of the (already ABN-sorted) shards it downloads
+  (`LC_ALL=C sort -m` via FIFOs — no multi-GB temp), verified to contain exactly
+  `total_records` lines. The build job still needs no S3 credentials.
+- **A+++ S3 manifest** — `manifests/abn-<version>.json` now lists `all.ndjson.gz` as an
+  **aggregate** file with its own `sha256` + `bytes`, marked `aggregate: true` and
+  **excluded from `total_records`** (it duplicates the shards), so the bundle is fully
+  integrity-described without doubling the count. The mirror asserts
+  `total_records == Σ non-aggregate files` before publishing.
 
 ### Changed
 

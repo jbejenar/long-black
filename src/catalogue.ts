@@ -29,7 +29,8 @@ export const ABN_BRANDING: CatalogueBranding = {
     'Data sourced from the <a href="https://data.gov.au/data/dataset/abn-bulk-extract" style="color: var(--accent);">ABR</a>, ' +
     "ASIC, and ACNC under Creative Commons Attribution 3.0 AU.",
   outputFormatsHtml:
-    "Output formats: NDJSON (<code>.ndjson.gz</code>, per state) and Parquet (all ABNs).",
+    "Output format: NDJSON (<code>.ndjson.gz</code>), split per state on each release " +
+    "(plus a full all-ABN <code>all.ndjson.gz</code> on the S3 mirror).",
   // "long black" coffee tones.
   accent: { light: "#6f4e37", dark: "#caa472" },
 };

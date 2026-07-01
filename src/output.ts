@@ -7,9 +7,8 @@
  */
 
 import { resolve } from "node:path";
-import { split, compress, writeMetadata, convertToParquet, type SourceInfo } from "crema";
+import { split, compress, writeMetadata, type SourceInfo } from "crema";
 import { SPLIT_PREFIX } from "./sources.js";
-import { ABN_PARQUET_SCHEMA, abnParquetRow } from "./parquet-output.js";
 
 /**
  * Every public dataset joined into a document, itemized with its CC-BY attribution
@@ -134,21 +133,17 @@ export interface OutputOptions {
   schemaVersion: string;
   /** Per-source extract dates, keyed by source name. */
   sourceDates?: Record<string, string>;
-  /** Also emit an all-ABN `<prefix>-<version>.parquet` alongside the per-state gz. */
-  parquet?: boolean;
 }
 
 export interface OutputResult {
   gzFiles: string[];
   metadataPath: string;
   counts: Record<string, number>;
-  /** Path to the Parquet file, when `parquet` was requested. */
-  parquetPath?: string;
 }
 
-/** Split → gzip → metadata (+ optional Parquet). Returns the output artifacts. */
+/** Split → gzip → metadata. Returns the output artifacts. */
 export async function runOutput(options: OutputOptions): Promise<OutputResult> {
-  const { ndjsonPath, outputDir, version, schemaVersion, sourceDates, parquet } = options;
+  const { ndjsonPath, outputDir, version, schemaVersion, sourceDates } = options;
 
   const splitResult = await split({
     inputPath: ndjsonPath,
@@ -168,19 +163,6 @@ export async function runOutput(options: OutputOptions): Promise<OutputResult> {
     sourceDates?.[s.name] ? { ...s, extractDate: sourceDates[s.name] } : s,
   );
 
-  // Optional Parquet of the full (all-ABN) dataset — one columnar file consumers
-  // can filter by the `state` column, complementing the per-state NDJSON.
-  let parquetPath: string | undefined;
-  if (parquet) {
-    parquetPath = resolve(outputDir, `${SPLIT_PREFIX}-${version}.parquet`);
-    await convertToParquet({
-      inputPath: ndjsonPath,
-      outputPath: parquetPath,
-      schema: ABN_PARQUET_SCHEMA,
-      mapRow: abnParquetRow,
-    });
-  }
-
   const metadataPath = resolve(outputDir, "metadata.json");
   await writeMetadata({
     ndjsonPath,
@@ -188,12 +170,9 @@ export async function runOutput(options: OutputOptions): Promise<OutputResult> {
     version,
     schemaVersion,
     keyFn: stateKey,
-    outputFiles: [
-      ...gzFiles.map((f) => f.split("/").pop() ?? f),
-      ...(parquetPath ? [parquetPath.split("/").pop() ?? parquetPath] : []),
-    ],
+    outputFiles: gzFiles.map((f) => f.split("/").pop() ?? f),
     sources,
   });
 
-  return { gzFiles, metadataPath, counts: splitResult.counts, parquetPath };
+  return { gzFiles, metadataPath, counts: splitResult.counts };
 }

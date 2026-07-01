@@ -33,7 +33,7 @@ const release: GitHubRelease = {
   ].join("\n"),
   assets: [
     { name: "long-black-2026.06.28-nsw.ndjson.gz", browser_download_url: "u1", size: 1_048_576 },
-    { name: "long-black-2026.06.28.parquet", browser_download_url: "u2", size: 4_194_304 },
+    { name: "long-black-2026.06.28-vic.ndjson.gz", browser_download_url: "u2", size: 2_097_152 },
     { name: "manifest.json", browser_download_url: "u3", size: 512 },
   ],
   draft: false,
@@ -53,10 +53,11 @@ describe("ABN_BRANDING via crema catalogue engine", () => {
       { key: "AAT", count: 3 },
       { key: "OTHER", count: 1_000 },
     ]);
-    // .ndjson.gz + .parquet are data assets; manifest.json is dropped by the filter.
+    // The per-state .ndjson.gz shards are the data assets; manifest.json is dropped
+    // by the filter. (No Parquet — long-black ships NDJSON only.)
     expect(r.assets.map((a) => a.name)).toEqual([
       "long-black-2026.06.28-nsw.ndjson.gz",
-      "long-black-2026.06.28.parquet",
+      "long-black-2026.06.28-vic.ndjson.gz",
     ]);
   });
 

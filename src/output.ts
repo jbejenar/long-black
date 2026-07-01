@@ -105,6 +105,12 @@ export const ABN_SOURCES: SourceInfo[] = [
     licence: "CC-BY 3.0 AU",
     attribution: "© Commonwealth of Australia (Workplace Gender Equality Agency)",
   },
+  {
+    name: "ASIC SMSF Auditors",
+    url: "https://data.gov.au/data/dataset/asic-smsf",
+    licence: "CC-BY 3.0 AU",
+    attribution: "© Australian Securities and Investments Commission",
+  },
 ];
 
 /** Normalize a document's state to a split/metadata key (matches crema split). */

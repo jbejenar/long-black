@@ -106,7 +106,7 @@ export async function run(options: {
         `bannedDisqualified ${cov.bannedDisqualified} · govSpend ${cov.govSpend} · ` +
         `taxTransparency ${cov.taxTransparency} · rdTaxIncentive ${cov.rdTaxIncentive} · ` +
         `afsRep ${cov.afsAuthorisedRep} · creditRep ${cov.creditRep} · wgea ${cov.wgeaReporter} · ` +
-        `businessNames ${cov.businessNames} · dgr ${cov.dgr}`,
+        `smsfAuditor ${cov.smsfAuditor} · businessNames ${cov.businessNames} · dgr ${cov.dgr}`,
     );
     coverageOk = cov.ok;
     if (!cov.ok) {

@@ -121,3 +121,11 @@ CREATE UNLOGGED TABLE IF NOT EXISTS abn___SCHEMA_VERSION__.asic_credit_rep (
 CREATE UNLOGGED TABLE IF NOT EXISTS abn___SCHEMA_VERSION__.wgea_reporter (
   abn char(11), primary_abn char(11), primary_organisation text
 );
+
+-- ASIC SMSF Auditors (Bundle D). Approved self-managed-super-fund auditors, keyed on
+-- the auditor's ABN (SMSF_PERSON_ABN). 1:0..1 on ABN (deduped from auditor×condition
+-- rows). suspension_* flag an auditor currently/previously suspended (a risk signal).
+CREATE UNLOGGED TABLE IF NOT EXISTS abn___SCHEMA_VERSION__.asic_smsf_auditor (
+  abn char(11), auditor_number text, status text, registration_date date,
+  suspension_start_date date, suspension_end_date date
+);

@@ -220,3 +220,12 @@ INSERT INTO abn___SCHEMA_VERSION__.asic_credit_rep (
 INSERT INTO abn___SCHEMA_VERSION__.wgea_reporter (abn, primary_abn, primary_organisation) VALUES
 ('51000000761','51000000761','ACME GROUP'),
 ('51000000793','51000000761','ACME GROUP');
+
+-- ASIC SMSF Auditors (Bundle D; 1:0..1 on ABN). 51000000680 (a sole trader) is a
+-- registered SMSF auditor; the duplicate row proves DISTINCT ON collapses
+-- auditor×condition rows to one auditor record.
+INSERT INTO abn___SCHEMA_VERSION__.asic_smsf_auditor (
+  abn, auditor_number, status, registration_date, suspension_start_date, suspension_end_date
+) VALUES
+('51000000680','100261694','Registered',DATE '2016-02-10',NULL,NULL),
+('51000000680','100261694','Registered',DATE '2016-02-10',NULL,NULL);

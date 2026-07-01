@@ -37,7 +37,8 @@ export interface EnrichmentSource {
     | "asic_banned_disqualified"
     | "asic_afs_rep"
     | "asic_credit_rep"
-    | "wgea_reporter";
+    | "wgea_reporter"
+    | "asic_smsf_auditor";
   /** Human label for logs. */
   label: string;
   /** Stable data.gov.au package id. */
@@ -193,6 +194,22 @@ export const ENRICHMENT_SOURCES: EnrichmentSource[] = [
     resourceStrategy: "latest-year",
     normalizeSqlFile: "normalize-wgea-reporter.sql",
     minRows: 5_000, // real: ~11k organisations (latest per-ABN snapshot)
+  },
+  {
+    // ASIC SMSF Auditors — the register of approved self-managed-super-fund auditors
+    // (a regulated financial profession; suspensions are an enforcement/risk signal).
+    // Tab-delimited CSV (`smsf_auditor_<yyyymm>.csv`); the auditor's ABN is
+    // `SMSF_PERSON_ABN`. The file is auditor×condition rows (~30k, ~4.9k with an ABN)
+    // that dedupe to ~613 DISTINCT auditor ABNs — most auditors are individuals with
+    // no ABN, so this is a small (but clean) population.
+    key: "asic_smsf_auditor",
+    label: "ASIC SMSF Auditors",
+    packageId: "asic-smsf",
+    delimiter: "\t",
+    quoting: false,
+    resourceMatch: "smsf_auditor",
+    normalizeSqlFile: "normalize-asic-smsf-auditor.sql",
+    minRows: 300, // real 2026.04: 613 distinct auditor ABNs
   },
 ];
 

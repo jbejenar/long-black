@@ -33,6 +33,21 @@ The NDJSON document is the contract (`docs/DOCUMENT-SCHEMA.md`).
 
 ### Added
 
+- **0.16.0** — **ASIC SMSF auditors** — `smsfAuditor`
+  (`{number, status, registrationDate, suspensionStartDate, suspensionEndDate}` | null)
+  plus `flags.isSmsfAuditor`. Additive, minor bump. The entity is an ASIC-approved
+  self-managed-super-fund auditor (`asic-smsf`) — a regulated financial profession;
+  `suspension*` dates are an enforcement/risk signal. Keyed on the auditor's ABN
+  (`SMSF_PERSON_ABN`); the source's auditor×condition rows dedupe to **~613 distinct
+  auditor ABNs** (most approved auditors are individuals with no ABN — small but clean).
+  CC-BY 3.0 AU (© ASIC), added to `ABN_SOURCES` (anti-drift test enforces it).
+  - **Verified dead-ends (documented, not shipped):** ASIC Registered Auditors
+    (ACN-only, ~221 — too low) and Liquidators (no ABN/ACN, name-keyed); NDIS
+    Commission datasets (licence `notspecified`, not CC-BY); NGER (stale on data.gov.au,
+    name-keyed live); GrantConnect (auth-gated portal). Only clean, CC-BY, ABN-keyed
+    bulk sources are integrated.
+  - Proven on the real 20.3M build: smsfAuditor 613; 0 composition errors, no duplicate
+    `_id`, production gate green.
 - **0.15.0** — **WGEA reporting** — `wgeaReporter` (`{primaryAbn, primaryOrganisation}`
   | null) plus `flags.isWgeaReporter`. Additive, minor bump. The entity reports to the
   Workplace Gender Equality Agency (`wgea-dataset`): an employer with **100+ staff**

@@ -39,6 +39,7 @@ function validDoc(overrides: Partial<AbnDocument> = {}): AbnDocument {
     afsAuthorisedRep: null,
     creditRep: null,
     wgeaReporter: null,
+    smsfAuditor: null,
     ageYears: 26,
     isActive: true,
     flags: {
@@ -54,6 +55,7 @@ function validDoc(overrides: Partial<AbnDocument> = {}): AbnDocument {
       isAfsAuthorisedRep: false,
       isCreditRep: false,
       isWgeaReporter: false,
+      isSmsfAuditor: false,
     },
     ...overrides,
   };
@@ -197,6 +199,7 @@ describe("AbnDocumentSchema", () => {
         isAfsAuthorisedRep: false,
         isCreditRep: false,
         isWgeaReporter: false,
+        isSmsfAuditor: false,
       },
     });
     expect(AbnDocumentSchema.safeParse(doc).success).toBe(true);

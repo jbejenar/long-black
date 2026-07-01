@@ -34,6 +34,7 @@ const ZERO: CoverageFloors = {
   afsAuthorisedRep: 0,
   creditRep: 0,
   wgeaReporter: 0,
+  smsfAuditor: 0,
 };
 
 // A document with all enrichment present.
@@ -51,6 +52,7 @@ const full = {
   afsAuthorisedRep: { number: "R1" },
   creditRep: { number: "CR1" },
   wgeaReporter: { primaryAbn: "51000000761", primaryOrganisation: "ACME GROUP" },
+  smsfAuditor: { number: "100261694", status: "Registered" },
   businessNames: ["B"],
   dgr: [{ name: "D", statusFromDate: "2020-01-01" }],
 };
@@ -69,6 +71,7 @@ const bare = {
   afsAuthorisedRep: null,
   creditRep: null,
   wgeaReporter: null,
+  smsfAuditor: null,
   businessNames: [],
   dgr: [],
 };
@@ -98,6 +101,7 @@ describe("checkEnrichmentCoverage", () => {
     expect(cov.afsAuthorisedRep).toBe(2);
     expect(cov.creditRep).toBe(2);
     expect(cov.wgeaReporter).toBe(2);
+    expect(cov.smsfAuditor).toBe(2);
     expect(cov.businessNames).toBe(2);
     expect(cov.dgr).toBe(2);
     expect(cov.ok).toBe(true);
@@ -146,9 +150,10 @@ describe("checkEnrichmentCoverage", () => {
       afsAuthorisedRep: 5,
       creditRep: 5,
       wgeaReporter: 5,
+      smsfAuditor: 5,
     };
     const cov = await checkEnrichmentCoverage(ndjson([full, bare]), floors);
     expect(cov.ok).toBe(false);
-    expect(cov.shortfalls).toHaveLength(13);
+    expect(cov.shortfalls).toHaveLength(14);
   });
 });

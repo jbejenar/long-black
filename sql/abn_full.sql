@@ -108,6 +108,13 @@ wgea AS (
   FROM abn___SCHEMA_VERSION__.wgea_reporter
   ORDER BY abn, primary_organisation
 ),
+-- 1:0..1 — ASIC SMSF auditors (Bundle D), keyed on the auditor's ABN.
+smsf AS (
+  SELECT DISTINCT ON (abn)
+    abn, auditor_number, status, registration_date, suspension_start_date, suspension_end_date
+  FROM abn___SCHEMA_VERSION__.asic_smsf_auditor
+  ORDER BY abn, registration_date
+),
 -- 1:0..1 — ASIC AFS + credit licences. The source `*_ABN_ACN` column holds EITHER
 -- an 11-digit ABN or a 9-digit ACN (the normalizer routes each to the abn/acn
 -- column). So each licence resolves to a base row by TWO paths: a direct ABN match,
@@ -284,7 +291,14 @@ SELECT
   CASE WHEN w.abn IS NULL THEN NULL ELSE json_build_object(
     'primaryAbn', w.primary_abn,
     'primaryOrganisation', w.primary_organisation
-  ) END                                                AS wgea_reporter
+  ) END                                                AS wgea_reporter,
+  CASE WHEN sm.abn IS NULL THEN NULL ELSE json_build_object(
+    'number', sm.auditor_number,
+    'status', sm.status,
+    'registrationDate', sm.registration_date::text,
+    'suspensionStartDate', sm.suspension_start_date::text,
+    'suspensionEndDate', sm.suspension_end_date::text
+  ) END                                                AS smsf_auditor
 FROM abn___SCHEMA_VERSION__.abn a
 LEFT JOIN company c ON c.abn = a.abn
 LEFT JOIN business_names_agg bn ON bn.abn = a.abn
@@ -302,6 +316,7 @@ LEFT JOIN credit_rep_by_abn crra ON crra.abn = a.abn
 LEFT JOIN credit_rep_by_acn crrc
   ON crrc.acn = a.asic_number AND COALESCE(a.asic_number_type, '') NOT IN ('ARBN', 'ARSN', 'ARFN')
 LEFT JOIN wgea w ON w.abn = a.abn
+LEFT JOIN smsf sm ON sm.abn = a.abn
 LEFT JOIN afs_by_abn afsa ON afsa.abn = a.abn
 LEFT JOIN afs_by_acn afsc
   ON afsc.acn = a.asic_number AND COALESCE(a.asic_number_type, '') NOT IN ('ARBN', 'ARSN', 'ARFN')

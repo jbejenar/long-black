@@ -187,6 +187,20 @@
           "primaryOrganisation": { "type": "keyword" }
         }
       },
+      "smsfAuditor": {
+        "type": "object",
+        "properties": {
+          "number": { "type": "keyword" },
+          "status": { "type": "keyword" },
+          "registrationDate": { "type": "date", "format": "yyyy-MM-dd", "ignore_malformed": true },
+          "suspensionStartDate": {
+            "type": "date",
+            "format": "yyyy-MM-dd",
+            "ignore_malformed": true
+          },
+          "suspensionEndDate": { "type": "date", "format": "yyyy-MM-dd", "ignore_malformed": true }
+        }
+      },
       "ageYears": { "type": "integer" },
       "isActive": { "type": "boolean" },
       "flags": {
@@ -203,7 +217,8 @@
           "claimsRdTaxIncentive": { "type": "boolean" },
           "isAfsAuthorisedRep": { "type": "boolean" },
           "isCreditRep": { "type": "boolean" },
-          "isWgeaReporter": { "type": "boolean" }
+          "isWgeaReporter": { "type": "boolean" },
+          "isSmsfAuditor": { "type": "boolean" }
         }
       }
     }

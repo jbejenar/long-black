@@ -46,8 +46,14 @@ jobs:
       - name: List the long-black release prefixes (ListBucket is scoped to these)
         run: |
           set -euo pipefail
-          echo "s3://${S3_BUCKET}/data/abn/ :"
-          aws s3 ls "s3://${S3_BUCKET}/data/abn/" || echo "(empty — no releases mirrored yet)"
-          echo "s3://${S3_BUCKET}/manifests/ (abn-*) :"
-          aws s3 ls "s3://${S3_BUCKET}/manifests/" | grep -E 'abn-' || echo "(no abn- manifests yet)"
-          echo "✓ role can reach the long-black prefixes on the shared bucket"
+          # s3api list-objects-v2 succeeds (exit 0) on an EMPTY prefix but fails (nonzero)
+          # on AccessDenied — so a broken ListBucket permission FAILS the job instead of
+          # being masked by a `|| echo empty`. The prefixes match the role's IAM
+          # s3:prefix conditions exactly (data/abn/* + manifests/abn-*), so this validates
+          # the precise permission the mirror and consumers rely on. `set -e` propagates.
+          for prefix in "data/abn/" "manifests/abn-"; do
+            n=$(aws s3api list-objects-v2 --bucket "$S3_BUCKET" --prefix "$prefix" \
+                  --max-items 1 --query 'length(Contents || `[]`)' --output text)
+            echo "  ✓ list ok on ${prefix} (${n} object(s) sampled)"
+          done
+          echo "✓ role can list the long-black prefixes on the shared bucket"

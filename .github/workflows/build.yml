@@ -403,9 +403,11 @@ jobs:
   # in build) so that `id-token: write` (AWS OIDC assume-role) is granted ONLY here, never
   # to the build job that runs the pipeline. It re-downloads the immutable published
   # release assets into a clean dir, so a partial-mirror failure is repaired by simply
-  # re-running THIS job (no rebuild). Auth is GitHub OIDC — set repo variable `AWS_ROLE_ARN`
-  # to an IAM role trusting this repo's Actions OIDC with s3:PutObject/ListBucket/
-  # DeleteObject on `long-black/*`. See docs/RELEASING.md § "S3 mirror".
+  # re-running THIS job (no rebuild). Data goes only to immutable per-release prefixes;
+  # "latest" is a single atomic pointer object (latest.json), so no delete permission is
+  # needed. Auth is GitHub OIDC — set repo variable `AWS_ROLE_ARN` to an IAM role trusting
+  # this repo's Actions OIDC with s3:PutObject/ListBucket on `long-black/*`. See
+  # docs/RELEASING.md § "S3 mirror".
   mirror-s3:
     needs: build
     if: >-
@@ -435,26 +437,27 @@ jobs:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION || 'ap-southeast-2' }}
 
-      - name: Mirror to S3 (versioned + rolling latest/)
+      - name: Mirror to S3 (immutable prefix + atomic latest pointer)
         env:
           BUCKET: ${{ vars.S3_BUCKET }}
           TAG: ${{ needs.build.outputs.tag }}
         run: |
           set -euo pipefail
-          # Upload data shards + Parquet FIRST, then metadata/manifest LAST, so at no
-          # point does metadata/manifest describe data that isn't present yet. Applied to
-          # both the immutable versioned prefix and the rolling latest/ pointer.
-          put_ordered() {  # $1 = destination s3 prefix
-            aws s3 cp s3-staging/ "$1" --recursive --no-progress \
-              --exclude 'metadata.json' --exclude 'manifest.json'
-            aws s3 cp s3-staging/metadata.json "$1/metadata.json" --no-progress
-            aws s3 cp s3-staging/manifest.json "$1/manifest.json" --no-progress
-          }
-          put_ordered "s3://${BUCKET}/long-black/${TAG}"    # immutable per-release
-          put_ordered "s3://${BUCKET}/long-black/latest"    # data+metadata for the new release
-          # Finally reconcile latest/ to EXACTLY this release — removes the previous
-          # version's now-stale shards. New objects are already present, so this pass only
-          # deletes leftovers; a failure here leaves the new release complete + consistent
-          # in latest/ (just with some old shards), and re-running this job fixes it.
-          aws s3 sync s3-staging/ "s3://${BUCKET}/long-black/latest/" --delete --no-progress
-          echo "mirrored ${TAG} → s3://${BUCKET}/long-black/{${TAG},latest}/"
+          DEST="s3://${BUCKET}/long-black/${TAG}"
+          # Data goes ONLY to an immutable, per-release prefix. Upload the shards +
+          # Parquet FIRST, then metadata/manifest LAST, so the prefix is never observed
+          # with control files that describe data not yet present.
+          aws s3 cp s3-staging/ "${DEST}/" --recursive --no-progress \
+            --exclude 'metadata.json' --exclude 'manifest.json'
+          aws s3 cp s3-staging/metadata.json "${DEST}/metadata.json" --no-progress
+          aws s3 cp s3-staging/manifest.json "${DEST}/manifest.json" --no-progress
+
+          # "latest" is a SINGLE small pointer object, overwritten in ONE PutObject —
+          # atomic in S3. There is no live multi-object `latest/` prefix to leave half-
+          # updated; readers GET latest.json, then fetch the immutable prefix it names.
+          # (No delete permission needed — nothing is mutated in place.)
+          printf '{"version":"%s","prefix":"long-black/%s/","updated":"%s"}\n' \
+            "$TAG" "$TAG" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            | aws s3 cp - "s3://${BUCKET}/long-black/latest.json" \
+                --content-type application/json --no-progress
+          echo "mirrored ${TAG} → ${DEST}/ ; latest.json now points to ${TAG}"

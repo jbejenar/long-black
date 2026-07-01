@@ -48,13 +48,13 @@ Robustness + distribution work on the release pipeline (`build.yml` is authorita
   enrichment **fail-fast** with the production coverage gate (+ an `ALLOW_PARTIAL`
   escape hatch) — matching `build.yml`/`build-local.sh` — instead of best-effort
   "continuing with partial", and its stale comment is refreshed.
-- ✅ **S3 mirror of releases (dormant until configured).** `build.yml` now mirrors each
-  published release's assets to `s3://<bucket>/long-black/v<version>/…` (+ a `latest/`
-  pointer) via two OIDC-authenticated steps that run only when the repo variable
-  `S3_BUCKET` is set. **To enable:** set repo variables `S3_BUCKET`, `AWS_ROLE_ARN`
-  (an IAM role trusting this repo's Actions OIDC with
-  `s3:PutObject`/`s3:ListBucket`/`s3:DeleteObject` on `long-black/*`), and optionally
-  `AWS_REGION`. See `docs/RELEASING.md` § "S3 mirror".
+- ✅ **S3 mirror of releases (dormant until configured).** A separate least-privilege
+  `mirror-s3` job mirrors each published release to an immutable
+  `s3://<bucket>/long-black/v<version>/…` prefix + an atomic `latest.json` pointer,
+  running only when the repo variable `S3_BUCKET` is set. **To enable:** set repo
+  variables `S3_BUCKET`, `AWS_ROLE_ARN` (an IAM role trusting this repo's Actions OIDC
+  with `s3:PutObject`/`s3:ListBucket` on `long-black/*`), and optionally `AWS_REGION`.
+  See `docs/RELEASING.md` § "S3 mirror".
 - **Cadence** (open). Currently monthly (5th, 03:00 UTC). Revisit weekly if fresher
   ABR/ASIC core data is wanted (ATO/WGEA are annual, so daily is pointless).
 

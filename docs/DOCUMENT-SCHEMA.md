@@ -280,5 +280,6 @@ can filter by the native `state` column.
 
 ## Data licensing
 
-Derived from public Australian Government data under **CC-BY 3.0 AU** (Australian
-Business Register, ASIC registers, and ACNC). See `docs/DATA-SOURCES.md`.
+Derived from public Australian Government data under **CC-BY** (ABR, ASIC registers,
+ACNC, AusTender, and the ATO datasets) — **per-source**: mostly CC-BY 3.0 AU, with the
+ATO R&D Tax Incentive dataset under CC-BY 2.5 AU. See `docs/DATA-SOURCES.md`.

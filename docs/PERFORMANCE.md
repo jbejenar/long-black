@@ -53,8 +53,9 @@ null/empty state; `AAT`, when present, is its own bucket — this extract had no
 | other     |         58,716 |      2.7 MB |
 | **Total** | **20,295,936** | **~958 MB** |
 
-`metadata.json` records the per-state counts, the build timestamp, and the CC-BY
-3.0 AU source attribution.
+`metadata.json` records the per-state counts, the build timestamp, and the
+**per-source** CC-BY attribution (mostly CC-BY 3.0 AU; the ATO R&D Tax Incentive
+dataset is CC-BY 2.5 AU).
 
 ## Enrichment (real extract, 2026.06.24)
 

@@ -54,10 +54,18 @@ data.gov.au, CC-BY, keyed on ABN/ACN.
   `metadata.json`; the document `_version` tracks the ABR `TransferInfo/ExtractTime`.
 - **Individual names** (sole traders' `givenName`/`familyName`) are public data
   published by the ABR under CC-BY; redistribution is permitted.
-- **Enrichment is additive + best-effort.** The typed staging tables start empty;
-  a transient data.gov.au failure for any one source leaves its nested object
-  null rather than failing the whole build (`enrich-cli.js` reports per-source
-  failures and the build logs a warning and continues).
+- **Enrichment is additive, but complete-or-fail at release.** Two distinct things:
+  - _Document fields_ are legitimately null/empty for an ABN with no matching source
+    row (most ABNs are sole traders with no ASIC/ACNC/AusTender record) — that's the
+    normal LEFT-JOIN semantics, not a failure.
+  - _Build behaviour_ is **fail-fast**, not best-effort: every configured source must
+    load above its `minRows` floor (`enrich-cli` exits non-zero otherwise) and the
+    flattened output must clear the per-source coverage gate, or the release aborts —
+    the "data must be complete before shipping" policy (`docs/RELEASING.md`,
+    `docs/PERFORMANCE.md`). A source that failed to load is a build failure, not a
+    silently-null column. Only a deliberate `allow_partial_enrichment=true` manual
+    run tolerates a degraded source (and it disables the coverage gate); the
+    scheduled monthly build never does.
 
 ## Enrichment column mappings (verify-on-first-load)
 

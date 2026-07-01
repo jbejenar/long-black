@@ -38,3 +38,32 @@ nested object in `schema.ts` → regenerate `expected-output.ndjson`. Proven for
 ## Cost model
 
 Public repo, free GitHub Actions, free GitHub Release hosting. Free.
+
+## E2 — Pipeline hardening (planned)
+
+Deferred distribution + robustness work on the release pipeline (`build.yml` is the
+authoritative pipeline; `build-local.sh` mirrors it; the container entrypoint is the
+gap):
+
+- **S3 mirror of releases.** `build.yml` publishes a GitHub Release but does not mirror
+  the assets (per-state `*.ndjson.gz`, all-ABN `.parquet`, `metadata.json`,
+  `manifest.json`) to S3. Add an upload step after the release is verified, writing to
+  `s3://<bucket>/long-black/v<version>/…` (+ a `latest/` pointer). **Pending decisions:**
+  bucket + region, and auth (GitHub OIDC role — preferred — vs. `AWS_ACCESS_KEY_ID`/
+  `AWS_SECRET_ACCESS_KEY` secrets). flat-white's `s3-smoke.yml` is the reference shape.
+- **Fix the container `real` path.** `docker-entrypoint.sh`'s real build runs enrichment
+  **best-effort** (`|| … continuing with partial`) and omits
+  `LONG_BLACK_COVERAGE_PROFILE=production` on the flatten — contradicting the fail-fast +
+  coverage-gate policy that `build.yml`/`build-local.sh` enforce. Make it fail-fast +
+  gated (with an `ALLOW_PARTIAL` escape hatch, like the others) and refresh its stale
+  "ASIC Company/Business Names + ACNC" comment (enrichment is now 14 sources).
+- **Cadence.** Currently monthly (5th, 03:00 UTC). Revisit weekly if fresher ABR/ASIC
+  core data is wanted (ATO/WGEA are annual, so daily is pointless).
+
+## E3 — GrantConnect grant awards (in progress)
+
+Whole-of-government **grant awards** (grants.gov.au), keyed on recipient ABN + value —
+the grants complement to AusTender `govSpend` (contracts). grants.gov.au sits behind a
+CloudFront WAF that 403s automated/non-browser traffic, and its report export needs a
+free account, so the loader authenticates with credentials stored as repo secrets
+(`GRANTCONNECT_USERNAME` / `GRANTCONNECT_PASSWORD`) — never committed. See NEXT-WORK.md.

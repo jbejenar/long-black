@@ -75,6 +75,12 @@ export const ABN_SOURCES: SourceInfo[] = [
     attribution: "© Commonwealth of Australia (Department of Finance / AusTender)",
   },
   {
+    name: "GrantConnect Grant Awards",
+    url: "https://www.grants.gov.au/",
+    licence: "CC-BY 3.0 AU",
+    attribution: "© Commonwealth of Australia (Department of Finance / GrantConnect)",
+  },
+  {
     name: "ATO Corporate Tax Transparency",
     url: "https://data.gov.au/data/dataset/corporate-transparency",
     licence: "CC-BY 3.0 AU",

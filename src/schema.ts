@@ -139,6 +139,19 @@ export const GovSpendSchema = z.object({
 });
 
 /**
+ * GrantConnect grant awards received, aggregated per recipient ABN (1:0..1). The
+ * grants counterpart to `govSpend` (contracts). Null when the ABN has never been a
+ * grant recipient. `totalValueAud` is the summed value of all grant awards to the ABN
+ * (all history from Dec 2017); dates are the earliest/latest award publish date.
+ */
+export const GovGrantsSchema = z.object({
+  totalValueAud: z.number(),
+  grantCount: z.number(),
+  firstGrantDate: z.string().nullable(),
+  lastGrantDate: z.string().nullable(),
+});
+
+/**
  * ATO Corporate Tax Transparency (1:0..1). Present only for entities with ≥$100M
  * total income for the reported year. `taxableIncome`/`taxPayable` are null when the
  * ATO reported ≤0 (legislation forbids reporting a zero/negative amount).
@@ -176,6 +189,8 @@ export const EntityFlagsSchema = z.object({
   isDgr: z.boolean(),
   /** Has won ≥1 Australian Government contract (`govSpend != null`). */
   hasGovContracts: z.boolean(),
+  /** Has received ≥1 Australian Government grant (`govGrants != null`). */
+  receivesGovGrants: z.boolean(),
   /** Is a ≥$100M-income entity in the ATO tax-transparency report (`taxTransparency != null`). */
   isLargeCorporateTaxpayer: z.boolean(),
   /** Claimed the ATO R&D Tax Incentive (`rdTaxIncentive != null`). */
@@ -225,6 +240,8 @@ export const AbnDocumentSchema = z.object({
   bannedDisqualified: z.array(BannedDisqualifiedSchema),
   /** AusTender government-contract spend (as a supplier); null if none. */
   govSpend: GovSpendSchema.nullable(),
+  /** GrantConnect grant awards received (as a recipient); null if none. */
+  govGrants: GovGrantsSchema.nullable(),
   /** ATO Corporate Tax Transparency (≥$100M-income entities); null otherwise. */
   taxTransparency: TaxTransparencySchema.nullable(),
   /** ATO R&D Tax Incentive claim for the reported year; null otherwise. */
@@ -248,6 +265,7 @@ export const AbnDocumentSchema = z.object({
 export type AbnDocument = z.infer<typeof AbnDocumentSchema>;
 export type EntityFlags = z.infer<typeof EntityFlagsSchema>;
 export type GovSpend = z.infer<typeof GovSpendSchema>;
+export type GovGrants = z.infer<typeof GovGrantsSchema>;
 export type TaxTransparency = z.infer<typeof TaxTransparencySchema>;
 export type RdTaxIncentive = z.infer<typeof RdTaxIncentiveSchema>;
 export type AfsAuthorisedRep = z.infer<typeof AfsAuthorisedRepSchema>;

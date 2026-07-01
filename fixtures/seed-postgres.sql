@@ -184,6 +184,15 @@ INSERT INTO abn___SCHEMA_VERSION__.gov_spend (
 ('51000000761',1500000.50,3,DATE '2018-03-15',DATE '2024-09-01'),
 ('51000000793',250000.00,1,DATE '2021-11-20',DATE '2021-11-20');
 
+-- GrantConnect grant-award fixtures (1:0..1 on ABN; pre-aggregated by gov-grants.ts).
+-- 51000000810 (a charity) received 2 grants; 51000000923 (DGR charity) one. The grants
+-- complement to gov_spend — a recipient signal, distinct from the supplier signal.
+INSERT INTO abn___SCHEMA_VERSION__.gov_grants (
+  abn, total_value_aud, grant_count, first_grant_date, last_grant_date
+) VALUES
+('51000000810',450000.75,2,DATE '2019-05-01',DATE '2023-08-15'),
+('51000000923',75000.00,1,DATE '2022-02-10',DATE '2022-02-10');
+
 -- ATO Corporate Tax Transparency (1:0..1 on ABN, >$100M income). 51000000793 has
 -- income + taxable + tax; 51000000761 reports income only (taxable/tax ≤0 → null).
 INSERT INTO abn___SCHEMA_VERSION__.tax_transparency (

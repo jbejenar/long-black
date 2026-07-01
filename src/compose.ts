@@ -17,6 +17,7 @@ import type {
   CreditLicence,
   BannedDisqualified,
   GovSpend,
+  GovGrants,
   TaxTransparency,
   RdTaxIncentive,
   AfsAuthorisedRep,
@@ -110,6 +111,7 @@ export function composeAbnDocument(row: Record<string, unknown>, version: string
     ? (row.banned_disqualified as BannedDisqualified[])
     : [];
   const govSpend = (row.gov_spend as GovSpend | null) ?? null;
+  const govGrants = (row.gov_grants as GovGrants | null) ?? null;
   const taxTransparency = (row.tax_transparency as TaxTransparency | null) ?? null;
   const rdTaxIncentive = (row.rd_tax_incentive as RdTaxIncentive | null) ?? null;
   const afsAuthorisedRep = (row.afs_authorised_rep as AfsAuthorisedRep | null) ?? null;
@@ -148,6 +150,7 @@ export function composeAbnDocument(row: Record<string, unknown>, version: string
     creditLicence,
     bannedDisqualified,
     govSpend,
+    govGrants,
     taxTransparency,
     rdTaxIncentive,
     afsAuthorisedRep,
@@ -165,6 +168,7 @@ export function composeAbnDocument(row: Record<string, unknown>, version: string
       hasEnforcementAction: bannedDisqualified.length > 0,
       isDgr: dgr.length > 0,
       hasGovContracts: govSpend !== null,
+      receivesGovGrants: govGrants !== null,
       isLargeCorporateTaxpayer: taxTransparency !== null,
       claimsRdTaxIncentive: rdTaxIncentive !== null,
       isAfsAuthorisedRep: afsAuthorisedRep !== null,

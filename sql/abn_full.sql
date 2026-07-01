@@ -57,6 +57,14 @@ gov_spend AS (
   FROM abn___SCHEMA_VERSION__.gov_spend
   ORDER BY abn, total_value_aud DESC NULLS LAST
 ),
+-- 1:0..1 — GrantConnect grant awards, aggregated per recipient ABN by src/gov-grants.ts
+-- (DISTINCT ON is a defensive guard against a duplicate ABN row).
+gov_grants AS (
+  SELECT DISTINCT ON (abn)
+    abn, total_value_aud, grant_count, first_grant_date, last_grant_date
+  FROM abn___SCHEMA_VERSION__.gov_grants
+  ORDER BY abn, total_value_aud DESC NULLS LAST
+),
 -- 1:0..1 — ATO Corporate Tax Transparency (ABN-only). DISTINCT ON keeps the latest
 -- income year if the loaded report ever carried more than one per ABN.
 tax_transparency AS (
@@ -257,6 +265,12 @@ SELECT
     'firstContractDate', gs.first_contract_date::text,
     'lastContractDate', gs.last_contract_date::text
   ) END                                                AS gov_spend,
+  CASE WHEN gg.abn IS NULL THEN NULL ELSE json_build_object(
+    'totalValueAud', gg.total_value_aud,
+    'grantCount', gg.grant_count,
+    'firstGrantDate', gg.first_grant_date::text,
+    'lastGrantDate', gg.last_grant_date::text
+  ) END                                                AS gov_grants,
   CASE WHEN tt.abn IS NULL THEN NULL ELSE json_build_object(
     'incomeYear', tt.income_year,
     'totalIncome', tt.total_income,
@@ -305,6 +319,7 @@ LEFT JOIN business_names_agg bn ON bn.abn = a.abn
 LEFT JOIN charity ch ON ch.abn = a.abn
 LEFT JOIN ais ON ais.abn = a.abn
 LEFT JOIN gov_spend gs ON gs.abn = a.abn
+LEFT JOIN gov_grants gg ON gg.abn = a.abn
 LEFT JOIN tax_transparency tt ON tt.abn = a.abn
 LEFT JOIN rd_by_abn rda ON rda.abn = a.abn
 LEFT JOIN rd_by_acn rdc

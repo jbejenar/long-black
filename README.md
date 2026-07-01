@@ -7,10 +7,10 @@ file of pre-joined records — **one NDJSON document per ABN**. It spins up an
 ephemeral Postgres, streams in the ABR ABN Bulk Extract (~20M ABNs), joins it
 with ASIC Company, ASIC Business Names, ACNC charity + AIS financials, ASIC AFS &
 credit licence, ASIC banned & disqualified, AusTender government-contract spend,
-ATO corporate-tax-transparency + R&D-incentive data, ASIC AFS + credit authorised
-representatives, WGEA gender-equality reporters, and ASIC SMSF auditors, flattens to
-one document per ABN, and writes per-state gzipped NDJSON. Then it dies. Postgres is a
-build tool,
+GrantConnect grant awards, ATO corporate-tax-transparency + R&D-incentive data, ASIC
+AFS + credit authorised representatives, WGEA gender-equality reporters, and ASIC SMSF
+auditors, flattens to one document per ABN, and writes per-state gzipped NDJSON. Then it
+dies. Postgres is a build tool,
 not
 infrastructure.
 
@@ -99,7 +99,7 @@ Annual Information Statement + ASIC AFS Licensees + ASIC Credit Licensees + ASIC
 Banned & Disqualified Orgs (all data.gov.au) + AusTender contracts (OCDS, via the OCP
 Data Registry) + ATO Corporate Tax Transparency + ATO R&D Tax Incentive + ASIC AFS
 Authorised Representatives + ASIC Credit Representatives + WGEA Reporting
-Organisations + ASIC SMSF Auditors — all
+Organisations + ASIC SMSF Auditors + GrantConnect Grant Awards — all
 **CC-BY** (mostly 3.0 AU; the ATO R&D dataset is CC-BY 2.5 AU), joined on the ABN (the
 banned register on the ACN). See [docs/DATA-SOURCES.md](docs/DATA-SOURCES.md) for the
 per-source licence + attribution.

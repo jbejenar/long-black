@@ -55,7 +55,10 @@ sed_ver sql/abn-finalize.sql | runsql
 # Enrichment is REQUIRED — the data must be complete before shipping. Each source
 # must load above its floor (enrich-cli) or this aborts. Set ALLOW_PARTIAL=true to
 # deliberately build with a degraded source (disables the coverage gate too).
-echo "[build-local] enrichment (7 sources: ASIC Company/Business Names/AFS/credit/banned + ACNC register/AIS — required)..."
+# enrich-cli loads all sources (ASIC/ACNC CSVs + AusTender + ATO XLSX + GrantConnect).
+# GrantConnect needs GRANTCONNECT_USERNAME/PASSWORD (exported into this shell, else it
+# is skipped and the coverage gate fails).
+echo "[build-local] enrichment (all sources — required; GrantConnect needs GRANTCONNECT_* creds)..."
 COVERAGE_PROFILE=production
 if DATA_DIR="$DATA_DIR" DATABASE_URL="$DB" LONG_BLACK_VERSION="$VERSION" node dist/enrich-cli.js; then
   echo "[build-local] enrichment complete"

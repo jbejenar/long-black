@@ -697,6 +697,46 @@
             }
           ]
         },
+        "govGrants": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "totalValueAud": {
+                  "type": "number"
+                },
+                "grantCount": {
+                  "type": "number"
+                },
+                "firstGrantDate": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "lastGrantDate": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": ["totalValueAud", "grantCount", "firstGrantDate", "lastGrantDate"],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "taxTransparency": {
           "anyOf": [
             {
@@ -1002,6 +1042,9 @@
             "hasGovContracts": {
               "type": "boolean"
             },
+            "receivesGovGrants": {
+              "type": "boolean"
+            },
             "isLargeCorporateTaxpayer": {
               "type": "boolean"
             },
@@ -1029,6 +1072,7 @@
             "hasEnforcementAction",
             "isDgr",
             "hasGovContracts",
+            "receivesGovGrants",
             "isLargeCorporateTaxpayer",
             "claimsRdTaxIncentive",
             "isAfsAuthorisedRep",
@@ -1067,6 +1111,7 @@
         "creditLicence",
         "bannedDisqualified",
         "govSpend",
+        "govGrants",
         "taxTransparency",
         "rdTaxIncentive",
         "afsAuthorisedRep",

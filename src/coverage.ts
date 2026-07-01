@@ -36,6 +36,8 @@ export interface CoverageFloors {
   bannedDisqualified: number;
   /** Min docs with a non-null `govSpend` object (AusTender). */
   govSpend: number;
+  /** Min docs with a non-null `govGrants` object (GrantConnect). */
+  govGrants: number;
   /** Min docs with a non-null `taxTransparency` object (ATO CTT). */
   taxTransparency: number;
   /** Min docs with a non-null `rdTaxIncentive` object (ATO R&D). */
@@ -60,6 +62,7 @@ export interface CoverageResult {
   creditLicence: number;
   bannedDisqualified: number;
   govSpend: number;
+  govGrants: number;
   taxTransparency: number;
   rdTaxIncentive: number;
   afsAuthorisedRep: number;
@@ -95,6 +98,7 @@ export const ABN_COVERAGE_FLOORS: CoverageFloors = {
   creditLicence: 1_000, // real: 3,939
   bannedDisqualified: 5, // real: 12
   govSpend: 30_000, // AusTender suppliers with an ABN, all history (~14k/year)
+  govGrants: 15_000, // GrantConnect grant recipients with an ABN, all history
   taxTransparency: 2_000, // ATO CTT: ~4,200 entities >$100M income
   rdTaxIncentive: 5_000, // ATO R&D: ~13,000 companies
   afsAuthorisedRep: 40_000, // ~112k ABN + 107k ACN rep authorisations
@@ -118,6 +122,7 @@ export const FIXTURE_COVERAGE_FLOORS: CoverageFloors = {
   creditLicence: 1,
   bannedDisqualified: 1,
   govSpend: 1,
+  govGrants: 1,
   taxTransparency: 1,
   rdTaxIncentive: 1,
   afsAuthorisedRep: 1,
@@ -148,6 +153,7 @@ export async function checkEnrichmentCoverage(
     creditLicence: 0,
     bannedDisqualified: 0,
     govSpend: 0,
+    govGrants: 0,
     taxTransparency: 0,
     rdTaxIncentive: 0,
     afsAuthorisedRep: 0,
@@ -177,6 +183,7 @@ export async function checkEnrichmentCoverage(
     if (doc.creditLicence != null) result.creditLicence += 1;
     if (isNonEmptyArray(doc.bannedDisqualified)) result.bannedDisqualified += 1;
     if (doc.govSpend != null) result.govSpend += 1;
+    if (doc.govGrants != null) result.govGrants += 1;
     if (doc.taxTransparency != null) result.taxTransparency += 1;
     if (doc.rdTaxIncentive != null) result.rdTaxIncentive += 1;
     if (doc.afsAuthorisedRep != null) result.afsAuthorisedRep += 1;
@@ -196,6 +203,7 @@ export async function checkEnrichmentCoverage(
     ["creditLicence", result.creditLicence, floors.creditLicence],
     ["bannedDisqualified", result.bannedDisqualified, floors.bannedDisqualified],
     ["govSpend", result.govSpend, floors.govSpend],
+    ["govGrants", result.govGrants, floors.govGrants],
     ["taxTransparency", result.taxTransparency, floors.taxTransparency],
     ["rdTaxIncentive", result.rdTaxIncentive, floors.rdTaxIncentive],
     ["afsAuthorisedRep", result.afsAuthorisedRep, floors.afsAuthorisedRep],

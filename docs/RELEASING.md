@@ -50,7 +50,20 @@ gh workflow run build.yml
 
 # Pin a specific extract date and build a draft for review first:
 gh workflow run build.yml -f version=2026.06.24 -f publish=false
+
+# Run the heavy build on a faster runner (the full ~15M-ABN load + flatten is disk/CPU
+# heavy; the free ubuntu-latest can brush the 120-min job timeout). Point the build job
+# at a Blacksmith NVMe runner or a self-hosted label via `runner`:
+gh workflow run build.yml -f publish=false -f runner=blacksmith-8vcpu-ubuntu-2404
 ```
+
+**Faster runner (`runner` input).** The build job's `runs-on` defaults to `ubuntu-latest`
+but accepts any label via the `runner` dispatch input — a
+[Blacksmith](https://blacksmith.sh) NVMe runner (e.g. `blacksmith-8vcpu-ubuntu-2404`,
+`blacksmith-16vcpu-ubuntu-2404`) or a `self-hosted` label. Blacksmith's fast local disk +
+more cores/RAM markedly speed the ~13 GB XML load and the flatten. **Requires the
+Blacksmith GitHub App installed on the repo** (else `blacksmith-*` jobs never get picked
+up). The scheduled weekly build always uses `ubuntu-latest`.
 
 The resolved version (from the `version` input or CKAN auto-discovery) is
 validated against a strict `YYYY.MM.DD` pattern **before** it is reused in any

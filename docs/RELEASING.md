@@ -128,6 +128,46 @@ ships, and consumers never see a partial or changing public release:
   retargeted to the current build commit, its assets are replaced and verified,
   then it is promoted per `publish`.
 
+## S3 mirror (optional)
+
+GitHub Releases are the primary distribution; `build.yml` can also mirror each
+published release's assets (per-state `*.ndjson.gz`, the all-ABN `.parquet`,
+`metadata.json`, `manifest.json`) to S3. This runs as a **separate `mirror-s3` job**
+(not a step in the build job) so that the AWS OIDC `id-token` permission is scoped to
+the mirror alone — the pipeline/build job never gets assume-role rights. It is
+**dormant until configured** — it runs only when the build **published a non-anomalous
+release** _and_ the repo **variable** `S3_BUCKET` is set. Layout:
+
+```
+s3://<bucket>/long-black/v<version>/…   # immutable, per release (data + metadata + manifest)
+s3://<bucket>/long-black/latest.json    # atomic pointer → {"version","prefix","updated"}
+```
+
+Data lives **only** in the immutable per-release prefix; **"latest" is a single small
+pointer object** (`latest.json`) overwritten in one `PutObject` — atomic in S3. There is
+no live multi-object `latest/` prefix that a failed/interrupted run could leave
+half-updated. Consumers **GET `latest.json`, read its `prefix`, then fetch the immutable
+prefix it names.** Within the release prefix, data shards + Parquet upload **before**
+`metadata.json`/`manifest.json`, so the prefix is never observed with control files
+describing absent data. The `mirror-s3` job **re-downloads the immutable published
+release** into a clean dir, so a partial-mirror failure is repaired by simply
+**re-running that job** (no rebuild).
+
+**Auth is GitHub OIDC — no long-lived keys.** To enable, set three repo **variables**
+(Settings → Secrets and variables → Actions → Variables):
+
+- `S3_BUCKET` — the bucket name (presence toggles the mirror on).
+- `AWS_ROLE_ARN` — an IAM role that trusts this repo's Actions OIDC provider and grants
+  `s3:PutObject` (+ `s3:ListBucket`) on the `long-black/*` prefix. No `DeleteObject` is
+  needed — data prefixes are immutable and `latest.json` is overwritten in place.
+- `AWS_REGION` — optional; defaults to `ap-southeast-2`.
+
+The role's trust policy conditions on
+`token.actions.githubusercontent.com:sub` = `repo:jbejenar/long-black:ref:refs/heads/main`
+(and `aud` = `sts.amazonaws.com`). The workflow already requests `id-token: write`.
+Prefer OIDC over access keys; if keys are unavoidable, swap the `configure-aws-credentials`
+inputs for `aws-access-key-id`/`aws-secret-access-key` secrets.
+
 ## Docker image
 
 After a successful, **published** (non-draft) build, `build.yml` dispatches

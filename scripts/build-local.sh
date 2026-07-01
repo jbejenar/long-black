@@ -75,6 +75,6 @@ DATABASE_URL="$DB" LONG_BLACK_VERSION="$VERSION" LONG_BLACK_COVERAGE_PROFILE="$C
   node dist/cli.js "$OUTPUT"
 
 echo "[build-local] output (split per-state + gzip + metadata)..."
-LONG_BLACK_VERSION="$VERSION" node dist/output-cli.js "$OUTPUT" "$PROJECT_DIR/output" --parquet
+LONG_BLACK_VERSION="$VERSION" node dist/output-cli.js "$OUTPUT" "$PROJECT_DIR/output"
 
 echo "[build-local] ABR core green → $OUTPUT ($(wc -l < "$OUTPUT" | tr -d ' ') documents)"

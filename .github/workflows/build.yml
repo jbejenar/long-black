@@ -2,7 +2,7 @@ name: Build
 
 # Weekly production build: download the real ABR ABN Bulk Extract, run the full
 # pipeline (download → load → flatten → verify → split → compress), and publish
-# the per-state NDJSON(.gz) + all-ABN Parquet + metadata.json + manifest.json as a
+# the per-state NDJSON(.gz) + metadata.json + manifest.json as a
 # GitHub Release.
 #
 # Mirrors scripts/build-local.sh, but against a postgres:16 service and on a
@@ -215,7 +215,7 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::output (split + gzip + metadata)"
-          node dist/output-cli.js "output/long-black-${VERSION}.ndjson" output --parquet
+          node dist/output-cli.js "output/long-black-${VERSION}.ndjson" output
           echo "::endgroup::"
 
           echo "::group::manifest (per-shard checksums + provenance)"
@@ -235,13 +235,10 @@ jobs:
           done
           [ "$count" -ge 1 ] || { echo "no per-state output files"; exit 1; }
           echo "$count gzip files, all valid"
-          # The all-ABN Parquet (emitted with --parquet) must exist and be nonempty.
-          pq=$(ls output/long-black-*.parquet 2>/dev/null | head -1)
-          [ -s "$pq" ] || { echo "no Parquet output file"; exit 1; }
           # The release manifest (per-shard checksums + provenance) must exist and parse.
           [ -s output/manifest.json ] || { echo "no manifest.json"; exit 1; }
           jq -e '.manifest_version == 2 and (.files | length) >= 1' output/manifest.json > /dev/null
-          ls -lh output/long-black-*.ndjson.gz "$pq" output/metadata.json output/manifest.json
+          ls -lh output/long-black-*.ndjson.gz output/metadata.json output/manifest.json
 
       - name: Compare to prior release (anomaly gate)
         id: compare
@@ -320,7 +317,7 @@ jobs:
             (.counts | to_entries | sort_by(.key)[] | "| \(.key | ascii_upcase) | \(.value) |")
           ' output/metadata.json)
           {
-            echo "Australian Business (ABN) data — one NDJSON document per ABN, split per state and gzip-compressed, plus an all-ABN Parquet file (\`long-black-${VERSION}.parquet\`)."
+            echo "Australian Business (ABN) data — one NDJSON document per ABN, split per state and gzip-compressed. The full all-ABN dataset (\`all.ndjson.gz\`) is on the S3 mirror."
             echo "Source: ABR ABN Bulk Extract, extract ${VERSION}."
             echo ""
             echo "${STATS}"
@@ -345,7 +342,7 @@ jobs:
             echo "::warning::anomaly gate flagged this build — forcing draft for review"
             WANT_DRAFT=true
           fi
-          ASSETS=(output/long-black-*.ndjson.gz output/long-black-*.parquet output/metadata.json output/manifest.json)
+          ASSETS=(output/long-black-*.ndjson.gz output/metadata.json output/manifest.json)
 
           # Verify every expected asset is present on the release with a NONZERO
           # size before it is made public — by exact name, not just an aggregate
@@ -461,9 +458,11 @@ jobs:
         run: |
           set -euo pipefail
           mkdir s3-staging
+          # The per-state shards (the data) + the release manifest (which the S3 manifest
+          # is derived from). metadata.json stays Release-only; the manifest carries the
+          # counts + provenance the S3 side needs.
           gh release download "$TAG" --repo "$REPO" --dir s3-staging \
-            --pattern 'long-black-*.ndjson.gz' --pattern 'long-black-*.parquet' \
-            --pattern 'metadata.json' --pattern 'manifest.json'
+            --pattern 'long-black-*.ndjson.gz' --pattern 'manifest.json'
           ls -lh s3-staging
 
       - name: Configure AWS credentials (OIDC)
@@ -479,15 +478,45 @@ jobs:
           set -euo pipefail
           VER="${TAG#v}"                       # strip the leading v (v2026.06.24 → 2026.06.24)
           DEST="s3://${S3_BUCKET}/data/abn/${VER}"
-          # Immutable, product-namespaced data (matches flat-white's data/<product>/<ver>/).
-          # The manifest goes to a SEPARATE manifests/ prefix and is uploaded LAST, after
-          # all the data it references, so it never points at not-yet-present objects.
-          aws s3 cp s3-staging/ "${DEST}/" --recursive --no-progress --exclude 'manifest.json'
-          # Rewrite the manifest's file keys to their S3 keys (data/abn/<ver>/<basename>),
-          # matching flat-white's manifest convention, then publish it.
-          jq --arg p "data/abn/${VER}/" \
-            '.files |= map(.key = ($p + (.key | sub(".*/"; ""))))' \
-            s3-staging/manifest.json > manifest.s3.json
+          P="data/abn/${VER}/"
+
+          # Build the full all-ABN bundle from the per-state shards. gzip members
+          # concatenate into ONE valid .gz that every reader decompresses transparently,
+          # so there's no re-compression pass. The glob is sorted → deterministic order.
+          cat s3-staging/long-black-*.ndjson.gz > s3-staging/all.ndjson.gz
+          echo "all.ndjson.gz: $(du -h s3-staging/all.ndjson.gz | cut -f1) from" \
+            "$(ls s3-staging/long-black-*.ndjson.gz | wc -l | tr -d ' ') shards"
+
+          # Immutable, product-namespaced DATA (matches flat-white's data/<product>/<ver>/):
+          # the per-state shards + the full all.ndjson.gz. The manifest goes to a SEPARATE
+          # manifests/ prefix, uploaded LAST (after the data it describes is present).
+          aws s3 cp s3-staging/ "${DEST}/" --recursive --no-progress \
+            --exclude '*' --include 'long-black-*.ndjson.gz' --include 'all.ndjson.gz'
+
+          # A+++ S3 manifest: (1) rewrite each shard's key to its S3 key; (2) add
+          # all.ndjson.gz as an AGGREGATE file with its own sha256 + bytes, marked
+          # aggregate:true and EXCLUDED from total_records (it duplicates the shards, so
+          # counting it would double the total). The bundle is fully integrity-described
+          # without inflating the count.
+          ALL_SHA=$(sha256sum s3-staging/all.ndjson.gz | cut -d' ' -f1)
+          ALL_BYTES=$(stat -c%s s3-staging/all.ndjson.gz)
+          jq --arg p "$P" --arg sha "$ALL_SHA" --argjson bytes "$ALL_BYTES" '
+            (.files |= map(.key = ($p + (.key | sub(".*/"; "")))))
+            | .files += [{
+                key: ($p + "all.ndjson.gz"),
+                records: .total_records,
+                bytes: $bytes,
+                sha256: $sha,
+                aggregate: true
+              }]
+          ' s3-staging/manifest.json > manifest.s3.json
+
+          # Integrity gate: total_records must still equal the sum of the NON-aggregate
+          # (per-state) files — a broken rewrite or a double-count fails the mirror here.
+          SUM=$(jq '[.files[] | select(.aggregate != true) | .records] | add' manifest.s3.json)
+          TOTAL=$(jq '.total_records' manifest.s3.json)
+          [ "$SUM" = "$TOTAL" ] || { echo "::error::S3 manifest total mismatch: $SUM != $TOTAL"; exit 1; }
+
           aws s3 cp manifest.s3.json "s3://${S3_BUCKET}/manifests/abn-${VER}.json" \
             --content-type application/json --no-progress
-          echo "mirrored ${TAG} → ${DEST}/ ; manifest → manifests/abn-${VER}.json"
+          echo "mirrored ${TAG} → ${DEST}/ (shards + all.ndjson.gz) ; manifest → manifests/abn-${VER}.json"

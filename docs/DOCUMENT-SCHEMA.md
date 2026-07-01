@@ -11,8 +11,8 @@
 > added the **ASIC representative** pair (`afsAuthorisedRep`, `creditRep`). 0.13.0
 > added the **financial-depth** ATO pair (`taxTransparency`, `rdTaxIncentive`). 0.12.0
 > added **`govSpend`** (AusTender). 0.11.0 added **derived signals**. 0.10.0 added
-> `charity.financials`. 0.9.0 added the **regulated & risk** bundle. 0.6.0 added
-> optional **Parquet**.
+> `charity.financials`. 0.9.0 added the **regulated & risk** bundle. (0.6.0 added an
+> optional Parquet export, since **removed** — NDJSON only; see CHANGELOG.)
 
 One NDJSON document per ABN. This document is the contract: `src/schema.ts`,
 this file, and `fixtures/expected-output.ndjson` move together (additive field =
@@ -360,14 +360,11 @@ strict `YYYY-MM-DD`, clamped to 0 if it post-dates the build. `isActive` is
 NDJSON — one document per line, `ORDER BY abn`. Per-state split + gzip are
 applied downstream (`crema` split/compress). Dates are ISO `YYYY-MM-DD`.
 
-With `--parquet`, an all-ABN `long-black-<version>.parquet` is also emitted
-(`crema` `convertToParquet`): scalar fields become native Parquet columns
-(`gstRegistered`/`isActive` booleans, `ageYears` INT64) and the nested/array fields
-(`businessNames`, `tradingNames`, `otherNames`, `dgr`, `registeredBusinessNames`,
-`bannedDisqualified`, `flags`, `company`, `charity`, `financialServicesLicence`,
-`creditLicence`, `govSpend`) are serialized to JSON strings. Every document field is
-represented (`src/parquet-output.ts` is kept in lockstep with the schema). Consumers
-can filter by the native `state` column.
+The GitHub Release ships the **per-state** `*.ndjson.gz` shards (each well under
+GitHub's 2 GB per-asset limit). The **S3 mirror** additionally publishes a
+consolidated all-ABN `all.ndjson.gz` (the gzip concatenation of the shards) under
+`data/abn/<version>/` — for bulk/programmatic access. NDJSON is the only output
+format (a prior optional Parquet export was removed — see CHANGELOG).
 
 ## Data licensing
 

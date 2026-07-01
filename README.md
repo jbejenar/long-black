@@ -80,12 +80,13 @@ Everything except `load`, `enrich`, `compose`, the schema, and the SQL comes fro
 ## Releases
 
 Each weekly [GitHub Release](https://github.com/jbejenar/long-black/releases)
-ships the per-state `long-black-<version>-<state>.ndjson.gz` shards, an all-ABN
-`.parquet`, `metadata.json` (per-state counts + CC-BY attribution), and
-`manifest.json` (per-shard sha256 + record counts + build provenance). A browsable
+ships the per-state `long-black-<version>-<state>.ndjson.gz` shards, `metadata.json`
+(per-state counts + CC-BY attribution), and `manifest.json` (per-shard sha256 +
+record counts + build provenance). A browsable
 [release catalogue](https://jbejenar.github.io/long-black/) is generated and
 published to GitHub Pages after each build. Releases are also mirrored to a shared
-S3 bucket (`data/abn/<version>/` + `manifests/abn-<version>.json`) when configured —
+S3 bucket (`data/abn/<version>/` + `manifests/abn-<version>.json`) when configured,
+where a consolidated all-ABN `all.ndjson.gz` is published alongside the shards —
 see [docs/RELEASING.md](docs/RELEASING.md).
 
 ```bash
@@ -113,7 +114,7 @@ per-source licence + attribution.
 | Loader        | `saxes` streaming XML (ABR) + COPY-based CSV/TSV (ASIC/ACNC) → COPY                 |
 | Pipeline core | `crema` (flatten, split, compress, verify, download, metadata, manifest, catalogue) |
 | Language      | Node 22 / TypeScript (ESM, strict)                                                  |
-| Output        | NDJSON (per-state, gzipped) + optional all-ABN Parquet (`--parquet`)                |
+| Output        | NDJSON (`.ndjson.gz`) — per-state on the Release, full `all.ndjson.gz` on S3        |
 
 ## Licence
 

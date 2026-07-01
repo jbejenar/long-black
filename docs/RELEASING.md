@@ -22,18 +22,18 @@ document per ABN, split per state and gzip-compressed, plus `metadata.json`.
   `qld`, `wa`, `sa`, `tas`, `act`, `nt`, plus `aat` for the Australian Antarctic
   Territory, and `other` for null/empty state). The ABR `StateEnum` is closed, so
   this bucket set is exhaustive.
-- `long-black-<version>.parquet` — the all-ABN dataset as a single Parquet file
-  (a derived convenience encoding; scalars are columns, nested fields are JSON
-  strings). Not a manifest source file — it duplicates the NDJSON records.
 - `metadata.json` — per-state counts, build timestamp, schema version, and the
   per-source CC-BY attribution (mostly 3.0 AU; the ATO R&D dataset is CC-BY 2.5 AU).
 - `manifest.json` — the release provenance document (crema `buildManifestV2`,
   product `abn`): per-shard sha256 + record counts + the build pipeline
   (repo/commit/run). Its source files are the per-state NDJSON.gz shards, whose
-  records sum to `total_records`; the Parquet is intentionally excluded so the
-  total is counted once.
+  records sum to `total_records`.
 
-All assets are well under GitHub's 2 GB per-asset limit (largest state ≈ 308 MB).
+The GitHub Release is **per-state NDJSON only** — the consolidated all-ABN
+`all.ndjson.gz` is published to the **S3 mirror** (see below), not the Release, so
+the Release stays lean (and every asset is well under GitHub's 2 GB per-asset limit;
+largest state ≈ 400 MB). NDJSON is the only output format (a prior optional Parquet
+export was removed — at scale it was uncompressed and ~10× the gzipped NDJSON).
 
 The release notes carry a machine-readable `**<n>** businesses` line and a
 per-state `| STATE | count |` table (emitted from `metadata.json` via `jq`). This
@@ -137,12 +137,27 @@ published release to the **shared S3 bucket that also holds flat-white**, follow
 flat-white's **product-namespaced layout** so the two coexist:
 
 ```
-s3://<bucket>/data/abn/<version>/…       # long-black: shards + all-ABN Parquet + metadata
-s3://<bucket>/manifests/abn-<version>.json   # long-black manifest (files[].key → the S3 keys)
+s3://<bucket>/data/abn/<version>/long-black-<version>-<state>.ndjson.gz   # per-state shards
+s3://<bucket>/data/abn/<version>/all.ndjson.gz            # full all-ABN bundle (S3 only)
+s3://<bucket>/manifests/abn-<version>.json               # manifest (files[].key → the S3 keys)
 
 s3://<bucket>/data/address/<version>/…   # flat-white (product "address"), for reference
 s3://<bucket>/manifests/address-<version>.json
 ```
+
+**`all.ndjson.gz`** is the consolidated all-ABN NDJSON — the gzip **concatenation** of
+the per-state shards (gzip members concatenate into one valid `.gz` every reader
+decompresses transparently, so there's no re-compression). It lives **only on S3** (not
+the GitHub Release, which stays lean per-state, matching flat-white). The `mirror-s3`
+job builds it from the shards it already downloads, so the build job still needs **no S3
+credentials**.
+
+The **S3 manifest** (`manifests/abn-<version>.json`) rewrites each shard's `key` to its
+S3 key and adds `all.ndjson.gz` as an **aggregate** file — its own `sha256` + `bytes`,
+marked `aggregate: true` and **excluded from `total_records`** (it duplicates the
+shards, so counting it would double the total). The mirror asserts
+`total_records == Σ non-aggregate files` before publishing, so the bundle is fully
+integrity-described without inflating the count.
 
 Each release goes to an **immutable, per-version prefix** — nothing is ever mutated in
 place, so there is no `DeleteObject` and no `latest` pointer to leave half-updated

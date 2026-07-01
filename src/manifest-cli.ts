@@ -5,9 +5,10 @@
  *
  * Reads metadata.json (per-state counts + version), checksums every per-state
  * NDJSON.gz shard (the canonical record files), and writes manifest.json via
- * crema's buildManifestV2. The all-ABN Parquet is a derived convenience asset
- * and is intentionally not a manifest source file (it would double the record
- * total). Pipeline provenance comes from the GitHub Actions env.
+ * crema's buildManifestV2. The full all-ABN `all.ndjson.gz` is a derived bundle
+ * (a concatenation of these shards) published only to the S3 mirror — the mirror
+ * adds it to the S3 manifest as an aggregate file, excluded from the record total
+ * so the count is not doubled. Pipeline provenance comes from the GitHub Actions env.
  */
 
 import { readFileSync, writeFileSync, readdirSync, statSync, createReadStream } from "node:fs";

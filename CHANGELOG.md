@@ -33,6 +33,23 @@ The NDJSON document is the contract (`docs/DOCUMENT-SCHEMA.md`).
 
 ### Added
 
+- **0.14.0** — **ASIC representatives** — two per-ABN authorisation signals plus
+  `flags.isAfsAuthorisedRep` / `isCreditRep`. Additive, minor bump.
+  - `afsAuthorisedRep` (`{number, licenceNumber, status, startDate, endDate}` | null)
+    — ASIC **AFS Authorised Representatives** (`asic-afs-authorised-representative`),
+    ~126k businesses authorised to distribute financial products under an AFSL.
+  - `creditRep` (`{number, licenceNumber, startDate, endDate}` | null) — ASIC **Credit
+    Representatives** (`asic-credit-representative`), ~18k businesses authorised under
+    a credit licence.
+  - Both keyed on ABN-**or**-ACN → the ACN rows resolve via `asic_number` (the same
+    type-guarded two-path as the ASIC AFS/credit licence sources; proven on the
+    fixture ACN row). Both CC-BY 3.0 AU (© ASIC), added to `ABN_SOURCES`.
+  - **Scoped decision:** the ASIC Financial Advisers Register (FAR) was evaluated for
+    an adviser-count-per-AFSL signal but **excluded** — the published tab-delimited
+    file carries embedded tabs in free-text columns before the ABN key (a field-count
+    mismatch on real data), so a reliable ABN-keyed load isn't possible without
+    risking column misalignment. Per the data-completeness policy we don't ship a
+    source we can't load cleanly; its marginal value didn't justify a fragile parse.
 - **0.13.0** — **Financial depth** (ATO) — two premium per-ABN money signals plus
   `flags.isLargeCorporateTaxpayer` / `claimsRdTaxIncentive`. Additive, minor bump.
   - `taxTransparency` (`{incomeYear, totalIncome, taxableIncome, taxPayable}` | null)

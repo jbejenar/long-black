@@ -83,6 +83,23 @@ export const CreditLicenceSchema = z.object({
   endDate: z.string().nullable(),
 });
 
+/** ASIC AFS authorised representative — authorised to distribute financial products under an AFSL. */
+export const AfsAuthorisedRepSchema = z.object({
+  number: z.string(),
+  licenceNumber: z.string().nullable(),
+  status: z.string().nullable(),
+  startDate: z.string().nullable(),
+  endDate: z.string().nullable(),
+});
+
+/** ASIC credit representative — authorised under a credit licensee. */
+export const CreditRepSchema = z.object({
+  number: z.string(),
+  licenceNumber: z.string().nullable(),
+  startDate: z.string().nullable(),
+  endDate: z.string().nullable(),
+});
+
 /** An ASIC banning/disqualification action against an organisation (0..N, joined via ACN). */
 export const BannedDisqualifiedSchema = z.object({
   type: z.string().nullable(),
@@ -146,6 +163,10 @@ export const EntityFlagsSchema = z.object({
   isLargeCorporateTaxpayer: z.boolean(),
   /** Claimed the ATO R&D Tax Incentive (`rdTaxIncentive != null`). */
   claimsRdTaxIncentive: z.boolean(),
+  /** Is an ASIC AFS authorised representative (`afsAuthorisedRep != null`). */
+  isAfsAuthorisedRep: z.boolean(),
+  /** Is an ASIC credit representative (`creditRep != null`). */
+  isCreditRep: z.boolean(),
 });
 
 export const AbnDocumentSchema = z.object({
@@ -187,6 +208,10 @@ export const AbnDocumentSchema = z.object({
   taxTransparency: TaxTransparencySchema.nullable(),
   /** ATO R&D Tax Incentive claim for the reported year; null otherwise. */
   rdTaxIncentive: RdTaxIncentiveSchema.nullable(),
+  /** ASIC AFS authorised representative record; null if not an authorised rep. */
+  afsAuthorisedRep: AfsAuthorisedRepSchema.nullable(),
+  /** ASIC credit representative record; null if not a credit rep. */
+  creditRep: CreditRepSchema.nullable(),
   /** Whole years since `abnStatusFromDate` relative to `_version`; null if no date. */
   ageYears: z.number().nullable(),
   /** `abnStatus === 'ACT'` — a convenience boolean. */
@@ -200,6 +225,8 @@ export type EntityFlags = z.infer<typeof EntityFlagsSchema>;
 export type GovSpend = z.infer<typeof GovSpendSchema>;
 export type TaxTransparency = z.infer<typeof TaxTransparencySchema>;
 export type RdTaxIncentive = z.infer<typeof RdTaxIncentiveSchema>;
+export type AfsAuthorisedRep = z.infer<typeof AfsAuthorisedRepSchema>;
+export type CreditRep = z.infer<typeof CreditRepSchema>;
 export type DgrEndorsement = z.infer<typeof DgrSchema>;
 export type RegisteredBusinessName = z.infer<typeof RegisteredBusinessNameSchema>;
 export type CompanyEnrichment = z.infer<typeof CompanyEnrichmentSchema>;

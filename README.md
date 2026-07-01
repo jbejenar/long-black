@@ -6,9 +6,10 @@ long-black turns Australia's public **business-entity** data into a single flat
 file of pre-joined records — **one NDJSON document per ABN**. It spins up an
 ephemeral Postgres, streams in the ABR ABN Bulk Extract (~20M ABNs), joins it
 with ASIC Company, ASIC Business Names, ACNC charity + AIS financials, ASIC AFS &
-credit licence, ASIC banned & disqualified, AusTender government-contract spend, and
-ATO corporate-tax-transparency + R&D-incentive data, flattens to one document per
-ABN, and writes per-state gzipped NDJSON. Then it dies. Postgres is a build tool,
+credit licence, ASIC banned & disqualified, AusTender government-contract spend,
+ATO corporate-tax-transparency + R&D-incentive data, and ASIC AFS + credit authorised
+representatives, flattens to one document per ABN, and writes per-state gzipped
+NDJSON. Then it dies. Postgres is a build tool,
 not
 infrastructure.
 
@@ -95,7 +96,8 @@ gh release download --repo jbejenar/long-black --pattern 'long-black-*-nsw.ndjso
 ABR ABN Bulk Extract + ASIC Company + ASIC Business Names + ACNC Charities + ACNC
 Annual Information Statement + ASIC AFS Licensees + ASIC Credit Licensees + ASIC
 Banned & Disqualified Orgs (all data.gov.au) + AusTender contracts (OCDS, via the OCP
-Data Registry) + ATO Corporate Tax Transparency + ATO R&D Tax Incentive — all
+Data Registry) + ATO Corporate Tax Transparency + ATO R&D Tax Incentive + ASIC AFS
+Authorised Representatives + ASIC Credit Representatives — all
 **CC-BY** (mostly 3.0 AU; the ATO R&D dataset is CC-BY 2.5 AU), joined on the ABN (the
 banned register on the ACN). See [docs/DATA-SOURCES.md](docs/DATA-SOURCES.md) for the
 per-source licence + attribution.

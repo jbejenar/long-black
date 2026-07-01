@@ -31,6 +31,8 @@ const ZERO: CoverageFloors = {
   govSpend: 0,
   taxTransparency: 0,
   rdTaxIncentive: 0,
+  afsAuthorisedRep: 0,
+  creditRep: 0,
 };
 
 // A document with all enrichment present.
@@ -45,6 +47,8 @@ const full = {
   govSpend: { totalValueAud: 1000, contractCount: 1 },
   taxTransparency: { incomeYear: "2023-24", totalIncome: 100 },
   rdTaxIncentive: { incomeYear: "2022-23", totalRdExpenditure: 50 },
+  afsAuthorisedRep: { number: "R1" },
+  creditRep: { number: "CR1" },
   businessNames: ["B"],
   dgr: [{ name: "D", statusFromDate: "2020-01-01" }],
 };
@@ -60,6 +64,8 @@ const bare = {
   govSpend: null,
   taxTransparency: null,
   rdTaxIncentive: null,
+  afsAuthorisedRep: null,
+  creditRep: null,
   businessNames: [],
   dgr: [],
 };
@@ -86,6 +92,8 @@ describe("checkEnrichmentCoverage", () => {
     expect(cov.govSpend).toBe(2);
     expect(cov.taxTransparency).toBe(2);
     expect(cov.rdTaxIncentive).toBe(2);
+    expect(cov.afsAuthorisedRep).toBe(2);
+    expect(cov.creditRep).toBe(2);
     expect(cov.businessNames).toBe(2);
     expect(cov.dgr).toBe(2);
     expect(cov.ok).toBe(true);
@@ -131,9 +139,11 @@ describe("checkEnrichmentCoverage", () => {
       govSpend: 5,
       taxTransparency: 5,
       rdTaxIncentive: 5,
+      afsAuthorisedRep: 5,
+      creditRep: 5,
     };
     const cov = await checkEnrichmentCoverage(ndjson([full, bare]), floors);
     expect(cov.ok).toBe(false);
-    expect(cov.shortfalls).toHaveLength(10);
+    expect(cov.shortfalls).toHaveLength(12);
   });
 });

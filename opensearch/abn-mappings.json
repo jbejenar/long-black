@@ -161,6 +161,25 @@
           "totalRdExpenditure": { "type": "double" }
         }
       },
+      "afsAuthorisedRep": {
+        "type": "object",
+        "properties": {
+          "number": { "type": "keyword" },
+          "licenceNumber": { "type": "keyword" },
+          "status": { "type": "keyword" },
+          "startDate": { "type": "date", "format": "yyyy-MM-dd", "ignore_malformed": true },
+          "endDate": { "type": "date", "format": "yyyy-MM-dd", "ignore_malformed": true }
+        }
+      },
+      "creditRep": {
+        "type": "object",
+        "properties": {
+          "number": { "type": "keyword" },
+          "licenceNumber": { "type": "keyword" },
+          "startDate": { "type": "date", "format": "yyyy-MM-dd", "ignore_malformed": true },
+          "endDate": { "type": "date", "format": "yyyy-MM-dd", "ignore_malformed": true }
+        }
+      },
       "ageYears": { "type": "integer" },
       "isActive": { "type": "boolean" },
       "flags": {
@@ -174,7 +193,9 @@
           "isDgr": { "type": "boolean" },
           "hasGovContracts": { "type": "boolean" },
           "isLargeCorporateTaxpayer": { "type": "boolean" },
-          "claimsRdTaxIncentive": { "type": "boolean" }
+          "claimsRdTaxIncentive": { "type": "boolean" },
+          "isAfsAuthorisedRep": { "type": "boolean" },
+          "isCreditRep": { "type": "boolean" }
         }
       }
     }

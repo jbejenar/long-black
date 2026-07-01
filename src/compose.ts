@@ -19,6 +19,8 @@ import type {
   GovSpend,
   TaxTransparency,
   RdTaxIncentive,
+  AfsAuthorisedRep,
+  CreditRep,
 } from "./schema.js";
 
 function emptyToNull(value: unknown): string | null {
@@ -108,6 +110,8 @@ export function composeAbnDocument(row: Record<string, unknown>, version: string
   const govSpend = (row.gov_spend as GovSpend | null) ?? null;
   const taxTransparency = (row.tax_transparency as TaxTransparency | null) ?? null;
   const rdTaxIncentive = (row.rd_tax_incentive as RdTaxIncentive | null) ?? null;
+  const afsAuthorisedRep = (row.afs_authorised_rep as AfsAuthorisedRep | null) ?? null;
+  const creditRep = (row.credit_rep as CreditRep | null) ?? null;
 
   return {
     _id: String(row._id),
@@ -142,6 +146,8 @@ export function composeAbnDocument(row: Record<string, unknown>, version: string
     govSpend,
     taxTransparency,
     rdTaxIncentive,
+    afsAuthorisedRep,
+    creditRep,
     // Derived signals — computed here from the fields above, no extra source.
     ageYears: computeAgeYears(abnStatusFromDate, version),
     isActive: status === "ACT",
@@ -155,6 +161,8 @@ export function composeAbnDocument(row: Record<string, unknown>, version: string
       hasGovContracts: govSpend !== null,
       isLargeCorporateTaxpayer: taxTransparency !== null,
       claimsRdTaxIncentive: rdTaxIncentive !== null,
+      isAfsAuthorisedRep: afsAuthorisedRep !== null,
+      isCreditRep: creditRep !== null,
     },
   };
 }

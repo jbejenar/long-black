@@ -101,3 +101,16 @@ CREATE UNLOGGED TABLE IF NOT EXISTS abn___SCHEMA_VERSION__.tax_transparency (
 CREATE UNLOGGED TABLE IF NOT EXISTS abn___SCHEMA_VERSION__.rd_tax_incentive (
   abn char(11), acn text, income_year text, total_rd_expenditure numeric
 );
+
+-- ASIC representative registers (Bundle B). AFS/credit reps are businesses
+-- authorised under a licensee; keyed on ABN-or-ACN (routed to abn/acn like the
+-- licence sources).
+CREATE UNLOGGED TABLE IF NOT EXISTS abn___SCHEMA_VERSION__.asic_afs_rep (
+  abn char(11), acn text, rep_number text, licence_number text, status text,
+  start_date date, end_date date
+);
+
+CREATE UNLOGGED TABLE IF NOT EXISTS abn___SCHEMA_VERSION__.asic_credit_rep (
+  abn char(11), acn text, rep_number text, licence_number text,
+  start_date date, end_date date
+);

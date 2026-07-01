@@ -764,6 +764,110 @@
             }
           ]
         },
+        "afsAuthorisedRep": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "number": {
+                  "type": "string"
+                },
+                "licenceNumber": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "status": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "startDate": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "endDate": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": ["number", "licenceNumber", "status", "startDate", "endDate"],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "creditRep": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "number": {
+                  "type": "string"
+                },
+                "licenceNumber": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "startDate": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "endDate": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": ["number", "licenceNumber", "startDate", "endDate"],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "ageYears": {
           "anyOf": [
             {
@@ -806,6 +910,12 @@
             },
             "claimsRdTaxIncentive": {
               "type": "boolean"
+            },
+            "isAfsAuthorisedRep": {
+              "type": "boolean"
+            },
+            "isCreditRep": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -817,7 +927,9 @@
             "isDgr",
             "hasGovContracts",
             "isLargeCorporateTaxpayer",
-            "claimsRdTaxIncentive"
+            "claimsRdTaxIncentive",
+            "isAfsAuthorisedRep",
+            "isCreditRep"
           ],
           "additionalProperties": false
         }
@@ -852,6 +964,8 @@
         "govSpend",
         "taxTransparency",
         "rdTaxIncentive",
+        "afsAuthorisedRep",
+        "creditRep",
         "ageYears",
         "isActive",
         "flags"

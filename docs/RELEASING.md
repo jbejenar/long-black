@@ -61,16 +61,16 @@ ABN checksum, schema violation, duplicate or out-of-order `_id` — because
 
 ### Data completeness (the data must be complete before shipping)
 
-A clean, schema-valid output is not sufficient: the join is across eleven sources
+A clean, schema-valid output is not sufficient: the join is across thirteen sources
 of truth, and a silently-missing enrichment source would still produce valid (but
 hollow) documents. Three gates make incompleteness fatal rather than invisible:
 
 1. **Per-source load floor.** `enrich-cli` fails if any source loads fewer than
    its `minRows` (company / business-names 1,000,000, charities 20,000, AIS 20,000,
    AFS/credit licensees 1,000, banned orgs 5, AusTender suppliers 30,000, ATO
-   tax-transparency 2,000, ATO R&D 5,000 — ≈⅓ of the real volumes in
-   `docs/PERFORMANCE.md`, except the tiny volatile banned register). Catches an
-   empty/truncated source or the wrong resource being picked.
+   tax-transparency 2,000, ATO R&D 5,000, ASIC AFS reps 50,000, ASIC credit reps
+   5,000 — ≈⅓ of the real volumes in `docs/PERFORMANCE.md`, except the tiny volatile
+   banned register). Catches an empty/truncated source or the wrong resource picked.
 2. **Enrichment required.** `build.yml` treats an enrichment failure as fatal — no
    silent partial release. A deliberate manual run may set
    `allow_partial_enrichment=true` to ship with a degraded source (which also

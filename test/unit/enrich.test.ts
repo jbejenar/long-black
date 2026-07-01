@@ -9,29 +9,33 @@ import type { CkanResource } from "crema";
 import { ENRICHMENT_SOURCES, selectEnrichmentResource } from "../../src/enrich.js";
 
 describe("ENRICHMENT_SOURCES config", () => {
-  it("covers the seven enrichment sources with distinct staging tables", () => {
+  it("covers the nine enrichment sources with distinct staging tables", () => {
     expect(ENRICHMENT_SOURCES.map((s) => s.key).sort()).toEqual([
       "acnc_ais",
       "acnc_charity",
       "asic_afs_licence",
+      "asic_afs_rep",
       "asic_banned_disqualified",
       "asic_business_name",
       "asic_company",
       "asic_credit_licence",
+      "asic_credit_rep",
     ]);
   });
 
   it("uses the right delimiter/quoting per source", () => {
     const byKey = Object.fromEntries(ENRICHMENT_SOURCES.map((s) => [s.key, s]));
-    // Company/business-names + banned-org .csv files are tab-delimited (ASIC quirk).
+    // Company/business-names + banned-org + AFS reps are tab-delimited (ASIC quirk).
     expect(byKey.asic_company).toMatchObject({ delimiter: "\t", quoting: false });
     expect(byKey.asic_business_name).toMatchObject({ delimiter: "\t", quoting: false });
     expect(byKey.asic_banned_disqualified).toMatchObject({ delimiter: "\t", quoting: false });
-    // ACNC (register + AIS) + AFS/credit "- Current" CSVs are real comma CSVs.
+    expect(byKey.asic_afs_rep).toMatchObject({ delimiter: "\t", quoting: false });
+    // ACNC (register + AIS) + AFS/credit licences + credit reps are real comma CSVs.
     expect(byKey.acnc_charity).toMatchObject({ delimiter: ",", quoting: true });
     expect(byKey.acnc_ais).toMatchObject({ delimiter: ",", quoting: true });
     expect(byKey.asic_afs_licence).toMatchObject({ delimiter: ",", quoting: true });
     expect(byKey.asic_credit_licence).toMatchObject({ delimiter: ",", quoting: true });
+    expect(byKey.asic_credit_rep).toMatchObject({ delimiter: ",", quoting: true });
   });
 
   it("sets a positive completeness floor (minRows) below the real volume", () => {

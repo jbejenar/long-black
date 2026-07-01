@@ -40,6 +40,10 @@ export interface CoverageFloors {
   taxTransparency: number;
   /** Min docs with a non-null `rdTaxIncentive` object (ATO R&D). */
   rdTaxIncentive: number;
+  /** Min docs with a non-null `afsAuthorisedRep` object (ASIC AFS reps). */
+  afsAuthorisedRep: number;
+  /** Min docs with a non-null `creditRep` object (ASIC credit reps). */
+  creditRep: number;
 }
 
 export interface CoverageResult {
@@ -54,6 +58,8 @@ export interface CoverageResult {
   govSpend: number;
   taxTransparency: number;
   rdTaxIncentive: number;
+  afsAuthorisedRep: number;
+  creditRep: number;
   /** ABR-owned arrays — reported for visibility, not gated (always present). */
   businessNames: number;
   dgr: number;
@@ -85,6 +91,8 @@ export const ABN_COVERAGE_FLOORS: CoverageFloors = {
   govSpend: 30_000, // AusTender suppliers with an ABN, all history (~14k/year)
   taxTransparency: 2_000, // ATO CTT: ~4,200 entities >$100M income
   rdTaxIncentive: 5_000, // ATO R&D: ~13,000 companies
+  afsAuthorisedRep: 40_000, // ~112k ABN + 107k ACN rep authorisations
+  creditRep: 5_000, // ~17.7k ABN/ACN
 };
 
 /**
@@ -104,6 +112,8 @@ export const FIXTURE_COVERAGE_FLOORS: CoverageFloors = {
   govSpend: 1,
   taxTransparency: 1,
   rdTaxIncentive: 1,
+  afsAuthorisedRep: 1,
+  creditRep: 1,
 };
 
 function isNonEmptyArray(value: unknown): boolean {
@@ -130,6 +140,8 @@ export async function checkEnrichmentCoverage(
     govSpend: 0,
     taxTransparency: 0,
     rdTaxIncentive: 0,
+    afsAuthorisedRep: 0,
+    creditRep: 0,
     businessNames: 0,
     dgr: 0,
     ok: true,
@@ -155,6 +167,8 @@ export async function checkEnrichmentCoverage(
     if (doc.govSpend != null) result.govSpend += 1;
     if (doc.taxTransparency != null) result.taxTransparency += 1;
     if (doc.rdTaxIncentive != null) result.rdTaxIncentive += 1;
+    if (doc.afsAuthorisedRep != null) result.afsAuthorisedRep += 1;
+    if (doc.creditRep != null) result.creditRep += 1;
     if (isNonEmptyArray(doc.businessNames)) result.businessNames += 1;
     if (isNonEmptyArray(doc.dgr)) result.dgr += 1;
   }
@@ -170,6 +184,8 @@ export async function checkEnrichmentCoverage(
     ["govSpend", result.govSpend, floors.govSpend],
     ["taxTransparency", result.taxTransparency, floors.taxTransparency],
     ["rdTaxIncentive", result.rdTaxIncentive, floors.rdTaxIncentive],
+    ["afsAuthorisedRep", result.afsAuthorisedRep, floors.afsAuthorisedRep],
+    ["creditRep", result.creditRep, floors.creditRep],
   ];
   for (const [name, got, min] of gates) {
     if (got < min) {

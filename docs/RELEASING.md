@@ -137,9 +137,14 @@ configured** — they run only when a published, non-anomalous release was cut *
 the repo **variable** `S3_BUCKET` is set. Layout:
 
 ```
-s3://<bucket>/long-black/v<version>/…   # immutable, per release
-s3://<bucket>/long-black/latest/…       # rolling pointer to the newest
+s3://<bucket>/long-black/v<version>/…   # immutable, per release (cp)
+s3://<bucket>/long-black/latest/…       # rolling pointer, synced with --delete
 ```
+
+The assets are staged into a clean dir first; `latest/` is updated with
+`aws s3 sync --delete`, so it always mirrors exactly one release (the previous
+release's version-named shards are removed) — `metadata.json`/`manifest.json` and the
+data shards under `latest/` can never describe different releases.
 
 **Auth is GitHub OIDC — no long-lived keys.** To enable, set three repo **variables**
 (Settings → Secrets and variables → Actions → Variables):

@@ -412,12 +412,23 @@ jobs:
           TAG: ${{ steps.ver.outputs.tag }}
         run: |
           set -euo pipefail
-          # Versioned prefix (immutable) + a rolling `latest/` pointer. --no-progress
-          # keeps logs terse; only the release artefacts are uploaded.
-          for dest in "long-black/${TAG}" "long-black/latest"; do
-            aws s3 cp output/ "s3://${BUCKET}/${dest}/" --recursive --no-progress \
-              --exclude "*" \
-              --include "long-black-*.ndjson.gz" --include "long-black-*.parquet" \
-              --include "metadata.json" --include "manifest.json"
-          done
-          echo "mirrored ${TAG} → s3://${BUCKET}/long-black/{${TAG},latest}/"
+          # Stage EXACTLY the publishable asset set in a clean dir, then push that set.
+          # This is what makes `latest/` a true rolling pointer: shard/Parquet filenames
+          # carry the version, so a plain `cp` would pile new-version files on top of the
+          # old ones in latest/ (mixed releases). Staging + `sync --delete` guarantees
+          # latest/ mirrors ONE release; the versioned prefix stays immutable via `cp`.
+          rm -rf s3-staging && mkdir s3-staging
+          cp output/long-black-*.ndjson.gz output/long-black-*.parquet \
+             output/metadata.json output/manifest.json s3-staging/
+
+          # Versioned prefix — immutable. Refuse to overwrite a DIFFERENT prior upload of
+          # this tag (an identical re-run of the same release is fine — same objects).
+          if aws s3 ls "s3://${BUCKET}/long-black/${TAG}/" | grep -q .; then
+            echo "::notice::s3://${BUCKET}/long-black/${TAG}/ already exists — re-uploading identical release assets"
+          fi
+          aws s3 cp s3-staging/ "s3://${BUCKET}/long-black/${TAG}/" --recursive --no-progress
+
+          # latest/ — rolling pointer: --delete removes the PREVIOUS release's objects so
+          # metadata/manifest and the data shards always describe the same (newest) release.
+          aws s3 sync s3-staging/ "s3://${BUCKET}/long-black/latest/" --delete --no-progress
+          echo "mirrored ${TAG} → s3://${BUCKET}/long-black/{${TAG},latest}/ (latest/ synced with --delete)"

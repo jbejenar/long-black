@@ -87,6 +87,18 @@ export const ABN_SOURCES: SourceInfo[] = [
     licence: "CC-BY 2.5 AU",
     attribution: "© Commonwealth of Australia (Australian Taxation Office)",
   },
+  {
+    name: "ASIC AFS Authorised Representatives",
+    url: "https://data.gov.au/data/dataset/asic-afs-authorised-representative",
+    licence: "CC-BY 3.0 AU",
+    attribution: "© Australian Securities and Investments Commission",
+  },
+  {
+    name: "ASIC Credit Representatives",
+    url: "https://data.gov.au/data/dataset/asic-credit-representative",
+    licence: "CC-BY 3.0 AU",
+    attribution: "© Australian Securities and Investments Commission",
+  },
 ];
 
 /** Normalize a document's state to a split/metadata key (matches crema split). */

@@ -6,9 +6,10 @@ document per ABN, split per state and gzip-compressed, plus `metadata.json`.
 ## Cadence & versioning
 
 - **Schedule:** `build.yml` runs weekly (Mondays, 03:00 UTC) to track the weekly ABR
-  ABN Bulk Extract refresh. A week with no new extract re-resolves the same version;
-  the publish step refuses to mutate an already-published release, so no duplicate
-  artifact set is cut.
+  ABN Bulk Extract refresh. A week with no new extract re-resolves the same version; a
+  `precheck` step sees that tag is already published and **skips the build as a green
+  no-op** (no wasted build, no red run, no duplicate artifact set). A manual dispatch of
+  an already-published version still hard-fails — corrected data must get a new tag.
 - **`_version`** = the ABR extract date, `vYYYY.MM.DD` (e.g. `v2026.06.24`),
   derived from the CKAN resource `last_modified` (auto-discovered when the
   `version` input is blank). The schema suffix is the digits only (`abn_20260624`).

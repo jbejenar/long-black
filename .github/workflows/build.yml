@@ -31,8 +31,9 @@ on:
   schedule:
     # Weekly — Mondays 03:00 UTC. The ABR ABN Bulk Extract refreshes weekly, so this
     # tracks the freshest core data; version-tagged releases + the S3 mirror are keyed
-    # on the extract date, so a week with no new extract just re-resolves the same
-    # version (the publish step refuses to mutate an already-published release).
+    # on the extract date. A week with no new extract re-resolves the SAME version — the
+    # precheck step detects its tag is already published and skips the build as a green
+    # no-op (no wasted ~2 h build, no red run, no duplicate artifact set).
     - cron: "0 3 * * 1"
 
 permissions:
@@ -133,7 +134,30 @@ jobs:
             echo "sv=$SV"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Skip if this extract is already released (scheduled no-op week)
+        id: precheck
+        # Weekly cron, but the ABR extract only refreshes ~weekly and can be unchanged
+        # (holidays, slipped upstream). CKAN then re-resolves the SAME version, whose tag
+        # is already published — and the publish step (rightly) refuses to mutate a live
+        # release. On a SCHEDULED run that is a benign no-op, not a failure: skip the
+        # whole ~2 h build and finish green. (A manual dispatch of an already-published
+        # version still hits the hard error — corrected data must get a new version tag.)
+        if: github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ steps.ver.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ "$(gh release view "$TAG" --repo "$REPO" --json isDraft --jq '.isDraft' 2>/dev/null)" = "false" ]; then
+            echo "::notice::$TAG is already published — no new ABR extract this week, skipping build (no-op)"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build (download → load → finalize → flatten → verify → output)
+        if: steps.precheck.outputs.skip != 'true'
         working-directory: long-black
         env:
           # All dynamic values reach the shell via env (validated above), never as
@@ -199,6 +223,7 @@ jobs:
           echo "::endgroup::"
 
       - name: Verify release assets
+        if: steps.precheck.outputs.skip != 'true'
         working-directory: long-black
         run: |
           set -euo pipefail
@@ -220,6 +245,7 @@ jobs:
 
       - name: Compare to prior release (anomaly gate)
         id: compare
+        if: steps.precheck.outputs.skip != 'true'
         working-directory: long-black
         env:
           GH_TOKEN: ${{ github.token }}
@@ -260,7 +286,7 @@ jobs:
           fi
 
       - name: Upload comparison reports
-        if: always()
+        if: always() && steps.precheck.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: comparison-reports
@@ -269,6 +295,7 @@ jobs:
 
       - name: Publish GitHub Release
         id: publish
+        if: steps.precheck.outputs.skip != 'true'
         working-directory: long-black
         env:
           GH_TOKEN: ${{ github.token }}

@@ -1,0 +1,53 @@
+# S3 access smoke test for the shared-bucket release mirror.
+#
+# Validates the OIDC credential flow for long-black END-TO-END without a full build:
+#   - GitHub Actions requests an OIDC token for jbejenar/long-black
+#   - AWS STS exchanges it for temporary creds by assuming the repo variable AWS_ROLE_ARN
+#     (the least-privilege long-black-role — PutObject/ListBucket on data/abn/* +
+#     manifests/abn-*, distinct from flat-white-role which trusts only flat-white)
+#   - Those creds can list the long-black release prefixes on the shared bucket
+#
+# NON-DESTRUCTIVE: lists only (the mirror's PutObject uses the same assumed creds; the
+# real weekly build exercises the write path). Dormant until AWS_ROLE_ARN is set.
+#
+# Trigger: workflow_dispatch only (and only from the default branch, which is what the
+# role's trust policy — repo:jbejenar/long-black:ref:refs/heads/main — permits).
+
+name: S3 Smoke Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  S3_BUCKET: ${{ vars.S3_BUCKET || 'flat-white-address-493712557159-ap-southeast-2-an' }}
+  AWS_REGION: ${{ vars.AWS_REGION || 'ap-southeast-2' }}
+
+jobs:
+  s3-access-check:
+    if: vars.AWS_ROLE_ARN != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify caller identity (OIDC assume-role works)
+        run: |
+          aws sts get-caller-identity
+          echo "✓ assumed ${{ vars.AWS_ROLE_ARN }} via GitHub OIDC"
+
+      - name: List the long-black release prefixes (ListBucket is scoped to these)
+        run: |
+          set -euo pipefail
+          echo "s3://${S3_BUCKET}/data/abn/ :"
+          aws s3 ls "s3://${S3_BUCKET}/data/abn/" || echo "(empty — no releases mirrored yet)"
+          echo "s3://${S3_BUCKET}/manifests/ (abn-*) :"
+          aws s3 ls "s3://${S3_BUCKET}/manifests/" | grep -E 'abn-' || echo "(no abn- manifests yet)"
+          echo "✓ role can reach the long-black prefixes on the shared bucket"

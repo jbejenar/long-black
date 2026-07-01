@@ -48,15 +48,15 @@ Robustness + distribution work on the release pipeline (`build.yml` is authorita
   enrichment **fail-fast** with the production coverage gate (+ an `ALLOW_PARTIAL`
   escape hatch) — matching `build.yml`/`build-local.sh` — instead of best-effort
   "continuing with partial", and its stale comment is refreshed.
-- ✅ **S3 mirror of releases (dormant until configured).** A separate least-privilege
-  `mirror-s3` job mirrors each published release to the **shared bucket** using
-  flat-white's product-namespaced layout — immutable `s3://<bucket>/data/abn/<version>/…`
-  - `manifests/abn-<version>.json` (no in-place mutation, no `latest` pointer). Runs only
-    when the repo variable `AWS_ROLE_ARN` is set. **To enable:** create a new
-    `long-black-role` (flat-white's role trusts only its own repo) granting
-    `s3:PutObject`/`s3:ListBucket` on `data/abn/*` + `manifests/abn-*`, then set the repo
-    variable `AWS_ROLE_ARN` (bucket + region default to flat-white's). See
-    `docs/RELEASING.md` § "S3 mirror".
+- ✅ **S3 mirror of releases (live).** A separate least-privilege `mirror-s3` job mirrors
+  each published release to the **shared bucket** using flat-white's product-namespaced
+  layout — immutable `s3://<bucket>/data/abn/<version>/…` + `manifests/abn-<version>.json`
+  (no in-place mutation, no `latest` pointer). Enabled: the OIDC `long-black-role`
+  (`s3:PutObject`/`s3:ListBucket` scoped to `data/abn/*` + `manifests/abn-*`, trusting
+  `jbejenar/long-black:ref:refs/heads/main`) is created and the repo variable
+  `AWS_ROLE_ARN` is set, so the mirror fires on each release. `s3-smoke.yml`
+  (workflow_dispatch) validates the OIDC path non-destructively. See `docs/RELEASING.md`
+  § "S3 mirror".
 - ✅ **Cadence — weekly** (Mondays, 03:00 UTC), tracking the weekly ABR extract; a week
   with no new extract re-resolves the same version and doesn't cut a duplicate release.
 

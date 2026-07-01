@@ -21,6 +21,7 @@ import {
 } from "./enrich.js";
 import { downloadGovSpend, loadGovSpend } from "./gov-spend.js";
 import { XLSX_SOURCES, downloadXlsxSource, loadXlsxSource } from "./xlsx-sources.js";
+import { downloadGovGrants, loadGovGrants } from "./gov-grants.js";
 
 /**
  * AusTender government spend is loaded by a dedicated JSON-aggregation step (not a
@@ -31,6 +32,17 @@ const GOV_SPEND_KEY = "gov_spend";
 const GOV_SPEND_LABEL = "AusTender government spend";
 const GOV_SPEND_MIN_ROWS = 30_000; // distinct supplier ABNs, all history (~14k/year)
 
+/**
+ * GrantConnect grant awards — a dedicated authenticated report download
+ * (src/gov-grants.ts), so like gov-spend it sits alongside the CSV sources. It needs
+ * a registered-user login: GRANTCONNECT_USERNAME / GRANTCONNECT_PASSWORD (repo secrets
+ * in CI). Absent creds → the source is skipped (a credless local/fixture build), which
+ * the production coverage gate then catches; present creds → it must clear the floor.
+ */
+const GOV_GRANTS_KEY = "gov_grants";
+const GOV_GRANTS_LABEL = "GrantConnect grant awards";
+const GOV_GRANTS_MIN_ROWS = 15_000; // distinct recipient ABNs, all history
+
 async function main(): Promise<void> {
   const connectionString = process.env.DATABASE_URL ?? DEFAULT_DB_URL;
   const version = process.env.LONG_BLACK_VERSION ?? DEFAULT_VERSION;
@@ -38,7 +50,12 @@ async function main(): Promise<void> {
   const dataDir = process.env.DATA_DIR ?? "data";
 
   const xlsxKeys = XLSX_SOURCES.map((s) => s.key);
-  const validKeys = [...ENRICHMENT_SOURCES.map((s) => s.key), GOV_SPEND_KEY, ...xlsxKeys];
+  const validKeys = [
+    ...ENRICHMENT_SOURCES.map((s) => s.key),
+    GOV_SPEND_KEY,
+    GOV_GRANTS_KEY,
+    ...xlsxKeys,
+  ];
   const requested = process.argv.slice(2);
   const unknown = requested.filter((k) => !validKeys.includes(k));
   if (unknown.length > 0) {
@@ -51,11 +68,40 @@ async function main(): Promise<void> {
       ? ENRICHMENT_SOURCES
       : ENRICHMENT_SOURCES.filter((s) => requested.includes(s.key));
   const runGovSpend = requested.length === 0 || requested.includes(GOV_SPEND_KEY);
+  const gcUser = process.env.GRANTCONNECT_USERNAME;
+  const gcPass = process.env.GRANTCONNECT_PASSWORD;
+  const gcExplicit = requested.includes(GOV_GRANTS_KEY); // named directly on the CLI
+  const gcRequested = requested.length === 0 || gcExplicit; // all-sources run or explicit
+  const gcHasCreds = Boolean(gcUser && gcPass);
+  const runGovGrants = gcRequested && gcHasCreds;
   const xlsxSources =
     requested.length === 0 ? XLSX_SOURCES : XLSX_SOURCES.filter((s) => requested.includes(s.key));
-  const totalSources = sources.length + (runGovSpend ? 1 : 0) + xlsxSources.length;
+  // Count grant awards whenever requested — running OR required-but-uncredentialed —
+  // so the total is honest and a missing-creds all-sources run registers as a failure.
+  const totalSources =
+    sources.length + (runGovSpend ? 1 : 0) + (gcRequested ? 1 : 0) + xlsxSources.length;
+
+  // An explicit single/multi-source request that names gov_grants but has no creds is a
+  // usage error → hard exit (nothing to fall back to).
+  if (gcExplicit && !gcHasCreds) {
+    console.error(
+      `[enrich] ${GOV_GRANTS_LABEL}: FAILED — GRANTCONNECT_USERNAME/PASSWORD not set (required for this source)`,
+    );
+    process.exit(2);
+  }
 
   let failures = 0;
+  // In an all-sources run without creds, grant awards is a REQUIRED source that did not
+  // load → count it as a failure so `enrich-cli` exits non-zero. The build wrapper then
+  // decides consistently: abort by default, or (with allow_partial_enrichment=true)
+  // disable the coverage gate and ship degraded — the documented emergency path. Never
+  // a silent success that leaves the coverage gate to fail an intentional partial run.
+  if (gcRequested && !gcHasCreds) {
+    failures++;
+    console.error(
+      `[enrich] ${GOV_GRANTS_LABEL}: FAILED — no GrantConnect creds (set GRANTCONNECT_USERNAME/PASSWORD, or allow_partial_enrichment to ship without grants)`,
+    );
+  }
   for (const source of sources) {
     try {
       console.error(`[enrich] ${source.label}: downloading…`);
@@ -101,6 +147,34 @@ async function main(): Promise<void> {
     } catch (err) {
       failures++;
       console.error(`[enrich] ${GOV_SPEND_LABEL}: FAILED — ${(err as Error).message}`);
+    }
+  }
+
+  if (runGovGrants) {
+    try {
+      console.error(`[enrich] ${GOV_GRANTS_LABEL}: logging in + downloading (all history)…`);
+      const endIso = version.replace(/\./g, "-"); // build date = report range end
+      const { aggregate, totalRows } = await downloadGovGrants({
+        dataDir,
+        username: gcUser as string,
+        password: gcPass as string,
+        endIso,
+        log: (m) => console.error(`[enrich]   ${m}`),
+      });
+      const inserted = await loadGovGrants({ connectionString, schemaVersion, aggregate });
+      if (inserted < GOV_GRANTS_MIN_ROWS) {
+        failures++;
+        console.error(
+          `[enrich] ${GOV_GRANTS_LABEL}: FAILED — only ${inserted} ABN(s), below floor ${GOV_GRANTS_MIN_ROWS} (incomplete source)`,
+        );
+      } else {
+        console.log(
+          `[enrich] ${GOV_GRANTS_LABEL}: ${totalRows} awards → ${inserted} ABN(s) → ${GOV_GRANTS_KEY}`,
+        );
+      }
+    } catch (err) {
+      failures++;
+      console.error(`[enrich] ${GOV_GRANTS_LABEL}: FAILED — ${(err as Error).message}`);
     }
   }
 

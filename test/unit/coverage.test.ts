@@ -29,6 +29,7 @@ const ZERO: CoverageFloors = {
   creditLicence: 0,
   bannedDisqualified: 0,
   govSpend: 0,
+  govGrants: 0,
   taxTransparency: 0,
   rdTaxIncentive: 0,
   afsAuthorisedRep: 0,
@@ -47,6 +48,7 @@ const full = {
   creditLicence: { number: "390001" },
   bannedDisqualified: [{ type: "AFS banning" }],
   govSpend: { totalValueAud: 1000, contractCount: 1 },
+  govGrants: { totalValueAud: 500, grantCount: 1 },
   taxTransparency: { incomeYear: "2023-24", totalIncome: 100 },
   rdTaxIncentive: { incomeYear: "2022-23", totalRdExpenditure: 50 },
   afsAuthorisedRep: { number: "R1" },
@@ -66,6 +68,7 @@ const bare = {
   creditLicence: null,
   bannedDisqualified: [],
   govSpend: null,
+  govGrants: null,
   taxTransparency: null,
   rdTaxIncentive: null,
   afsAuthorisedRep: null,
@@ -96,6 +99,7 @@ describe("checkEnrichmentCoverage", () => {
     expect(cov.creditLicence).toBe(2);
     expect(cov.bannedDisqualified).toBe(2);
     expect(cov.govSpend).toBe(2);
+    expect(cov.govGrants).toBe(2);
     expect(cov.taxTransparency).toBe(2);
     expect(cov.rdTaxIncentive).toBe(2);
     expect(cov.afsAuthorisedRep).toBe(2);
@@ -145,6 +149,7 @@ describe("checkEnrichmentCoverage", () => {
       creditLicence: 5,
       bannedDisqualified: 5,
       govSpend: 5,
+      govGrants: 5,
       taxTransparency: 5,
       rdTaxIncentive: 5,
       afsAuthorisedRep: 5,
@@ -154,6 +159,6 @@ describe("checkEnrichmentCoverage", () => {
     };
     const cov = await checkEnrichmentCoverage(ndjson([full, bare]), floors);
     expect(cov.ok).toBe(false);
-    expect(cov.shortfalls).toHaveLength(14);
+    expect(cov.shortfalls).toHaveLength(15);
   });
 });

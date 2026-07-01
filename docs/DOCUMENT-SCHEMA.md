@@ -1,11 +1,13 @@
 # Document Schema Reference — long-black
 
-> **Schema version:** 0.16.0
+> **Schema version:** 0.17.0
 > **Runtime validation:** `src/schema.ts` (`AbnDocumentSchema`, Zod)
 > **Breaking changes:** require a major version bump.
 
-> 0.16.0 adds **`smsfAuditor`** (additive, minor): the entity is an ASIC-approved SMSF
-> auditor, plus `flags.isSmsfAuditor`. 0.15.0 added **`wgeaReporter`** (WGEA). 0.14.0
+> 0.17.0 adds **`govGrants`** (additive, minor): GrantConnect grant awards received per
+> recipient ABN (the grants complement to `govSpend` contracts), plus
+> `flags.receivesGovGrants`. 0.16.0 added **`smsfAuditor`**. 0.15.0 added
+> **`wgeaReporter`** (WGEA). 0.14.0
 > added the **ASIC representative** pair (`afsAuthorisedRep`, `creditRep`). 0.13.0
 > added the **financial-depth** ATO pair (`taxTransparency`, `rdTaxIncentive`). 0.12.0
 > added **`govSpend`** (AusTender). 0.11.0 added **derived signals**. 0.10.0 added
@@ -54,6 +56,7 @@ exercise the join seam (see `fixtures/edge-cases.md`).
 | `creditLicence`            | `CreditLicence`\|null                 | yes      | ASIC credit licence held by this ABN                                 | ASIC Credit Licensee                                  |
 | `bannedDisqualified`       | `Banned[]`                            | no       | ASIC banning/disqualification actions (via ACN); empty if none       | ASIC Banned & Disqualified Orgs                       |
 | `govSpend`                 | `GovSpend`\|null                      | yes      | AusTender government-contract spend (as supplier); null if none      | AusTender (OCDS)                                      |
+| `govGrants`                | `GovGrants`\|null                     | yes      | GrantConnect grant awards received (as recipient); null if none      | GrantConnect                                          |
 | `taxTransparency`          | `TaxTransparency`\|null               | yes      | ATO income + tax paid (≥$100M-income entities); null otherwise       | ATO Corporate Tax Transparency                        |
 | `rdTaxIncentive`           | `RdTaxIncentive`\|null                | yes      | ATO R&D Tax Incentive claim (R&D spend); null otherwise              | ATO R&D Tax Incentive                                 |
 | `afsAuthorisedRep`         | `AfsAuthorisedRep`\|null              | yes      | ASIC AFS authorised representative record; null otherwise            | ASIC AFS Authorised Representatives                   |
@@ -202,6 +205,21 @@ suppliers the full value is attributed to each.
 | `firstContractDate` | string (ISO date) | yes      | Earliest contract `dateSigned`                    |
 | `lastContractDate`  | string (ISO date) | yes      | Most recent contract `dateSigned`                 |
 
+## Nested: `govGrants` (GrantConnect)
+
+GrantConnect grant awards **received**, aggregated per recipient ABN across all
+history (mandatory reporting from Dec 2017) — the grants counterpart to `govSpend`
+(contracts won). Null when the ABN has never been a grant recipient. Source +
+mechanism in `docs/DATA-SOURCES.md` and `src/gov-grants.ts`. Shape: `GovGrantsSchema`.
+`totalValueAud` is summed exactly in integer cents upstream.
+
+| Field            | Type              | Nullable | Description                               |
+| ---------------- | ----------------- | -------- | ----------------------------------------- |
+| `totalValueAud`  | number            | no       | Σ value of grant awards to this ABN (AUD) |
+| `grantCount`     | number            | no       | Number of grant awards received           |
+| `firstGrantDate` | string (ISO date) | yes      | Earliest award publish date               |
+| `lastGrantDate`  | string (ISO date) | yes      | Most recent award publish date            |
+
 ## Nested: `taxTransparency` (ATO)
 
 Present only for entities the ATO lists in the Corporate Tax Transparency report —
@@ -308,6 +326,7 @@ no enforcement action"). Shape: `EntityFlagsSchema`. Approximate prevalence on t
 | `hasEnforcementAction`     | boolean | `bannedDisqualified` non-empty (12 entities) |
 | `isDgr`                    | boolean | `dgr` non-empty (~0.16%)                     |
 | `hasGovContracts`          | boolean | `govSpend != null` (won ≥1 govt contract)    |
+| `receivesGovGrants`        | boolean | `govGrants != null` (received ≥1 govt grant) |
 | `isLargeCorporateTaxpayer` | boolean | `taxTransparency != null` (≥$100M income)    |
 | `claimsRdTaxIncentive`     | boolean | `rdTaxIncentive != null`                     |
 | `isAfsAuthorisedRep`       | boolean | `afsAuthorisedRep != null`                   |

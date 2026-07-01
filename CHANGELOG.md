@@ -33,6 +33,24 @@ The NDJSON document is the contract (`docs/DOCUMENT-SCHEMA.md`).
 
 ### Added
 
+- **0.17.0** — **GrantConnect grant awards** — `govGrants`
+  (`{totalValueAud, grantCount, firstGrantDate, lastGrantDate}` | null) plus
+  `flags.receivesGovGrants`. Additive, minor bump. Every Australian Government **grant
+  awarded** to a recipient ABN (grants.gov.au), aggregated all-history — the grants
+  complement to `govSpend` (AusTender **contracts**). ~200k+ awards since Dec 2017.
+  - **New authenticated loader** (`src/gov-grants.ts`): grants.gov.au sits behind a
+    CloudFront request-fingerprint filter (needs a full browser header set) and its
+    bulk "Grant Award Published" report needs a free account. The loader logs in
+    (`POST /RegisteredUser/Login` with the page's anti-forgery token → session cookie),
+    downloads the report per publish-date year (`/Reports/GaPublishedDownload` → XLSX;
+    the 50k-row cap is handled by bisecting a capped range), and sums value per
+    recipient ABN in integer cents. Runs headless (plain `fetch` + cookie jar) — no
+    browser at build time. Credentials come from repo secrets `GRANTCONNECT_USERNAME`
+    / `GRANTCONNECT_PASSWORD` (never committed); a credless build skips the source and
+    the production coverage gate then catches the gap.
+  - CC-BY 3.0 AU (© Commonwealth of Australia, Dept of Finance / GrantConnect); added
+    to `ABN_SOURCES`.
+  - Proven on the real 20.3M build (see below).
 - **0.16.0** — **ASIC SMSF auditors** — `smsfAuditor`
   (`{number, status, registrationDate, suspensionStartDate, suspensionEndDate}` | null)
   plus `flags.isSmsfAuditor`. Additive, minor bump. The entity is an ASIC-approved

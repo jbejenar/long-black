@@ -134,6 +134,11 @@ jobs:
           # Empty on the scheduled run → strict (required enrichment); `true` only
           # via a deliberate manual dispatch.
           ALLOW_PARTIAL: ${{ github.event.inputs.allow_partial_enrichment }}
+          # GrantConnect grant-awards login — enrich-cli reads these to download the
+          # bulk report. Absent → the source is skipped and the coverage gate (below)
+          # fails the build, so a release never silently drops grant awards.
+          GRANTCONNECT_USERNAME: ${{ secrets.GRANTCONNECT_USERNAME }}
+          GRANTCONNECT_PASSWORD: ${{ secrets.GRANTCONNECT_PASSWORD }}
         run: |
           set -euo pipefail
           # psql forwards "$@" for future call sites; current callers only pipe stdin.
@@ -154,7 +159,7 @@ jobs:
           sed "s/__SCHEMA_VERSION__/${SV}/g" sql/abn-finalize.sql | psql
           echo "::endgroup::"
 
-          echo "::group::enrichment (ASIC + ACNC — REQUIRED)"
+          echo "::group::enrichment (ASIC + ACNC + AusTender + GrantConnect + ATO — REQUIRED)"
           # The data must be complete before shipping: every source of truth must
           # load (and clear its per-source row floor in enrich-cli) or the build
           # fails. A deliberate manual run can set allow_partial_enrichment=true to

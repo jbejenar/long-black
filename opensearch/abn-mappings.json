@@ -145,6 +145,15 @@
           "lastContractDate": { "type": "date", "format": "yyyy-MM-dd", "ignore_malformed": true }
         }
       },
+      "govGrants": {
+        "type": "object",
+        "properties": {
+          "totalValueAud": { "type": "double" },
+          "grantCount": { "type": "integer" },
+          "firstGrantDate": { "type": "date", "format": "yyyy-MM-dd", "ignore_malformed": true },
+          "lastGrantDate": { "type": "date", "format": "yyyy-MM-dd", "ignore_malformed": true }
+        }
+      },
       "taxTransparency": {
         "type": "object",
         "properties": {
@@ -213,6 +222,7 @@
           "hasEnforcementAction": { "type": "boolean" },
           "isDgr": { "type": "boolean" },
           "hasGovContracts": { "type": "boolean" },
+          "receivesGovGrants": { "type": "boolean" },
           "isLargeCorporateTaxpayer": { "type": "boolean" },
           "claimsRdTaxIncentive": { "type": "boolean" },
           "isAfsAuthorisedRep": { "type": "boolean" },

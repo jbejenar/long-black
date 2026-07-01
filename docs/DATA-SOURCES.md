@@ -19,6 +19,7 @@ rather than a direct XML→NDJSON stream.
 | **ASIC Credit Licensees**          | `asic-credit-licensee`                   | CSV (comma)      | ~1 MB, ~4.3k                        | Weekly       | **ABN** or ACN          | `creditLicence{}` — credit licence number, name, status, start/end dates                   |
 | **ASIC Banned & Disqualified**     | `asic-banned-disqualified-org`           | CSV (tab)        | ~10 KB, ~15 rows                    | Weekly       | **ACN** (`asic_number`) | `bannedDisqualified[]` — banning/disqualification actions (type, dates, comment)           |
 | **AusTender contracts** (OCDS)     | OCP registry pub. `19`                   | JSONL (gz)       | ~251 MB, ~852k contracts            | Monthly      | **ABN** of supplier     | `govSpend{}` — total value, contract count, first/last contract date (all history)         |
+| **GrantConnect grant awards**      | grants.gov.au (auth report)              | XLSX (per year)  | ~200k+ awards (all history)         | Weekly       | **ABN** of recipient    | `govGrants{}` — total value, grant count, first/last award date (all history)              |
 | **ATO Corporate Tax Transparency** | `corporate-transparency`                 | XLSX             | ~280 KB, ~4.2k entities             | Annual       | **ABN**                 | `taxTransparency{}` — total income, taxable income, tax payable (≥$100M-income entities)   |
 | **ATO R&D Tax Incentive**          | `research-and-development-tax-incentive` | XLSX             | ~660 KB, ~13k companies             | Annual       | **ABN** or ACN          | `rdTaxIncentive{}` — notional R&D expenditure for the year                                 |
 | **ASIC AFS Authorised Reps**       | `asic-afs-authorised-representative`     | CSV (tab)        | ~40 MB, ~233k rows                  | Monthly      | **ABN** or ACN          | `afsAuthorisedRep{}` — rep number, AFS licensee, status, dates (~126k ABNs)                |
@@ -250,6 +251,33 @@ contracts).
 | `firstContractDate`   | earliest `contracts[].dateSigned`                                                    |
 | `lastContractDate`    | latest `contracts[].dateSigned`                                                      |
 
+**GrantConnect grant awards** (`src/gov-grants.ts`) — the grants complement to
+AusTender `govSpend`: every Australian Government **grant awarded** to a recipient ABN.
+grants.gov.au is a server-rendered app behind a CloudFront request-fingerprint filter
+(a full modern-browser header set is required, or it 403s) and its bulk "Grant Award
+Published" report needs a free registered account, so the loader:
+
+1. **logs in** — GET `/` for the anti-forgery token + cookies, POST
+   `/RegisteredUser/Login` (token + `Email` + `Password`) → session cookie (`UR_L`);
+2. **downloads by publish-date year** — GET
+   `/Reports/GaPublishedDownload?DateType=Publish Date&DateStart&DateEnd` → an XLSX
+   (32 cols incl. `Recipient ABN` + `Value (AUD)`). The report caps at 50,000 rows, so
+   any capped range is **bisected by date** until every chunk is complete (~23–43k/yr,
+   so a calendar-year chunk normally suffices);
+3. **sums value per recipient ABN in integer cents** (exact, order-independent).
+
+Credentials come from `GRANTCONNECT_USERNAME` / `GRANTCONNECT_PASSWORD` (repo secrets in
+CI; never committed). Everything runs headless (plain `fetch` + a cookie jar) — verified
+end-to-end. Rows whose recipient has no ABN (individuals) are skipped (can't join).
+
+| Output (`govGrants.*`) | GrantConnect "Grant Award Published" column |
+| ---------------------- | ------------------------------------------- |
+| _join key_             | Recipient ABN                               |
+| `totalValueAud`        | Σ `Value (AUD)` over the recipient's awards |
+| `grantCount`           | count of awards to the ABN                  |
+| `firstGrantDate`       | earliest `Publish Date`                     |
+| `lastGrantDate`        | latest `Publish Date`                       |
+
 **ATO financial-depth XLSX** (`src/xlsx-sources.ts` + `src/load-xlsx.ts`) — the only
 Excel-workbook sources. Both are one annual `.xlsx` per income year on data.gov.au;
 the loader picks the **latest** year, reads the ABN-bearing sheet (skipping the prose
@@ -361,6 +389,8 @@ small but clean. Suspension dates are an enforcement/risk signal.
 - © Commonwealth of Australia (Department of Finance / AusTender) — CC-BY 3.0 AU
   (the dataset licence; the OCP Data Registry is only the access route for the bulk
   file)
+- © Commonwealth of Australia (Department of Finance / GrantConnect) — CC-BY 3.0 AU
+  (grants.gov.au states the site is licensed CC BY 3.0 AU)
 - © Commonwealth of Australia (Australian Taxation Office) — Corporate Tax
   Transparency **CC-BY 3.0 AU**; R&D Tax Incentive **CC-BY 2.5 AU**
 - © Commonwealth of Australia (Workplace Gender Equality Agency) — CC-BY 3.0 AU

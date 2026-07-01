@@ -129,3 +129,12 @@ CREATE UNLOGGED TABLE IF NOT EXISTS abn___SCHEMA_VERSION__.asic_smsf_auditor (
   abn char(11), auditor_number text, status text, registration_date date,
   suspension_start_date date, suspension_end_date date
 );
+
+-- GrantConnect grant awards (Bundle E), pre-aggregated per recipient ABN by
+-- src/gov-grants.ts (authenticated report download → in-memory sum → COPY here). The
+-- grants complement to gov_spend (AusTender contracts). 1:0..1 on ABN. total_value_aud
+-- is numeric (summed in integer cents upstream); dates are earliest/latest publish date.
+CREATE UNLOGGED TABLE IF NOT EXISTS abn___SCHEMA_VERSION__.gov_grants (
+  abn char(11), total_value_aud numeric, grant_count integer,
+  first_grant_date date, last_grant_date date
+);

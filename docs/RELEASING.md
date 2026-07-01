@@ -61,17 +61,19 @@ ABN checksum, schema violation, duplicate or out-of-order `_id` — because
 
 ### Data completeness (the data must be complete before shipping)
 
-A clean, schema-valid output is not sufficient: the join is across fifteen sources
+A clean, schema-valid output is not sufficient: the join is across sixteen sources
 of truth, and a silently-missing enrichment source would still produce valid (but
 hollow) documents. Three gates make incompleteness fatal rather than invisible:
 
 1. **Per-source load floor.** `enrich-cli` fails if any source loads fewer than
    its `minRows` (company / business-names 1,000,000, charities 20,000, AIS 20,000,
-   AFS/credit licensees 1,000, banned orgs 5, AusTender suppliers 30,000, ATO
-   tax-transparency 2,000, ATO R&D 5,000, ASIC AFS reps 50,000, ASIC credit reps
-   5,000, WGEA 5,000, SMSF auditors 300 — ≈⅓ of the real volumes in
+   AFS/credit licensees 1,000, banned orgs 5, AusTender suppliers 30,000, GrantConnect
+   recipients 15,000, ATO tax-transparency 2,000, ATO R&D 5,000, ASIC AFS reps 50,000,
+   ASIC credit reps 5,000, WGEA 5,000, SMSF auditors 300 — ≈⅓ of the real volumes in
    `docs/PERFORMANCE.md`, except the tiny volatile banned register + niche SMSF
-   auditors). Catches an empty/truncated or wrong-resource load.
+   auditors). Catches an empty/truncated or wrong-resource load. GrantConnect also
+   needs `GRANTCONNECT_USERNAME`/`PASSWORD` (repo secrets); absent, it is skipped and
+   gate 3 fails the build.
 2. **Enrichment required.** `build.yml` treats an enrichment failure as fatal — no
    silent partial release. A deliberate manual run may set
    `allow_partial_enrichment=true` to ship with a degraded source (which also
@@ -81,7 +83,8 @@ hollow) documents. Three gates make incompleteness fatal rather than invisible:
    each nested source populated at least its floor (`company` ≥ 1,000,000,
    `registeredBusinessNames` ≥ 1,000,000, `charity` ≥ 20,000, `charityFinancials`
    ≥ 20,000, `financialServicesLicence` ≥ 1,000, `creditLicence` ≥ 1,000,
-   `bannedDisqualified` ≥ 5, `govSpend` ≥ 30,000, `taxTransparency` ≥ 2,000,
+   `bannedDisqualified` ≥ 5, `govSpend` ≥ 30,000, `govGrants` ≥ 15,000,
+   `taxTransparency` ≥ 2,000,
    `rdTaxIncentive` ≥ 5,000, `afsAuthorisedRep` ≥ 40,000, `creditRep` ≥ 5,000,
    `wgeaReporter` ≥ 3,000, `smsfAuditor` ≥ 300). Catches a broken join even when the
    load itself succeeded.

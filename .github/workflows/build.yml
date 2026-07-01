@@ -391,7 +391,8 @@ jobs:
       # Dormant until configured: both steps run only when a published (non-draft,
       # non-anomalous) release was cut AND the repo VARIABLE `S3_BUCKET` is set. Auth is
       # GitHub OIDC — set repo variable `AWS_ROLE_ARN` to an IAM role that trusts this
-      # repo's Actions OIDC and grants `s3:PutObject`/`s3:ListBucket` on the bucket (no
+      # repo's Actions OIDC and grants s3:PutObject/ListBucket/DeleteObject (the last is
+      # needed by the latest/ `sync --delete`) on the bucket (no
       # long-lived keys). See docs/RELEASING.md for the trust policy + setup.
       - name: Configure AWS credentials (OIDC) for the S3 mirror
         if: >-

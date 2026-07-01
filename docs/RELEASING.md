@@ -151,7 +151,9 @@ data shards under `latest/` can never describe different releases.
 
 - `S3_BUCKET` — the bucket name (presence toggles the mirror on).
 - `AWS_ROLE_ARN` — an IAM role that trusts this repo's Actions OIDC provider and grants
-  `s3:PutObject` (+ `s3:ListBucket`) on the bucket.
+  `s3:PutObject`, `s3:ListBucket`, and `s3:DeleteObject` on the bucket
+  (`DeleteObject` is required by the `latest/` `sync --delete`; scope it to the
+  `long-black/*` prefix).
 - `AWS_REGION` — optional; defaults to `ap-southeast-2`.
 
 The role's trust policy conditions on

@@ -1,16 +1,16 @@
 # Document Schema Reference — long-black
 
-> **Schema version:** 0.14.0
+> **Schema version:** 0.15.0
 > **Runtime validation:** `src/schema.ts` (`AbnDocumentSchema`, Zod)
 > **Breaking changes:** require a major version bump.
 
-> 0.14.0 adds the **ASIC representative** pair (additive, minor): `afsAuthorisedRep`
-> and `creditRep` (businesses authorised under a financial-services / credit
-> licensee), plus `flags.isAfsAuthorisedRep`/`isCreditRep`. 0.13.0 added the
-> **financial-depth** ATO pair (`taxTransparency`, `rdTaxIncentive`). 0.12.0 added
-> **`govSpend`** (AusTender). 0.11.0 added **derived signals**. 0.10.0 added
-> `charity.financials`. 0.9.0 added the **regulated & risk** bundle. 0.6.0 added
-> optional **Parquet**.
+> 0.15.0 adds **`wgeaReporter`** (additive, minor): the entity reports to the
+> Workplace Gender Equality Agency (a 100+-staff employer), plus
+> `flags.isWgeaReporter`. 0.14.0 added the **ASIC representative** pair
+> (`afsAuthorisedRep`, `creditRep`). 0.13.0 added the **financial-depth** ATO pair
+> (`taxTransparency`, `rdTaxIncentive`). 0.12.0 added **`govSpend`** (AusTender).
+> 0.11.0 added **derived signals**. 0.10.0 added `charity.financials`. 0.9.0 added the
+> **regulated & risk** bundle. 0.6.0 added optional **Parquet**.
 
 One NDJSON document per ABN. This document is the contract: `src/schema.ts`,
 this file, and `fixtures/expected-output.ndjson` move together (additive field =
@@ -58,6 +58,7 @@ exercise the join seam (see `fixtures/edge-cases.md`).
 | `rdTaxIncentive`           | `RdTaxIncentive`\|null                | yes      | ATO R&D Tax Incentive claim (R&D spend); null otherwise              | ATO R&D Tax Incentive                                 |
 | `afsAuthorisedRep`         | `AfsAuthorisedRep`\|null              | yes      | ASIC AFS authorised representative record; null otherwise            | ASIC AFS Authorised Representatives                   |
 | `creditRep`                | `CreditRep`\|null                     | yes      | ASIC credit representative record; null otherwise                    | ASIC Credit Representatives                           |
+| `wgeaReporter`             | `WgeaReporter`\|null                  | yes      | WGEA reporting-organisation record (100+-staff employer); else null  | WGEA Reporting Organisations                          |
 | `ageYears`                 | number\|null                          | yes      | Whole years since `abnStatusFromDate` vs `_version`; null if no date | derived                                               |
 | `isActive`                 | boolean                               | no       | `abnStatus === 'ACT'`                                                | derived                                               |
 | `flags`                    | `EntityFlags`                         | no       | Derived convenience booleans (see below)                             | derived                                               |
@@ -258,6 +259,20 @@ Shape: `CreditRepSchema`.
 | `startDate`     | string | yes      | Authorisation start date (ISO)                 |
 | `endDate`       | string | yes      | Authorisation end date (ISO); null if current  |
 
+## Nested: `wgeaReporter` (WGEA)
+
+Present when the ABN reports to the **Workplace Gender Equality Agency** — i.e. it is
+an employer with **100+ staff** that lodges a gender-equality report (1:0..1). A size +
+gender-equality-reporting signal; ~10k organisations. `primaryAbn` /
+`primaryOrganisation` name the submission group the entity reports under (itself, when
+it submits alone). Sourced from WGEA's per-ABN organisation list (the latest ABN-keyed
+snapshot is 2022). Shape: `WgeaReporterSchema`.
+
+| Field                 | Type   | Nullable | Description                                       |
+| --------------------- | ------ | -------- | ------------------------------------------------- |
+| `primaryAbn`          | string | yes      | Submission-group ABN (self when it submits alone) |
+| `primaryOrganisation` | string | yes      | Submission group's organisation name              |
+
 ## Nested: `flags` (EntityFlags)
 
 Derived convenience booleans — composed in `compose.ts` from the fields above, not a
@@ -279,6 +294,7 @@ no enforcement action"). Shape: `EntityFlagsSchema`. Approximate prevalence on t
 | `claimsRdTaxIncentive`     | boolean | `rdTaxIncentive != null`                     |
 | `isAfsAuthorisedRep`       | boolean | `afsAuthorisedRep != null`                   |
 | `isCreditRep`              | boolean | `creditRep != null`                          |
+| `isWgeaReporter`           | boolean | `wgeaReporter != null` (100+-staff employer) |
 
 `ageYears` and `isActive` are likewise derived: `ageYears` is whole **calendar**
 years from `abnStatusFromDate` to the `_version` date — computed from date components

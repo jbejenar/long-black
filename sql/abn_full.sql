@@ -102,6 +102,12 @@ credit_rep_by_acn AS (
   FROM abn___SCHEMA_VERSION__.asic_credit_rep WHERE acn IS NOT NULL
   ORDER BY acn, start_date DESC NULLS LAST, rep_number
 ),
+-- 1:0..1 — WGEA reporting organisations (Bundle C), keyed directly on ABN.
+wgea AS (
+  SELECT DISTINCT ON (abn) abn, primary_abn, primary_organisation
+  FROM abn___SCHEMA_VERSION__.wgea_reporter
+  ORDER BY abn, primary_organisation
+),
 -- 1:0..1 — ASIC AFS + credit licences. The source `*_ABN_ACN` column holds EITHER
 -- an 11-digit ABN or a 9-digit ACN (the normalizer routes each to the abn/acn
 -- column). So each licence resolves to a base row by TWO paths: a direct ABN match,
@@ -274,7 +280,11 @@ SELECT
       'number', crrc.rep_number, 'licenceNumber', crrc.licence_number,
       'startDate', crrc.start_date::text, 'endDate', crrc.end_date::text)
     ELSE NULL
-  END                                                  AS credit_rep
+  END                                                  AS credit_rep,
+  CASE WHEN w.abn IS NULL THEN NULL ELSE json_build_object(
+    'primaryAbn', w.primary_abn,
+    'primaryOrganisation', w.primary_organisation
+  ) END                                                AS wgea_reporter
 FROM abn___SCHEMA_VERSION__.abn a
 LEFT JOIN company c ON c.abn = a.abn
 LEFT JOIN business_names_agg bn ON bn.abn = a.abn
@@ -291,6 +301,7 @@ LEFT JOIN afs_rep_by_acn afrc
 LEFT JOIN credit_rep_by_abn crra ON crra.abn = a.abn
 LEFT JOIN credit_rep_by_acn crrc
   ON crrc.acn = a.asic_number AND COALESCE(a.asic_number_type, '') NOT IN ('ARBN', 'ARSN', 'ARFN')
+LEFT JOIN wgea w ON w.abn = a.abn
 LEFT JOIN afs_by_abn afsa ON afsa.abn = a.abn
 LEFT JOIN afs_by_acn afsc
   ON afsc.acn = a.asic_number AND COALESCE(a.asic_number_type, '') NOT IN ('ARBN', 'ARSN', 'ARFN')

@@ -44,6 +44,8 @@ export interface CoverageFloors {
   afsAuthorisedRep: number;
   /** Min docs with a non-null `creditRep` object (ASIC credit reps). */
   creditRep: number;
+  /** Min docs with a non-null `wgeaReporter` object (WGEA). */
+  wgeaReporter: number;
 }
 
 export interface CoverageResult {
@@ -60,6 +62,7 @@ export interface CoverageResult {
   rdTaxIncentive: number;
   afsAuthorisedRep: number;
   creditRep: number;
+  wgeaReporter: number;
   /** ABR-owned arrays — reported for visibility, not gated (always present). */
   businessNames: number;
   dgr: number;
@@ -93,6 +96,7 @@ export const ABN_COVERAGE_FLOORS: CoverageFloors = {
   rdTaxIncentive: 5_000, // ATO R&D: ~13,000 companies
   afsAuthorisedRep: 40_000, // ~112k ABN + 107k ACN rep authorisations
   creditRep: 5_000, // ~17.7k ABN/ACN
+  wgeaReporter: 3_000, // ~11k WGEA-reporting organisations (2022 snapshot)
 };
 
 /**
@@ -114,6 +118,7 @@ export const FIXTURE_COVERAGE_FLOORS: CoverageFloors = {
   rdTaxIncentive: 1,
   afsAuthorisedRep: 1,
   creditRep: 1,
+  wgeaReporter: 1,
 };
 
 function isNonEmptyArray(value: unknown): boolean {
@@ -142,6 +147,7 @@ export async function checkEnrichmentCoverage(
     rdTaxIncentive: 0,
     afsAuthorisedRep: 0,
     creditRep: 0,
+    wgeaReporter: 0,
     businessNames: 0,
     dgr: 0,
     ok: true,
@@ -169,6 +175,7 @@ export async function checkEnrichmentCoverage(
     if (doc.rdTaxIncentive != null) result.rdTaxIncentive += 1;
     if (doc.afsAuthorisedRep != null) result.afsAuthorisedRep += 1;
     if (doc.creditRep != null) result.creditRep += 1;
+    if (doc.wgeaReporter != null) result.wgeaReporter += 1;
     if (isNonEmptyArray(doc.businessNames)) result.businessNames += 1;
     if (isNonEmptyArray(doc.dgr)) result.dgr += 1;
   }
@@ -186,6 +193,7 @@ export async function checkEnrichmentCoverage(
     ["rdTaxIncentive", result.rdTaxIncentive, floors.rdTaxIncentive],
     ["afsAuthorisedRep", result.afsAuthorisedRep, floors.afsAuthorisedRep],
     ["creditRep", result.creditRep, floors.creditRep],
+    ["wgeaReporter", result.wgeaReporter, floors.wgeaReporter],
   ];
   for (const [name, got, min] of gates) {
     if (got < min) {

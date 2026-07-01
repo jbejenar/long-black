@@ -9,7 +9,7 @@ import type { CkanResource } from "crema";
 import { ENRICHMENT_SOURCES, selectEnrichmentResource } from "../../src/enrich.js";
 
 describe("ENRICHMENT_SOURCES config", () => {
-  it("covers the nine enrichment sources with distinct staging tables", () => {
+  it("covers the ten enrichment sources with distinct staging tables", () => {
     expect(ENRICHMENT_SOURCES.map((s) => s.key).sort()).toEqual([
       "acnc_ais",
       "acnc_charity",
@@ -20,6 +20,7 @@ describe("ENRICHMENT_SOURCES config", () => {
       "asic_company",
       "asic_credit_licence",
       "asic_credit_rep",
+      "wgea_reporter",
     ]);
   });
 
@@ -36,6 +37,7 @@ describe("ENRICHMENT_SOURCES config", () => {
     expect(byKey.asic_afs_licence).toMatchObject({ delimiter: ",", quoting: true });
     expect(byKey.asic_credit_licence).toMatchObject({ delimiter: ",", quoting: true });
     expect(byKey.asic_credit_rep).toMatchObject({ delimiter: ",", quoting: true });
+    expect(byKey.wgea_reporter).toMatchObject({ delimiter: ",", quoting: true });
   });
 
   it("sets a positive completeness floor (minRows) below the real volume", () => {
@@ -81,5 +83,36 @@ describe("selectEnrichmentResource", () => {
 
   it("returns undefined when nothing matches", () => {
     expect(selectEnrichmentResource(resources, "charity")).toBeUndefined();
+  });
+
+  it("latest-year strategy picks the newest snapshot even when an older one is larger", () => {
+    // WGEA-style: historical annual per-ABN snapshots. Size is NOT recency — the older
+    // 2021 file is larger, but 2022 must win (regression guard for silent-stale loads).
+    const snapshots: CkanResource[] = [
+      {
+        name: "2021 per abn",
+        url: "https://x/2021_included_organisations_per_abn.csv",
+        size: 9_000_000,
+      },
+      {
+        name: "2022 per abn",
+        url: "https://x/2022_included_organisations_per_abn.csv",
+        size: 1_000_000,
+      },
+      { name: "specifications", url: "https://x/2022_specifications.xlsx", size: 50_000 }, // not a CSV
+    ];
+    const latest = selectEnrichmentResource(
+      snapshots,
+      "included_organisations_per_abn",
+      "latest-year",
+    );
+    expect(latest?.url).toBe("https://x/2022_included_organisations_per_abn.csv");
+    // The default (largest) strategy would wrongly pick the bigger 2021 file.
+    const largest = selectEnrichmentResource(
+      snapshots,
+      "included_organisations_per_abn",
+      "largest",
+    );
+    expect(largest?.url).toBe("https://x/2021_included_organisations_per_abn.csv");
   });
 });

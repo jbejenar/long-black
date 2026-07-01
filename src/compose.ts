@@ -21,6 +21,7 @@ import type {
   RdTaxIncentive,
   AfsAuthorisedRep,
   CreditRep,
+  WgeaReporter,
 } from "./schema.js";
 
 function emptyToNull(value: unknown): string | null {
@@ -112,6 +113,7 @@ export function composeAbnDocument(row: Record<string, unknown>, version: string
   const rdTaxIncentive = (row.rd_tax_incentive as RdTaxIncentive | null) ?? null;
   const afsAuthorisedRep = (row.afs_authorised_rep as AfsAuthorisedRep | null) ?? null;
   const creditRep = (row.credit_rep as CreditRep | null) ?? null;
+  const wgeaReporter = (row.wgea_reporter as WgeaReporter | null) ?? null;
 
   return {
     _id: String(row._id),
@@ -148,6 +150,7 @@ export function composeAbnDocument(row: Record<string, unknown>, version: string
     rdTaxIncentive,
     afsAuthorisedRep,
     creditRep,
+    wgeaReporter,
     // Derived signals — computed here from the fields above, no extra source.
     ageYears: computeAgeYears(abnStatusFromDate, version),
     isActive: status === "ACT",
@@ -163,6 +166,7 @@ export function composeAbnDocument(row: Record<string, unknown>, version: string
       claimsRdTaxIncentive: rdTaxIncentive !== null,
       isAfsAuthorisedRep: afsAuthorisedRep !== null,
       isCreditRep: creditRep !== null,
+      isWgeaReporter: wgeaReporter !== null,
     },
   };
 }

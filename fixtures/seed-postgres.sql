@@ -214,3 +214,9 @@ INSERT INTO abn___SCHEMA_VERSION__.asic_credit_rep (
   abn, acn, rep_number, licence_number, start_date, end_date
 ) VALUES
 ('51000000793',NULL,'390001','390001',DATE '2012-01-01',NULL);
+
+-- WGEA reporting organisations (Bundle C; 1:0..1 on ABN). 51000000761 submits as
+-- itself (primary_abn == abn); 51000000793 reports under its group (primary differs).
+INSERT INTO abn___SCHEMA_VERSION__.wgea_reporter (abn, primary_abn, primary_organisation) VALUES
+('51000000761','51000000761','ACME GROUP'),
+('51000000793','51000000761','ACME GROUP');

@@ -99,6 +99,12 @@ export const ABN_SOURCES: SourceInfo[] = [
     licence: "CC-BY 3.0 AU",
     attribution: "© Australian Securities and Investments Commission",
   },
+  {
+    name: "WGEA Reporting Organisations",
+    url: "https://data.gov.au/data/dataset/wgea-dataset",
+    licence: "CC-BY 3.0 AU",
+    attribution: "© Commonwealth of Australia (Workplace Gender Equality Agency)",
+  },
 ];
 
 /** Normalize a document's state to a split/metadata key (matches crema split). */

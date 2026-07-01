@@ -868,6 +868,40 @@
             }
           ]
         },
+        "wgeaReporter": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "primaryAbn": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "primaryOrganisation": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": ["primaryAbn", "primaryOrganisation"],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "ageYears": {
           "anyOf": [
             {
@@ -916,6 +950,9 @@
             },
             "isCreditRep": {
               "type": "boolean"
+            },
+            "isWgeaReporter": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -929,7 +966,8 @@
             "isLargeCorporateTaxpayer",
             "claimsRdTaxIncentive",
             "isAfsAuthorisedRep",
-            "isCreditRep"
+            "isCreditRep",
+            "isWgeaReporter"
           ],
           "additionalProperties": false
         }
@@ -966,6 +1004,7 @@
         "rdTaxIncentive",
         "afsAuthorisedRep",
         "creditRep",
+        "wgeaReporter",
         "ageYears",
         "isActive",
         "flags"

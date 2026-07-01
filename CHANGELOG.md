@@ -33,6 +33,19 @@ The NDJSON document is the contract (`docs/DOCUMENT-SCHEMA.md`).
 
 ### Added
 
+- **0.15.0** — **WGEA reporting** — `wgeaReporter` (`{primaryAbn, primaryOrganisation}`
+  | null) plus `flags.isWgeaReporter`. Additive, minor bump. The entity reports to the
+  Workplace Gender Equality Agency (`wgea-dataset`): an employer with **100+ staff**
+  that lodges a gender-equality report — a size + gender-equality signal, ~10k
+  organisations. Keyed directly on ABN; `primaryAbn`/`primaryOrganisation` name the
+  submission group. Loaded from WGEA's dedicated per-ABN CSV (latest ABN-keyed snapshot
+  is 2022). CC-BY 3.0 AU (© WGEA), added to `ABN_SOURCES`.
+  - **Scoped decision:** the Modern Slavery Statements Register (originally paired here)
+    was **excluded** — it moved to a web app (transparency.gov.au) with no bulk
+    ABN-keyed CSV/API export, so there is no source to load cleanly. Documented in
+    `DATA-SOURCES.md`; revisit if a bulk export appears.
+  - Proven on the real 20.3M build: wgeaReporter coverage; 0 composition errors, no
+    duplicate `_id`, production gate green.
 - **0.14.0** — **ASIC representatives** — two per-ABN authorisation signals plus
   `flags.isAfsAuthorisedRep` / `isCreditRep`. Additive, minor bump.
   - `afsAuthorisedRep` (`{number, licenceNumber, status, startDate, endDate}` | null)

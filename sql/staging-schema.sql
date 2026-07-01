@@ -114,3 +114,10 @@ CREATE UNLOGGED TABLE IF NOT EXISTS abn___SCHEMA_VERSION__.asic_credit_rep (
   abn char(11), acn text, rep_number text, licence_number text,
   start_date date, end_date date
 );
+
+-- WGEA reporting organisations (Bundle C). Each ABN that reports to the Workplace
+-- Gender Equality Agency (100+-staff employer), mapped to its submission group
+-- (primary_abn / primary_organisation). 1:0..1 on ABN.
+CREATE UNLOGGED TABLE IF NOT EXISTS abn___SCHEMA_VERSION__.wgea_reporter (
+  abn char(11), primary_abn char(11), primary_organisation text
+);

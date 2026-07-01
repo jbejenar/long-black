@@ -1,7 +1,8 @@
 # Next Work — long-black
 
 > The functional pipeline is complete and green (fixture loop byte-for-byte;
-> XML→COPY→flatten proven; live CKAN discovery verified; all four sources enrich).
+> XML→COPY→flatten proven; live CKAN discovery verified; all eight enrichment
+> sources enrich — ASIC ×4, ACNC ×2, AusTender — proven on the real 20.3M build).
 > Remaining items are runtime validation + just-in-time tooling.
 
 ## Runtime validation (deliberate, heavyweight)
@@ -71,7 +72,9 @@
 ## Cadence
 
 Monthly `build.yml` cron (date-versioned `vYYYY.MM.DD` from the ABR
-`TransferInfo/ExtractTime`); pick a week where all four sources are fresh.
+`TransferInfo/ExtractTime`); pick a week where the sources are fresh (they publish
+on mixed cadences — ABR/ASIC weekly, ACNC register weekly, ACNC AIS annually,
+AusTender monthly).
 
 ## Reference
 

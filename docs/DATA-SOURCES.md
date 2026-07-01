@@ -9,7 +9,7 @@ relational store (Postgres) rather than a direct XML→NDJSON stream.
 
 | Source                          | CKAN id                        | Format           | Size                                | Cadence      | Join key                | Contributes                                                                            |
 | ------------------------------- | ------------------------------ | ---------------- | ----------------------------------- | ------------ | ----------------------- | -------------------------------------------------------------------------------------- |
-| **ABR ABN Bulk Extract** (core) | `abn-bulk-extract`             | XML, 2 ZIP parts | ~493 MB ×2 (~6–8 GB XML), ~15M ABNs | Weekly       | **ABN**, ACN/ARBN       | entity name/type, ABN status, GST, DGR, business/trading names, state+postcode         |
+| **ABR ABN Bulk Extract** (core) | `abn-bulk-extract`             | XML, 2 ZIP parts | ~493 MB ×2 (~6–8 GB XML), ~20M ABNs | Weekly       | **ABN**, ACN/ARBN       | entity name/type, ABN status, GST, DGR, business/trading names, state+postcode         |
 | **ASIC Company**                | `asic-companies`               | CSV (tab) / ZIP  | ~394 MB                             | Weekly (Tue) | **ABN** + ACN           | `company{}` — type/class/status, registration & deregistration dates, prior state      |
 | **ASIC Business Names**         | `asic-business-names`          | CSV (tab) / ZIP  | ~247 MB                             | Weekly (Wed) | **ABN** of holder       | `registeredBusinessNames[]` — authoritative names + status/dates                       |
 | **ACNC Registered Charities**   | `acnc-register`                | CSV / XLSX       | ~15 MB, ~60k                        | Weekly       | **ABN**                 | `charity{}` — status, size, subtype, registration date                                 |
@@ -213,9 +213,10 @@ Registry** ([publication 19](https://data.open-contracting.org/en/publication/19
 which mirrors the official `api.tenders.gov.au` data **monthly** as a single
 `full.jsonl.gz` (~251 MB, one compiled OCDS release per contract `ocid`, ~852k
 contracts from 2007). The data.gov.au mirror is dead (frozen at 2013); the official
-`api.tenders.gov.au` is a cursor-paginated crawl (~25–40k calls, no published rate
-limits) — see `docs/decisions/`. The loader streams the gzip line by line and, for
-each release, attributes the contract's value to every supplier party carrying an
+`api.tenders.gov.au` is a cursor-paginated crawl (~25–40k calls for full history, no
+published rate limits) — hence the bulk mirror. The loader streams the gzip line by
+line and, for each release, attributes the contract's value to every supplier party
+carrying an
 `AU-ABN` identifier, summing in **integer cents** (exact, order-deterministic). The
 per-ABN aggregate is the `gov_spend` table; the flatten joins it 1:0..1.
 

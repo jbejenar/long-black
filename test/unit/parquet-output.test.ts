@@ -91,9 +91,17 @@ describe("convertToParquet on the fixture", () => {
     for (const r of rows) {
       expect(typeof r._id).toBe("string");
       expect(typeof r.gstRegistered).toBe("boolean");
-      // Arrays always present and valid JSON.
+      expect(typeof r.isActive).toBe("boolean"); // derived scalar carried natively
+      // Arrays / always-present objects → valid JSON.
       expect(Array.isArray(JSON.parse(String(r.businessNames)))).toBe(true);
       expect(Array.isArray(JSON.parse(String(r.registeredBusinessNames)))).toBe(true);
+      expect(Array.isArray(JSON.parse(String(r.bannedDisqualified)))).toBe(true);
+      const flags = JSON.parse(String(r.flags));
+      expect(typeof flags.hasGovContracts).toBe("boolean");
     }
+    // The 0.9.0+ fields must actually appear for the fixtures that carry them.
+    expect(rows.some((r) => r.govSpend != null)).toBe(true);
+    expect(rows.some((r) => r.financialServicesLicence != null)).toBe(true);
+    expect(rows.some((r) => r.ageYears != null)).toBe(true);
   });
 });

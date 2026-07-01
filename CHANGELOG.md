@@ -12,6 +12,16 @@ The NDJSON document is the contract (`docs/DOCUMENT-SCHEMA.md`).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Parquet output completeness** — the optional `--parquet` export
+  (`src/parquet-output.ts`) had never been extended past 0.8.0, so the `.parquet`
+  asset was silently missing every field added since: `financialServicesLicence`,
+  `creditLicence`, `bannedDisqualified`, `govSpend`, `ageYears`, `isActive`, `flags`.
+  All are now represented (scalars native — `isActive` BOOLEAN, `ageYears` INT64 —
+  nested/array fields as JSON strings), so the Parquet asset matches the NDJSON
+  contract. A round-trip test asserts the new fields appear. NDJSON output unchanged.
+
 ### Changed
 
 - **Metadata attribution** — `metadata.json` `sources[]` now itemizes **all nine

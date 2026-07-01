@@ -128,6 +128,33 @@ ships, and consumers never see a partial or changing public release:
   retargeted to the current build commit, its assets are replaced and verified,
   then it is promoted per `publish`.
 
+## S3 mirror (optional)
+
+GitHub Releases are the primary distribution; `build.yml` can also mirror each
+published release's assets (per-state `*.ndjson.gz`, the all-ABN `.parquet`,
+`metadata.json`, `manifest.json`) to S3. The two mirror steps are **dormant until
+configured** — they run only when a published, non-anomalous release was cut **and**
+the repo **variable** `S3_BUCKET` is set. Layout:
+
+```
+s3://<bucket>/long-black/v<version>/…   # immutable, per release
+s3://<bucket>/long-black/latest/…       # rolling pointer to the newest
+```
+
+**Auth is GitHub OIDC — no long-lived keys.** To enable, set three repo **variables**
+(Settings → Secrets and variables → Actions → Variables):
+
+- `S3_BUCKET` — the bucket name (presence toggles the mirror on).
+- `AWS_ROLE_ARN` — an IAM role that trusts this repo's Actions OIDC provider and grants
+  `s3:PutObject` (+ `s3:ListBucket`) on the bucket.
+- `AWS_REGION` — optional; defaults to `ap-southeast-2`.
+
+The role's trust policy conditions on
+`token.actions.githubusercontent.com:sub` = `repo:jbejenar/long-black:ref:refs/heads/main`
+(and `aud` = `sts.amazonaws.com`). The workflow already requests `id-token: write`.
+Prefer OIDC over access keys; if keys are unavoidable, swap the `configure-aws-credentials`
+inputs for `aws-access-key-id`/`aws-secret-access-key` secrets.
+
 ## Docker image
 
 After a successful, **published** (non-draft) build, `build.yml` dispatches

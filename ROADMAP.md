@@ -39,31 +39,30 @@ nested object in `schema.ts` → regenerate `expected-output.ndjson`. Proven for
 
 Public repo, free GitHub Actions, free GitHub Release hosting. Free.
 
-## E2 — Pipeline hardening (planned)
+## E2 — Pipeline hardening
 
-Deferred distribution + robustness work on the release pipeline (`build.yml` is the
-authoritative pipeline; `build-local.sh` mirrors it; the container entrypoint is the
-gap):
+Robustness + distribution work on the release pipeline (`build.yml` is authoritative;
+`build-local.sh` mirrors it; the container entrypoint had drifted):
 
-- **S3 mirror of releases.** `build.yml` publishes a GitHub Release but does not mirror
-  the assets (per-state `*.ndjson.gz`, all-ABN `.parquet`, `metadata.json`,
-  `manifest.json`) to S3. Add an upload step after the release is verified, writing to
-  `s3://<bucket>/long-black/v<version>/…` (+ a `latest/` pointer). **Pending decisions:**
-  bucket + region, and auth (GitHub OIDC role — preferred — vs. `AWS_ACCESS_KEY_ID`/
-  `AWS_SECRET_ACCESS_KEY` secrets). flat-white's `s3-smoke.yml` is the reference shape.
-- **Fix the container `real` path.** `docker-entrypoint.sh`'s real build runs enrichment
-  **best-effort** (`|| … continuing with partial`) and omits
-  `LONG_BLACK_COVERAGE_PROFILE=production` on the flatten — contradicting the fail-fast +
-  coverage-gate policy that `build.yml`/`build-local.sh` enforce. Make it fail-fast +
-  gated (with an `ALLOW_PARTIAL` escape hatch, like the others) and refresh its stale
-  "ASIC Company/Business Names + ACNC" comment (enrichment is now 14 sources).
-- **Cadence.** Currently monthly (5th, 03:00 UTC). Revisit weekly if fresher ABR/ASIC
-  core data is wanted (ATO/WGEA are annual, so daily is pointless).
+- ✅ **Container `real` path fixed.** `docker-entrypoint.sh`'s real build now runs
+  enrichment **fail-fast** with the production coverage gate (+ an `ALLOW_PARTIAL`
+  escape hatch) — matching `build.yml`/`build-local.sh` — instead of best-effort
+  "continuing with partial", and its stale comment is refreshed.
+- ✅ **S3 mirror of releases (dormant until configured).** `build.yml` now mirrors each
+  published release's assets to `s3://<bucket>/long-black/v<version>/…` (+ a `latest/`
+  pointer) via two OIDC-authenticated steps that run only when the repo variable
+  `S3_BUCKET` is set. **To enable:** set repo variables `S3_BUCKET`, `AWS_ROLE_ARN`
+  (an IAM role trusting this repo's Actions OIDC with `s3:PutObject`/`s3:ListBucket`),
+  and optionally `AWS_REGION`. See `docs/RELEASING.md` § "S3 mirror".
+- **Cadence** (open). Currently monthly (5th, 03:00 UTC). Revisit weekly if fresher
+  ABR/ASIC core data is wanted (ATO/WGEA are annual, so daily is pointless).
 
-## E3 — GrantConnect grant awards (in progress)
+## E3 — GrantConnect grant awards ✅ (shipped, v0.17.0)
 
-Whole-of-government **grant awards** (grants.gov.au), keyed on recipient ABN + value —
+Whole-of-government **grant awards** (grants.gov.au) keyed on recipient ABN + value —
 the grants complement to AusTender `govSpend` (contracts). grants.gov.au sits behind a
-CloudFront WAF that 403s automated/non-browser traffic, and its report export needs a
-free account, so the loader authenticates with credentials stored as repo secrets
-(`GRANTCONNECT_USERNAME` / `GRANTCONNECT_PASSWORD`) — never committed. See NEXT-WORK.md.
+CloudFront request-fingerprint filter (a full browser header set → 200) and its bulk
+"Grant Award Published" report needs a free account, so `src/gov-grants.ts` authenticates
+headlessly (login → per-year XLSX report → aggregate per recipient ABN) with credentials
+from repo secrets `GRANTCONNECT_USERNAME` / `GRANTCONNECT_PASSWORD` (never committed).
+Real proof: 295,714 awards → 66,858 recipient ABNs.

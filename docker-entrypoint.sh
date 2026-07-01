@@ -52,11 +52,26 @@ else
   mapfile -t XML < <(DATA_DIR=/data node /app/dist/download-cli.js)
   DATABASE_URL="$DB" LONG_BLACK_VERSION="$VERSION" node /app/dist/load-cli.js "${XML[@]}"
   sed_ver /app/sql/abn-finalize.sql | runsql
-  echo "[entrypoint] enrichment (ASIC Company/Business Names + ACNC, best-effort)..."
-  DATA_DIR=/data DATABASE_URL="$DB" LONG_BLACK_VERSION="$VERSION" node /app/dist/enrich-cli.js \
-    || echo "[entrypoint] WARNING: enrichment incomplete — continuing with partial/null enrichment"
+  # Enrichment is REQUIRED — the data must be complete before shipping (matches
+  # build.yml / build-local.sh, not best-effort). enrich-cli loads all sources
+  # (ASIC/ACNC CSVs + AusTender + ATO XLSX + GrantConnect); GrantConnect needs
+  # GRANTCONNECT_USERNAME/PASSWORD in the container env (docker run -e), else it fails.
+  # A load below any floor aborts the build, and the coverage gate runs in production
+  # mode — unless ALLOW_PARTIAL=true deliberately ships degraded data (gate off).
+  echo "[entrypoint] enrichment (all sources — REQUIRED)..."
+  COVERAGE_PROFILE=production
+  if DATA_DIR=/data DATABASE_URL="$DB" LONG_BLACK_VERSION="$VERSION" node /app/dist/enrich-cli.js; then
+    echo "[entrypoint] enrichment complete"
+  elif [ "${ALLOW_PARTIAL:-}" = "true" ]; then
+    echo "[entrypoint] WARNING: enrichment incomplete, ALLOW_PARTIAL=true — shipping degraded data"
+    COVERAGE_PROFILE=off
+  else
+    echo "[entrypoint] ERROR: enrichment incomplete — refusing to ship (ALLOW_PARTIAL=true to override)"
+    exit 5
+  fi
   OUT="/output/long-black-${VERSION}.ndjson"
-  DATABASE_URL="$DB" LONG_BLACK_VERSION="$VERSION" node /app/dist/cli.js "$OUT"
+  DATABASE_URL="$DB" LONG_BLACK_VERSION="$VERSION" LONG_BLACK_COVERAGE_PROFILE="$COVERAGE_PROFILE" \
+    node /app/dist/cli.js "$OUT"
   LONG_BLACK_VERSION="$VERSION" node /app/dist/output-cli.js "$OUT" /output --parquet
 fi
 

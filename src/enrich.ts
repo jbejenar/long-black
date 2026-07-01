@@ -48,6 +48,15 @@ export interface EnrichmentSource {
   quoting: boolean;
   /** Lower-cased substring identifying the data CSV among a package's resources. */
   resourceMatch: string;
+  /**
+   * How to pick among the matching CSV resources. `"largest"` (default) takes the
+   * biggest file — correct when the match distinguishes the data file from a small
+   * data-dictionary CSV. `"latest-year"` takes the resource with the highest leading
+   * 4-digit year in its name/URL — required for packages that keep historical annual
+   * snapshots (e.g. WGEA), where file size is NOT a reliable proxy for recency and a
+   * larger older snapshot would otherwise be silently loaded as "latest".
+   */
+  resourceStrategy?: "largest" | "latest-year";
   /** Normalize SQL filename under sql/. */
   normalizeSqlFile: string;
   /**
@@ -179,8 +188,11 @@ export const ENRICHMENT_SOURCES: EnrichmentSource[] = [
     delimiter: ",",
     quoting: true,
     resourceMatch: "included_organisations_per_abn",
+    // Historical annual per-ABN snapshots live in one package; pick by YEAR, not size,
+    // so a larger older snapshot is never silently loaded as the latest.
+    resourceStrategy: "latest-year",
     normalizeSqlFile: "normalize-wgea-reporter.sql",
-    minRows: 5_000, // real: ~11k organisations
+    minRows: 5_000, // real: ~11k organisations (latest per-ABN snapshot)
   },
 ];
 
@@ -189,18 +201,38 @@ function isCsv(r: CkanResource): boolean {
   return (r.format ?? "").toUpperCase() === "CSV" || (r.url ?? "").toLowerCase().endsWith(".csv");
 }
 
+/** Leading 4-digit year in a resource name/URL (e.g. "2022 WGEA …" / "2022_…csv"), or -1. */
+function resourceYear(r: CkanResource): number {
+  const m = /\b(\d{4})\b/.exec(`${r.name ?? ""} ${r.url ?? ""}`);
+  return m ? Number(m[1]) : -1;
+}
+
 /**
- * Pick a source's data CSV: among CSV resources whose name or URL contains the
- * match substring, take the largest (the data file dwarfs any data-dictionary
- * CSV; size falls back to 0 when CKAN omits it, and ties keep discovery order).
+ * Pick a source's data CSV among the CSV resources whose name or URL contains the
+ * match substring. Two strategies (see `EnrichmentSource.resourceStrategy`):
+ * - `"largest"` (default): take the biggest file — the data file dwarfs any
+ *   data-dictionary CSV; size falls back to 0 when CKAN omits it, ties keep order.
+ * - `"latest-year"`: take the highest leading 4-digit year — for packages with
+ *   historical annual snapshots, where size is NOT a proxy for recency (a bigger
+ *   older snapshot must not win). Size breaks a year tie.
  */
 export function selectEnrichmentResource(
   resources: CkanResource[],
   match: string,
+  strategy: "largest" | "latest-year" = "largest",
 ): CkanResource | undefined {
   const candidates = resources.filter(
     (r) => isCsv(r) && `${r.name ?? ""} ${r.url ?? ""}`.toLowerCase().includes(match.toLowerCase()),
   );
+  if (strategy === "latest-year") {
+    return candidates.reduce<CkanResource | undefined>((best, r) => {
+      if (best === undefined) return r;
+      const dy = resourceYear(r) - resourceYear(best);
+      if (dy > 0) return r;
+      if (dy === 0 && (r.size ?? 0) > (best.size ?? 0)) return r;
+      return best;
+    }, undefined);
+  }
   return candidates.reduce<CkanResource | undefined>(
     (best, r) => (best === undefined || (r.size ?? 0) > (best.size ?? 0) ? r : best),
     undefined,
@@ -213,7 +245,11 @@ export async function downloadEnrichmentSource(
   dataDir: string,
 ): Promise<string> {
   const resources = await ckanResources(source.packageId);
-  const resource = selectEnrichmentResource(resources, source.resourceMatch);
+  const resource = selectEnrichmentResource(
+    resources,
+    source.resourceMatch,
+    source.resourceStrategy,
+  );
   if (!resource?.url) {
     throw new Error(
       `no CSV resource matching "${source.resourceMatch}" in package "${source.packageId}"`,

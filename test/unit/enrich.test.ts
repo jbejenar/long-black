@@ -84,4 +84,35 @@ describe("selectEnrichmentResource", () => {
   it("returns undefined when nothing matches", () => {
     expect(selectEnrichmentResource(resources, "charity")).toBeUndefined();
   });
+
+  it("latest-year strategy picks the newest snapshot even when an older one is larger", () => {
+    // WGEA-style: historical annual per-ABN snapshots. Size is NOT recency — the older
+    // 2021 file is larger, but 2022 must win (regression guard for silent-stale loads).
+    const snapshots: CkanResource[] = [
+      {
+        name: "2021 per abn",
+        url: "https://x/2021_included_organisations_per_abn.csv",
+        size: 9_000_000,
+      },
+      {
+        name: "2022 per abn",
+        url: "https://x/2022_included_organisations_per_abn.csv",
+        size: 1_000_000,
+      },
+      { name: "specifications", url: "https://x/2022_specifications.xlsx", size: 50_000 }, // not a CSV
+    ];
+    const latest = selectEnrichmentResource(
+      snapshots,
+      "included_organisations_per_abn",
+      "latest-year",
+    );
+    expect(latest?.url).toBe("https://x/2022_included_organisations_per_abn.csv");
+    // The default (largest) strategy would wrongly pick the bigger 2021 file.
+    const largest = selectEnrichmentResource(
+      snapshots,
+      "included_organisations_per_abn",
+      "largest",
+    );
+    expect(largest?.url).toBe("https://x/2021_included_organisations_per_abn.csv");
+  });
 });

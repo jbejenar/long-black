@@ -28,6 +28,10 @@ on:
         description: "Per-state/total move that flags a build for review (1.0 = 100%)"
         required: false
         default: "0.25"
+      runner:
+        description: "Runner label for the build job (e.g. 'blacksmith-8vcpu-ubuntu-2404', 'self-hosted'). Default: ubuntu-latest"
+        required: false
+        default: "ubuntu-latest"
   schedule:
     # Weekly — Mondays 03:00 UTC. The ABR ABN Bulk Extract refreshes weekly, so this
     # tracks the freshest core data; version-tagged releases + the S3 mirror are keyed
@@ -54,7 +58,11 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # Parameterizable so a heavy real build can run on a faster runner (e.g. a Blacksmith
+    # NVMe runner or self-hosted) via `-f runner=…`; defaults to ubuntu-latest, and the
+    # `|| 'ubuntu-latest'` also covers the scheduled run (which passes no inputs). The
+    # Blacksmith GitHub App must be installed on the repo for blacksmith-* labels to pick up.
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
     timeout-minutes: 120
     # Exposed to the separate mirror-s3 job (which downloads the published release and
     # pushes it to S3 under its own scoped id-token permission).

@@ -36,6 +36,10 @@ export interface CoverageFloors {
   bannedDisqualified: number;
   /** Min docs with a non-null `govSpend` object (AusTender). */
   govSpend: number;
+  /** Min docs with a non-null `taxTransparency` object (ATO CTT). */
+  taxTransparency: number;
+  /** Min docs with a non-null `rdTaxIncentive` object (ATO R&D). */
+  rdTaxIncentive: number;
 }
 
 export interface CoverageResult {
@@ -48,6 +52,8 @@ export interface CoverageResult {
   creditLicence: number;
   bannedDisqualified: number;
   govSpend: number;
+  taxTransparency: number;
+  rdTaxIncentive: number;
   /** ABR-owned arrays — reported for visibility, not gated (always present). */
   businessNames: number;
   dgr: number;
@@ -77,6 +83,8 @@ export const ABN_COVERAGE_FLOORS: CoverageFloors = {
   creditLicence: 1_000, // real: 3,939
   bannedDisqualified: 5, // real: 12
   govSpend: 30_000, // AusTender suppliers with an ABN, all history (~14k/year)
+  taxTransparency: 2_000, // ATO CTT: ~4,200 entities >$100M income
+  rdTaxIncentive: 5_000, // ATO R&D: ~13,000 companies
 };
 
 /**
@@ -94,6 +102,8 @@ export const FIXTURE_COVERAGE_FLOORS: CoverageFloors = {
   creditLicence: 1,
   bannedDisqualified: 1,
   govSpend: 1,
+  taxTransparency: 1,
+  rdTaxIncentive: 1,
 };
 
 function isNonEmptyArray(value: unknown): boolean {
@@ -118,6 +128,8 @@ export async function checkEnrichmentCoverage(
     creditLicence: 0,
     bannedDisqualified: 0,
     govSpend: 0,
+    taxTransparency: 0,
+    rdTaxIncentive: 0,
     businessNames: 0,
     dgr: 0,
     ok: true,
@@ -141,6 +153,8 @@ export async function checkEnrichmentCoverage(
     if (doc.creditLicence != null) result.creditLicence += 1;
     if (isNonEmptyArray(doc.bannedDisqualified)) result.bannedDisqualified += 1;
     if (doc.govSpend != null) result.govSpend += 1;
+    if (doc.taxTransparency != null) result.taxTransparency += 1;
+    if (doc.rdTaxIncentive != null) result.rdTaxIncentive += 1;
     if (isNonEmptyArray(doc.businessNames)) result.businessNames += 1;
     if (isNonEmptyArray(doc.dgr)) result.dgr += 1;
   }
@@ -154,6 +168,8 @@ export async function checkEnrichmentCoverage(
     ["creditLicence", result.creditLicence, floors.creditLicence],
     ["bannedDisqualified", result.bannedDisqualified, floors.bannedDisqualified],
     ["govSpend", result.govSpend, floors.govSpend],
+    ["taxTransparency", result.taxTransparency, floors.taxTransparency],
+    ["rdTaxIncentive", result.rdTaxIncentive, floors.rdTaxIncentive],
   ];
   for (const [name, got, min] of gates) {
     if (got < min) {

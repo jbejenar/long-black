@@ -1,14 +1,14 @@
 # Document Schema Reference — long-black
 
-> **Schema version:** 0.12.0
+> **Schema version:** 0.13.0
 > **Runtime validation:** `src/schema.ts` (`AbnDocumentSchema`, Zod)
 > **Breaking changes:** require a major version bump.
 
-> 0.12.0 adds **`govSpend`** (additive, minor): per-ABN AusTender government-contract
-> spend, plus a `flags.hasGovContracts`. 0.11.0 added **derived signals** (`ageYears`,
-> `isActive`, `flags`). 0.10.0 added `charity.financials` (ACNC AIS). 0.9.0 added the
-> **regulated & risk** bundle (`financialServicesLicence`, `creditLicence`,
-> `bannedDisqualified`). 0.6.0 added an optional **Parquet** output (`--parquet`).
+> 0.13.0 adds the **financial-depth** ATO pair (additive, minor): `taxTransparency`
+> (income + tax paid, ≥$100M entities) and `rdTaxIncentive` (R&D spend), plus
+> `flags.isLargeCorporateTaxpayer`/`claimsRdTaxIncentive`. 0.12.0 added **`govSpend`**
+> (AusTender). 0.11.0 added **derived signals**. 0.10.0 added `charity.financials`.
+> 0.9.0 added the **regulated & risk** bundle. 0.6.0 added optional **Parquet**.
 
 One NDJSON document per ABN. This document is the contract: `src/schema.ts`,
 this file, and `fixtures/expected-output.ndjson` move together (additive field =
@@ -52,6 +52,8 @@ exercise the join seam (see `fixtures/edge-cases.md`).
 | `creditLicence`            | `CreditLicence`\|null                 | yes      | ASIC credit licence held by this ABN                                 | ASIC Credit Licensee                                  |
 | `bannedDisqualified`       | `Banned[]`                            | no       | ASIC banning/disqualification actions (via ACN); empty if none       | ASIC Banned & Disqualified Orgs                       |
 | `govSpend`                 | `GovSpend`\|null                      | yes      | AusTender government-contract spend (as supplier); null if none      | AusTender (OCDS)                                      |
+| `taxTransparency`          | `TaxTransparency`\|null               | yes      | ATO income + tax paid (≥$100M-income entities); null otherwise       | ATO Corporate Tax Transparency                        |
+| `rdTaxIncentive`           | `RdTaxIncentive`\|null                | yes      | ATO R&D Tax Incentive claim (R&D spend); null otherwise              | ATO R&D Tax Incentive                                 |
 | `ageYears`                 | number\|null                          | yes      | Whole years since `abnStatusFromDate` vs `_version`; null if no date | derived                                               |
 | `isActive`                 | boolean                               | no       | `abnStatus === 'ACT'`                                                | derived                                               |
 | `flags`                    | `EntityFlags`                         | no       | Derived convenience booleans (see below)                             | derived                                               |
@@ -194,6 +196,33 @@ suppliers the full value is attributed to each.
 | `firstContractDate` | string (ISO date) | yes      | Earliest contract `dateSigned`                    |
 | `lastContractDate`  | string (ISO date) | yes      | Most recent contract `dateSigned`                 |
 
+## Nested: `taxTransparency` (ATO)
+
+Present only for entities the ATO lists in the Corporate Tax Transparency report —
+those with **≥$100M total income** for the reported year (1:0..1 on ABN). Shape:
+`TaxTransparencySchema`. Values are whole-dollar JSON numbers; `taxableIncome` and
+`taxPayable` are **null when the ATO reported ≤0** (legislation forbids reporting a
+zero/negative amount).
+
+| Field           | Type   | Nullable | Description                     |
+| --------------- | ------ | -------- | ------------------------------- |
+| `incomeYear`    | string | no       | ATO income year, e.g. `2023-24` |
+| `totalIncome`   | number | no       | Total income (AUD)              |
+| `taxableIncome` | number | yes      | Taxable income (null when ≤0)   |
+| `taxPayable`    | number | yes      | Tax payable (null when ≤0)      |
+
+## Nested: `rdTaxIncentive` (ATO)
+
+The entity's R&D Tax Incentive claim for the reported year (1:0..1). Keyed on the
+source's `ABN/ACN` column, so the ~1.5% of ACN-keyed rows match via `asic_number`
+(the same type-guarded two-path as the ASIC AFS/credit sources). Shape:
+`RdTaxIncentiveSchema`.
+
+| Field                | Type   | Nullable | Description                                 |
+| -------------------- | ------ | -------- | ------------------------------------------- |
+| `incomeYear`         | string | no       | ATO income year, e.g. `2022-23`             |
+| `totalRdExpenditure` | number | yes      | Notional R&D expenditure for the year (AUD) |
+
 ## Nested: `flags` (EntityFlags)
 
 Derived convenience booleans — composed in `compose.ts` from the fields above, not a
@@ -202,15 +231,17 @@ filter without digging into nested null/empty objects (e.g. "licensed charities 
 no enforcement action"). Shape: `EntityFlagsSchema`. Approximate prevalence on the
 2026.06.24 extract in parentheses.
 
-| Field                  | Type    | Derivation                                   |
-| ---------------------- | ------- | -------------------------------------------- |
-| `isIndividual`         | boolean | `entityTypeCode === 'IND'` (~54%)            |
-| `isCompany`            | boolean | `company != null` (~12%)                     |
-| `isCharity`            | boolean | `charity != null` (~0.3%)                    |
-| `isLicensed`           | boolean | holds an AFS **or** credit licence (~0.05%)  |
-| `hasEnforcementAction` | boolean | `bannedDisqualified` non-empty (12 entities) |
-| `isDgr`                | boolean | `dgr` non-empty (~0.16%)                     |
-| `hasGovContracts`      | boolean | `govSpend != null` (won ≥1 govt contract)    |
+| Field                      | Type    | Derivation                                   |
+| -------------------------- | ------- | -------------------------------------------- |
+| `isIndividual`             | boolean | `entityTypeCode === 'IND'` (~54%)            |
+| `isCompany`                | boolean | `company != null` (~12%)                     |
+| `isCharity`                | boolean | `charity != null` (~0.3%)                    |
+| `isLicensed`               | boolean | holds an AFS **or** credit licence (~0.05%)  |
+| `hasEnforcementAction`     | boolean | `bannedDisqualified` non-empty (12 entities) |
+| `isDgr`                    | boolean | `dgr` non-empty (~0.16%)                     |
+| `hasGovContracts`          | boolean | `govSpend != null` (won ≥1 govt contract)    |
+| `isLargeCorporateTaxpayer` | boolean | `taxTransparency != null` (≥$100M income)    |
+| `claimsRdTaxIncentive`     | boolean | `rdTaxIncentive != null`                     |
 
 `ageYears` and `isActive` are likewise derived: `ageYears` is whole **calendar**
 years from `abnStatusFromDate` to the `_version` date — computed from date components
@@ -249,5 +280,6 @@ can filter by the native `state` column.
 
 ## Data licensing
 
-Derived from public Australian Government data under **CC-BY 3.0 AU** (Australian
-Business Register, ASIC registers, and ACNC). See `docs/DATA-SOURCES.md`.
+Derived from public Australian Government data under **CC-BY** (ABR, ASIC registers,
+ACNC, AusTender, and the ATO datasets) — **per-source**: mostly CC-BY 3.0 AU, with the
+ATO R&D Tax Incentive dataset under CC-BY 2.5 AU. See `docs/DATA-SOURCES.md`.

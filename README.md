@@ -6,9 +6,9 @@ long-black turns Australia's public **business-entity** data into a single flat
 file of pre-joined records — **one NDJSON document per ABN**. It spins up an
 ephemeral Postgres, streams in the ABR ABN Bulk Extract (~20M ABNs), joins it
 with ASIC Company, ASIC Business Names, ACNC charity + AIS financials, ASIC AFS &
-credit licence, ASIC banned & disqualified, and AusTender government-contract spend,
-flattens to one document per ABN, and writes per-state gzipped NDJSON. Then it dies.
-Postgres is a build tool,
+credit licence, ASIC banned & disqualified, AusTender government-contract spend, and
+ATO corporate-tax-transparency + R&D-incentive data, flattens to one document per
+ABN, and writes per-state gzipped NDJSON. Then it dies. Postgres is a build tool,
 not
 infrastructure.
 
@@ -94,9 +94,11 @@ gh release download --repo jbejenar/long-black --pattern 'long-black-*-nsw.ndjso
 
 ABR ABN Bulk Extract + ASIC Company + ASIC Business Names + ACNC Charities + ACNC
 Annual Information Statement + ASIC AFS Licensees + ASIC Credit Licensees + ASIC
-Banned & Disqualified Orgs (all data.gov.au) + AusTender contracts (OCDS, via the
-OCP Data Registry) — all **CC-BY 3.0 AU**, joined on the ABN (the banned register on
-the ACN). See [docs/DATA-SOURCES.md](docs/DATA-SOURCES.md).
+Banned & Disqualified Orgs (all data.gov.au) + AusTender contracts (OCDS, via the OCP
+Data Registry) + ATO Corporate Tax Transparency + ATO R&D Tax Incentive — all
+**CC-BY** (mostly 3.0 AU; the ATO R&D dataset is CC-BY 2.5 AU), joined on the ABN (the
+banned register on the ACN). See [docs/DATA-SOURCES.md](docs/DATA-SOURCES.md) for the
+per-source licence + attribution.
 
 ## Tech stack
 
@@ -110,5 +112,7 @@ the ACN). See [docs/DATA-SOURCES.md](docs/DATA-SOURCES.md).
 
 ## Licence
 
-Code: **Apache-2.0**. Derived data: **CC-BY 3.0 AU** (see attribution in
-`metadata.json` and [docs/DATA-SOURCES.md](docs/DATA-SOURCES.md)).
+Code: **Apache-2.0**. Derived data: **CC-BY** per source — mostly CC-BY 3.0 AU, with
+the ATO R&D Tax Incentive dataset under CC-BY 2.5 AU. Each source's exact licence +
+attribution is recorded per-dataset in `metadata.json` (`sources[]`) and
+[docs/DATA-SOURCES.md](docs/DATA-SOURCES.md).

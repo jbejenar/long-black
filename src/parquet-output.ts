@@ -44,6 +44,8 @@ export const ABN_PARQUET_SCHEMA: ParquetSchema = new ParquetSchema({
   financialServicesLicence: { type: "UTF8", optional: true },
   creditLicence: { type: "UTF8", optional: true },
   govSpend: { type: "UTF8", optional: true },
+  taxTransparency: { type: "UTF8", optional: true },
+  rdTaxIncentive: { type: "UTF8", optional: true },
   // Derived scalars.
   isActive: { type: "BOOLEAN" },
   ageYears: { type: "INT64", optional: true },
@@ -71,6 +73,8 @@ const NULLABLE_NESTED = [
   "financialServicesLicence",
   "creditLicence",
   "govSpend",
+  "taxTransparency",
+  "rdTaxIncentive",
 ] as const;
 
 /** Map an AbnDocument (parsed from NDJSON) to a flat Parquet row. */

@@ -1,12 +1,12 @@
 # Fixture edge cases — long-black
 
 The fixture (`fixtures/seed-postgres.sql`) seeds ~20 representative ABNs into the
-`abn` staging table, plus example rows into the eight enrichment stub tables
+`abn` staging table, plus example rows into the ten enrichment stub tables
 (`asic_company`, `asic_business_name`, `acnc_charity`, `acnc_ais`,
-`asic_afs_licence`, `asic_credit_licence`, `asic_banned_disqualified`, `gov_spend`)
-so the join seam is exercised end-to-end (not just stubbed). All ABNs are
-checksum-valid (mod-89). Each row exercises a distinct edge case the flatten +
-schema + verify must handle.
+`asic_afs_licence`, `asic_credit_licence`, `asic_banned_disqualified`, `gov_spend`,
+`tax_transparency`, `rd_tax_incentive`) so the join seam is exercised end-to-end (not
+just stubbed). All ABNs are checksum-valid (mod-89). Each row exercises a distinct
+edge case the flatten + schema + verify must handle.
 
 | ABN         | Case                                                            | What it guards                                                                                                   |
 | ----------- | --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
@@ -54,6 +54,10 @@ and lands in the nullable nested objects of `expected-output.ndjson`.
 | 51000001797 | AFS / Credit / Banned | **ARBN** with the SAME `000000987` digits but `asic_number_type=ARBN`                                       | all three ACN-path joins must skip it → null/null/`[]` (false-positive guard)         |
 | 51000000761 | AusTender (govSpend)  | Supplier on **3** contracts, summed value `1500000.50` (fractional cents), 2018→2024                        | `govSpend{}` populated; `flags.hasGovContracts=true`; multi-contract sum + date range |
 | 51000000793 | AusTender (govSpend)  | Supplier on **1** contract, whole-dollar value `250000.00`                                                  | `govSpend{}` single-contract; first==last date; `250000.00` → JSON number `250000`    |
+| 51000000793 | ATO Tax Transparency  | ≥$100M entity with income + taxable + tax                                                                   | `taxTransparency{}` populated; `flags.isLargeCorporateTaxpayer=true`                  |
+| 51000000761 | ATO Tax Transparency  | Income only; **taxable/tax null** (ATO reported ≤0)                                                         | nullable `taxableIncome`/`taxPayable` when ≤0                                         |
+| 51000000761 | ATO R&D Incentive     | R&D claim keyed by **ABN**                                                                                  | `rdTaxIncentive{}` via ABN path; `flags.claimsRdTaxIncentive=true`                    |
+| 51000000987 | ATO R&D Incentive     | R&D claim keyed by **ACN** `000000987` (undetermined type)                                                  | ACN-path resolves via `asic_number` (same two-path as AFS/credit)                     |
 
 > **ACN-path matching uses `asic_number_type` to EXCLUDE, not require.** The real ABR
 > extract sets `@ASICNumberType = 'undetermined'` on every ASIC number (it never

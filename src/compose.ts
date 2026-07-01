@@ -17,6 +17,8 @@ import type {
   CreditLicence,
   BannedDisqualified,
   GovSpend,
+  TaxTransparency,
+  RdTaxIncentive,
 } from "./schema.js";
 
 function emptyToNull(value: unknown): string | null {
@@ -104,6 +106,8 @@ export function composeAbnDocument(row: Record<string, unknown>, version: string
     ? (row.banned_disqualified as BannedDisqualified[])
     : [];
   const govSpend = (row.gov_spend as GovSpend | null) ?? null;
+  const taxTransparency = (row.tax_transparency as TaxTransparency | null) ?? null;
+  const rdTaxIncentive = (row.rd_tax_incentive as RdTaxIncentive | null) ?? null;
 
   return {
     _id: String(row._id),
@@ -136,6 +140,8 @@ export function composeAbnDocument(row: Record<string, unknown>, version: string
     creditLicence,
     bannedDisqualified,
     govSpend,
+    taxTransparency,
+    rdTaxIncentive,
     // Derived signals — computed here from the fields above, no extra source.
     ageYears: computeAgeYears(abnStatusFromDate, version),
     isActive: status === "ACT",
@@ -147,6 +153,8 @@ export function composeAbnDocument(row: Record<string, unknown>, version: string
       hasEnforcementAction: bannedDisqualified.length > 0,
       isDgr: dgr.length > 0,
       hasGovContracts: govSpend !== null,
+      isLargeCorporateTaxpayer: taxTransparency !== null,
+      claimsRdTaxIncentive: rdTaxIncentive !== null,
     },
   };
 }

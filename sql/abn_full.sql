@@ -57,6 +57,28 @@ gov_spend AS (
   FROM abn___SCHEMA_VERSION__.gov_spend
   ORDER BY abn, total_value_aud DESC NULLS LAST
 ),
+-- 1:0..1 — ATO Corporate Tax Transparency (ABN-only). DISTINCT ON keeps the latest
+-- income year if the loaded report ever carried more than one per ABN.
+tax_transparency AS (
+  SELECT DISTINCT ON (abn)
+    abn, income_year, total_income, taxable_income, tax_payable
+  FROM abn___SCHEMA_VERSION__.tax_transparency
+  ORDER BY abn, income_year DESC NULLS LAST
+),
+-- 1:0..1 — ATO R&D Tax Incentive, ABN-or-ACN keyed (same two-path, ACN-type-guarded
+-- resolution as the ASIC AFS/credit sources).
+rd_by_abn AS (
+  SELECT DISTINCT ON (abn) abn, income_year, total_rd_expenditure
+  FROM abn___SCHEMA_VERSION__.rd_tax_incentive
+  WHERE abn IS NOT NULL
+  ORDER BY abn, income_year DESC NULLS LAST
+),
+rd_by_acn AS (
+  SELECT DISTINCT ON (acn) acn, income_year, total_rd_expenditure
+  FROM abn___SCHEMA_VERSION__.rd_tax_incentive
+  WHERE acn IS NOT NULL
+  ORDER BY acn, income_year DESC NULLS LAST
+),
 -- 1:0..1 — ASIC AFS + credit licences. The source `*_ABN_ACN` column holds EITHER
 -- an 11-digit ABN or a 9-digit ACN (the normalizer routes each to the abn/acn
 -- column). So each licence resolves to a base row by TWO paths: a direct ABN match,
@@ -198,13 +220,30 @@ SELECT
     'contractCount', gs.contract_count,
     'firstContractDate', gs.first_contract_date::text,
     'lastContractDate', gs.last_contract_date::text
-  ) END                                                AS gov_spend
+  ) END                                                AS gov_spend,
+  CASE WHEN tt.abn IS NULL THEN NULL ELSE json_build_object(
+    'incomeYear', tt.income_year,
+    'totalIncome', tt.total_income,
+    'taxableIncome', tt.taxable_income,
+    'taxPayable', tt.tax_payable
+  ) END                                                AS tax_transparency,
+  CASE
+    WHEN rda.abn IS NOT NULL THEN json_build_object(
+      'incomeYear', rda.income_year, 'totalRdExpenditure', rda.total_rd_expenditure)
+    WHEN rdc.acn IS NOT NULL THEN json_build_object(
+      'incomeYear', rdc.income_year, 'totalRdExpenditure', rdc.total_rd_expenditure)
+    ELSE NULL
+  END                                                  AS rd_tax_incentive
 FROM abn___SCHEMA_VERSION__.abn a
 LEFT JOIN company c ON c.abn = a.abn
 LEFT JOIN business_names_agg bn ON bn.abn = a.abn
 LEFT JOIN charity ch ON ch.abn = a.abn
 LEFT JOIN ais ON ais.abn = a.abn
 LEFT JOIN gov_spend gs ON gs.abn = a.abn
+LEFT JOIN tax_transparency tt ON tt.abn = a.abn
+LEFT JOIN rd_by_abn rda ON rda.abn = a.abn
+LEFT JOIN rd_by_acn rdc
+  ON rdc.acn = a.asic_number AND COALESCE(a.asic_number_type, '') NOT IN ('ARBN', 'ARSN', 'ARFN')
 LEFT JOIN afs_by_abn afsa ON afsa.abn = a.abn
 LEFT JOIN afs_by_acn afsc
   ON afsc.acn = a.asic_number AND COALESCE(a.asic_number_type, '') NOT IN ('ARBN', 'ARSN', 'ARFN')

@@ -108,6 +108,15 @@ export const WgeaReporterSchema = z.object({
   primaryOrganisation: z.string().nullable(),
 });
 
+/** ASIC-approved SMSF (self-managed super fund) auditor — a regulated financial profession. */
+export const SmsfAuditorSchema = z.object({
+  number: z.string(),
+  status: z.string().nullable(),
+  registrationDate: z.string().nullable(),
+  suspensionStartDate: z.string().nullable(),
+  suspensionEndDate: z.string().nullable(),
+});
+
 /** An ASIC banning/disqualification action against an organisation (0..N, joined via ACN). */
 export const BannedDisqualifiedSchema = z.object({
   type: z.string().nullable(),
@@ -177,6 +186,8 @@ export const EntityFlagsSchema = z.object({
   isCreditRep: z.boolean(),
   /** Reports to WGEA — a 100+-staff employer (`wgeaReporter != null`). */
   isWgeaReporter: z.boolean(),
+  /** Is an ASIC-approved SMSF auditor (`smsfAuditor != null`). */
+  isSmsfAuditor: z.boolean(),
 });
 
 export const AbnDocumentSchema = z.object({
@@ -224,6 +235,8 @@ export const AbnDocumentSchema = z.object({
   creditRep: CreditRepSchema.nullable(),
   /** WGEA reporting-organisation record (100+-staff employer); null otherwise. */
   wgeaReporter: WgeaReporterSchema.nullable(),
+  /** ASIC-approved SMSF auditor record; null if not a registered SMSF auditor. */
+  smsfAuditor: SmsfAuditorSchema.nullable(),
   /** Whole years since `abnStatusFromDate` relative to `_version`; null if no date. */
   ageYears: z.number().nullable(),
   /** `abnStatus === 'ACT'` — a convenience boolean. */
@@ -240,6 +253,7 @@ export type RdTaxIncentive = z.infer<typeof RdTaxIncentiveSchema>;
 export type AfsAuthorisedRep = z.infer<typeof AfsAuthorisedRepSchema>;
 export type CreditRep = z.infer<typeof CreditRepSchema>;
 export type WgeaReporter = z.infer<typeof WgeaReporterSchema>;
+export type SmsfAuditor = z.infer<typeof SmsfAuditorSchema>;
 export type DgrEndorsement = z.infer<typeof DgrSchema>;
 export type RegisteredBusinessName = z.infer<typeof RegisteredBusinessNameSchema>;
 export type CompanyEnrichment = z.infer<typeof CompanyEnrichmentSchema>;

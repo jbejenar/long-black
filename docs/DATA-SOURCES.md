@@ -8,22 +8,23 @@ register, the **ACN**) as a common join key. This is what makes a pre-joined
 super-dataset possible — and is why long-black uses a relational store (Postgres)
 rather than a direct XML→NDJSON stream.
 
-| Source                             | CKAN id                                  | Format           | Size                                | Cadence      | Join key                | Contributes                                                                              |
-| ---------------------------------- | ---------------------------------------- | ---------------- | ----------------------------------- | ------------ | ----------------------- | ---------------------------------------------------------------------------------------- |
-| **ABR ABN Bulk Extract** (core)    | `abn-bulk-extract`                       | XML, 2 ZIP parts | ~493 MB ×2 (~6–8 GB XML), ~20M ABNs | Weekly       | **ABN**, ACN/ARBN       | entity name/type, ABN status, GST, DGR, business/trading names, state+postcode           |
-| **ASIC Company**                   | `asic-companies`                         | CSV (tab) / ZIP  | ~394 MB                             | Weekly (Tue) | **ABN** + ACN           | `company{}` — type/class/status, registration & deregistration dates, prior state        |
-| **ASIC Business Names**            | `asic-business-names`                    | CSV (tab) / ZIP  | ~247 MB                             | Weekly (Wed) | **ABN** of holder       | `registeredBusinessNames[]` — authoritative names + status/dates                         |
-| **ACNC Registered Charities**      | `acnc-register`                          | CSV / XLSX       | ~15 MB, ~60k                        | Weekly       | **ABN**                 | `charity{}` — status, size, subtype, registration date                                   |
-| **ACNC Annual Info Statement**     | `acnc-<year>-...-ais-data`               | CSV              | ~38 MB, ~54k                        | Annual       | **ABN**                 | `charity.financials{}` — revenue, expenses, assets, liabilities, FTE staff, volunteers   |
-| **ASIC AFS Licensees**             | `asic-afs-licensee`                      | CSV (comma)      | ~1 MB, ~6.5k                        | Weekly       | **ABN** or ACN          | `financialServicesLicence{}` — AFS licence number, name, start date, conditions          |
-| **ASIC Credit Licensees**          | `asic-credit-licensee`                   | CSV (comma)      | ~1 MB, ~4.3k                        | Weekly       | **ABN** or ACN          | `creditLicence{}` — credit licence number, name, status, start/end dates                 |
-| **ASIC Banned & Disqualified**     | `asic-banned-disqualified-org`           | CSV (tab)        | ~10 KB, ~15 rows                    | Weekly       | **ACN** (`asic_number`) | `bannedDisqualified[]` — banning/disqualification actions (type, dates, comment)         |
-| **AusTender contracts** (OCDS)     | OCP registry pub. `19`                   | JSONL (gz)       | ~251 MB, ~852k contracts            | Monthly      | **ABN** of supplier     | `govSpend{}` — total value, contract count, first/last contract date (all history)       |
-| **ATO Corporate Tax Transparency** | `corporate-transparency`                 | XLSX             | ~280 KB, ~4.2k entities             | Annual       | **ABN**                 | `taxTransparency{}` — total income, taxable income, tax payable (≥$100M-income entities) |
-| **ATO R&D Tax Incentive**          | `research-and-development-tax-incentive` | XLSX             | ~660 KB, ~13k companies             | Annual       | **ABN** or ACN          | `rdTaxIncentive{}` — notional R&D expenditure for the year                               |
-| **ASIC AFS Authorised Reps**       | `asic-afs-authorised-representative`     | CSV (tab)        | ~40 MB, ~233k rows                  | Monthly      | **ABN** or ACN          | `afsAuthorisedRep{}` — rep number, AFS licensee, status, dates (~126k ABNs)              |
-| **ASIC Credit Reps**               | `asic-credit-representative`             | CSV (comma)      | ~4 MB, ~18k rows                    | Monthly      | **ABN** or ACN          | `creditRep{}` — rep number, credit licensee, dates                                       |
-| **WGEA Reporting Organisations**   | `wgea-dataset`                           | CSV (comma)      | ~1 MB, ~11k orgs                    | Annual       | **ABN**                 | `wgeaReporter{}` — 100+-staff employer, submission group (primary ABN + org)             |
+| Source                             | CKAN id                                  | Format           | Size                                | Cadence      | Join key                | Contributes                                                                                |
+| ---------------------------------- | ---------------------------------------- | ---------------- | ----------------------------------- | ------------ | ----------------------- | ------------------------------------------------------------------------------------------ |
+| **ABR ABN Bulk Extract** (core)    | `abn-bulk-extract`                       | XML, 2 ZIP parts | ~493 MB ×2 (~6–8 GB XML), ~20M ABNs | Weekly       | **ABN**, ACN/ARBN       | entity name/type, ABN status, GST, DGR, business/trading names, state+postcode             |
+| **ASIC Company**                   | `asic-companies`                         | CSV (tab) / ZIP  | ~394 MB                             | Weekly (Tue) | **ABN** + ACN           | `company{}` — type/class/status, registration & deregistration dates, prior state          |
+| **ASIC Business Names**            | `asic-business-names`                    | CSV (tab) / ZIP  | ~247 MB                             | Weekly (Wed) | **ABN** of holder       | `registeredBusinessNames[]` — authoritative names + status/dates                           |
+| **ACNC Registered Charities**      | `acnc-register`                          | CSV / XLSX       | ~15 MB, ~60k                        | Weekly       | **ABN**                 | `charity{}` — status, size, subtype, registration date                                     |
+| **ACNC Annual Info Statement**     | `acnc-<year>-...-ais-data`               | CSV              | ~38 MB, ~54k                        | Annual       | **ABN**                 | `charity.financials{}` — revenue, expenses, assets, liabilities, FTE staff, volunteers     |
+| **ASIC AFS Licensees**             | `asic-afs-licensee`                      | CSV (comma)      | ~1 MB, ~6.5k                        | Weekly       | **ABN** or ACN          | `financialServicesLicence{}` — AFS licence number, name, start date, conditions            |
+| **ASIC Credit Licensees**          | `asic-credit-licensee`                   | CSV (comma)      | ~1 MB, ~4.3k                        | Weekly       | **ABN** or ACN          | `creditLicence{}` — credit licence number, name, status, start/end dates                   |
+| **ASIC Banned & Disqualified**     | `asic-banned-disqualified-org`           | CSV (tab)        | ~10 KB, ~15 rows                    | Weekly       | **ACN** (`asic_number`) | `bannedDisqualified[]` — banning/disqualification actions (type, dates, comment)           |
+| **AusTender contracts** (OCDS)     | OCP registry pub. `19`                   | JSONL (gz)       | ~251 MB, ~852k contracts            | Monthly      | **ABN** of supplier     | `govSpend{}` — total value, contract count, first/last contract date (all history)         |
+| **ATO Corporate Tax Transparency** | `corporate-transparency`                 | XLSX             | ~280 KB, ~4.2k entities             | Annual       | **ABN**                 | `taxTransparency{}` — total income, taxable income, tax payable (≥$100M-income entities)   |
+| **ATO R&D Tax Incentive**          | `research-and-development-tax-incentive` | XLSX             | ~660 KB, ~13k companies             | Annual       | **ABN** or ACN          | `rdTaxIncentive{}` — notional R&D expenditure for the year                                 |
+| **ASIC AFS Authorised Reps**       | `asic-afs-authorised-representative`     | CSV (tab)        | ~40 MB, ~233k rows                  | Monthly      | **ABN** or ACN          | `afsAuthorisedRep{}` — rep number, AFS licensee, status, dates (~126k ABNs)                |
+| **ASIC Credit Reps**               | `asic-credit-representative`             | CSV (comma)      | ~4 MB, ~18k rows                    | Monthly      | **ABN** or ACN          | `creditRep{}` — rep number, credit licensee, dates                                         |
+| **WGEA Reporting Organisations**   | `wgea-dataset`                           | CSV (comma)      | ~1 MB, ~11k orgs                    | Annual       | **ABN**                 | `wgeaReporter{}` — 100+-staff employer, submission group (primary ABN + org)               |
+| **ASIC SMSF Auditors**             | `asic-smsf`                              | CSV (tab)        | ~10 MB, ~30k rows                   | Monthly      | **ABN** (auditor)       | `smsfAuditor{}` — SMSF auditor number, status, registration + suspension dates (~613 ABNs) |
 
 **Why the regulated & risk bundle.** AFS and credit licences are the two
 ASIC-issued permissions that gate who may legally provide financial or consumer-
@@ -332,6 +333,25 @@ CSV). `Company Name` is dropped — the entity's name already comes from the ABR
 > web application (transparency.gov.au) with no bulk CSV/API export keyed on ABN
 > (probes 404). No reliable bulk ABN-keyed source exists to load, so it is excluded
 > until one does — same data-completeness policy as FAR above.
+
+**ASIC SMSF Auditors** (`src/enrich.ts`, tab-delimited CSV) — the register of ASIC-
+approved self-managed-super-fund auditors, a regulated financial profession keyed on
+the auditor's ABN (`SMSF_PERSON_ABN`). The file lists auditor×condition rows (~30k,
+~4.9k with an ABN), which dedupe (DISTINCT ON the ABN) to **~613 distinct auditor
+ABNs** — most approved auditors are individuals with no ABN, so the population is
+small but clean. Suspension dates are an enforcement/risk signal.
+
+| Output (`smsfAuditor.*`)                    | ASIC column                           |
+| ------------------------------------------- | ------------------------------------- |
+| _join key_                                  | SMSF_PERSON_ABN                       |
+| `number`                                    | SMSF_NUM                              |
+| `status`                                    | SMSF_STATUS                           |
+| `registrationDate`                          | SMSF_REG_DT                           |
+| `suspensionStartDate` / `suspensionEndDate` | SMSF_SUSP_START_DT / SMSF_SUSP_END_DT |
+
+> **Not integrated — ASIC Registered Auditors / Liquidators:** verified live — the
+> registered-auditor file is ACN-only with ~221 ACNs (too low to be worth a field),
+> and the liquidator file has no ABN/ACN column at all (name-keyed). Both excluded.
 
 ## Attribution (required by CC-BY)
 

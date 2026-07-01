@@ -49,6 +49,7 @@ export const ABN_PARQUET_SCHEMA: ParquetSchema = new ParquetSchema({
   afsAuthorisedRep: { type: "UTF8", optional: true },
   creditRep: { type: "UTF8", optional: true },
   wgeaReporter: { type: "UTF8", optional: true },
+  smsfAuditor: { type: "UTF8", optional: true },
   // Derived scalars.
   isActive: { type: "BOOLEAN" },
   ageYears: { type: "INT64", optional: true },
@@ -81,6 +82,7 @@ const NULLABLE_NESTED = [
   "afsAuthorisedRep",
   "creditRep",
   "wgeaReporter",
+  "smsfAuditor",
 ] as const;
 
 /** Map an AbnDocument (parsed from NDJSON) to a flat Parquet row. */

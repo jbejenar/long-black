@@ -22,6 +22,7 @@ import type {
   AfsAuthorisedRep,
   CreditRep,
   WgeaReporter,
+  SmsfAuditor,
 } from "./schema.js";
 
 function emptyToNull(value: unknown): string | null {
@@ -114,6 +115,7 @@ export function composeAbnDocument(row: Record<string, unknown>, version: string
   const afsAuthorisedRep = (row.afs_authorised_rep as AfsAuthorisedRep | null) ?? null;
   const creditRep = (row.credit_rep as CreditRep | null) ?? null;
   const wgeaReporter = (row.wgea_reporter as WgeaReporter | null) ?? null;
+  const smsfAuditor = (row.smsf_auditor as SmsfAuditor | null) ?? null;
 
   return {
     _id: String(row._id),
@@ -151,6 +153,7 @@ export function composeAbnDocument(row: Record<string, unknown>, version: string
     afsAuthorisedRep,
     creditRep,
     wgeaReporter,
+    smsfAuditor,
     // Derived signals — computed here from the fields above, no extra source.
     ageYears: computeAgeYears(abnStatusFromDate, version),
     isActive: status === "ACT",
@@ -167,6 +170,7 @@ export function composeAbnDocument(row: Record<string, unknown>, version: string
       isAfsAuthorisedRep: afsAuthorisedRep !== null,
       isCreditRep: creditRep !== null,
       isWgeaReporter: wgeaReporter !== null,
+      isSmsfAuditor: smsfAuditor !== null,
     },
   };
 }

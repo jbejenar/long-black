@@ -46,6 +46,8 @@ export interface CoverageFloors {
   creditRep: number;
   /** Min docs with a non-null `wgeaReporter` object (WGEA). */
   wgeaReporter: number;
+  /** Min docs with a non-null `smsfAuditor` object (ASIC SMSF auditors). */
+  smsfAuditor: number;
 }
 
 export interface CoverageResult {
@@ -63,6 +65,7 @@ export interface CoverageResult {
   afsAuthorisedRep: number;
   creditRep: number;
   wgeaReporter: number;
+  smsfAuditor: number;
   /** ABR-owned arrays — reported for visibility, not gated (always present). */
   businessNames: number;
   dgr: number;
@@ -97,6 +100,7 @@ export const ABN_COVERAGE_FLOORS: CoverageFloors = {
   afsAuthorisedRep: 40_000, // ~112k ABN + 107k ACN rep authorisations
   creditRep: 5_000, // ~17.7k ABN/ACN
   wgeaReporter: 3_000, // ~11k WGEA-reporting organisations (2022 snapshot)
+  smsfAuditor: 300, // 613 distinct SMSF-auditor ABNs (most auditors have no ABN)
 };
 
 /**
@@ -119,6 +123,7 @@ export const FIXTURE_COVERAGE_FLOORS: CoverageFloors = {
   afsAuthorisedRep: 1,
   creditRep: 1,
   wgeaReporter: 1,
+  smsfAuditor: 1,
 };
 
 function isNonEmptyArray(value: unknown): boolean {
@@ -148,6 +153,7 @@ export async function checkEnrichmentCoverage(
     afsAuthorisedRep: 0,
     creditRep: 0,
     wgeaReporter: 0,
+    smsfAuditor: 0,
     businessNames: 0,
     dgr: 0,
     ok: true,
@@ -176,6 +182,7 @@ export async function checkEnrichmentCoverage(
     if (doc.afsAuthorisedRep != null) result.afsAuthorisedRep += 1;
     if (doc.creditRep != null) result.creditRep += 1;
     if (doc.wgeaReporter != null) result.wgeaReporter += 1;
+    if (doc.smsfAuditor != null) result.smsfAuditor += 1;
     if (isNonEmptyArray(doc.businessNames)) result.businessNames += 1;
     if (isNonEmptyArray(doc.dgr)) result.dgr += 1;
   }
@@ -194,6 +201,7 @@ export async function checkEnrichmentCoverage(
     ["afsAuthorisedRep", result.afsAuthorisedRep, floors.afsAuthorisedRep],
     ["creditRep", result.creditRep, floors.creditRep],
     ["wgeaReporter", result.wgeaReporter, floors.wgeaReporter],
+    ["smsfAuditor", result.smsfAuditor, floors.smsfAuditor],
   ];
   for (const [name, got, min] of gates) {
     if (got < min) {

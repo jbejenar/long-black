@@ -1,13 +1,13 @@
 # Fixture edge cases — long-black
 
 The fixture (`fixtures/seed-postgres.sql`) seeds ~20 representative ABNs into the
-`abn` staging table, plus example rows into the thirteen enrichment stub tables
+`abn` staging table, plus example rows into the fourteen enrichment stub tables
 (`asic_company`, `asic_business_name`, `acnc_charity`, `acnc_ais`,
 `asic_afs_licence`, `asic_credit_licence`, `asic_banned_disqualified`, `gov_spend`,
 `tax_transparency`, `rd_tax_incentive`, `asic_afs_rep`, `asic_credit_rep`,
-`wgea_reporter`) so the join seam is exercised end-to-end (not just stubbed). All ABNs
-are checksum-valid (mod-89). Each row exercises a distinct edge case the flatten +
-schema + verify must handle.
+`wgea_reporter`, `asic_smsf_auditor`) so the join seam is exercised end-to-end (not
+just stubbed). All ABNs are checksum-valid (mod-89). Each row exercises a distinct edge
+case the flatten + schema + verify must handle.
 
 | ABN         | Case                                                            | What it guards                                                                                                   |
 | ----------- | --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
@@ -64,6 +64,7 @@ and lands in the nullable nested objects of `expected-output.ndjson`.
 | 51000000793 | ASIC Credit Rep       | Credit rep keyed by **ABN**                                                                                 | `creditRep{}` via ABN path; `flags.isCreditRep=true`                                  |
 | 51000000761 | WGEA                  | WGEA reporter that submits as itself (`primary_abn == abn`)                                                 | `wgeaReporter{}` self-submission; `flags.isWgeaReporter=true`                         |
 | 51000000793 | WGEA                  | WGEA reporter under a submission **group** (`primary_abn` differs)                                          | `wgeaReporter{}` carries the group linkage (primary ABN + org)                        |
+| 51000000680 | ASIC SMSF Auditor     | Sole trader that is a registered SMSF auditor (**duplicate** condition rows)                                | `smsfAuditor{}` via ABN; `DISTINCT ON` collapses auditor×condition rows to one        |
 
 > **ACN-path matching uses `asic_number_type` to EXCLUDE, not require.** The real ABR
 > extract sets `@ASICNumberType = 'undetermined'` on every ASIC number (it never

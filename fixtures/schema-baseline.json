@@ -902,6 +902,69 @@
             }
           ]
         },
+        "smsfAuditor": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "number": {
+                  "type": "string"
+                },
+                "status": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "registrationDate": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "suspensionStartDate": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "suspensionEndDate": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "number",
+                "status",
+                "registrationDate",
+                "suspensionStartDate",
+                "suspensionEndDate"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "ageYears": {
           "anyOf": [
             {
@@ -953,6 +1016,9 @@
             },
             "isWgeaReporter": {
               "type": "boolean"
+            },
+            "isSmsfAuditor": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -967,7 +1033,8 @@
             "claimsRdTaxIncentive",
             "isAfsAuthorisedRep",
             "isCreditRep",
-            "isWgeaReporter"
+            "isWgeaReporter",
+            "isSmsfAuditor"
           ],
           "additionalProperties": false
         }
@@ -1005,6 +1072,7 @@
         "afsAuthorisedRep",
         "creditRep",
         "wgeaReporter",
+        "smsfAuditor",
         "ageYears",
         "isActive",
         "flags"

@@ -1,16 +1,16 @@
 # Document Schema Reference — long-black
 
-> **Schema version:** 0.15.0
+> **Schema version:** 0.16.0
 > **Runtime validation:** `src/schema.ts` (`AbnDocumentSchema`, Zod)
 > **Breaking changes:** require a major version bump.
 
-> 0.15.0 adds **`wgeaReporter`** (additive, minor): the entity reports to the
-> Workplace Gender Equality Agency (a 100+-staff employer), plus
-> `flags.isWgeaReporter`. 0.14.0 added the **ASIC representative** pair
-> (`afsAuthorisedRep`, `creditRep`). 0.13.0 added the **financial-depth** ATO pair
-> (`taxTransparency`, `rdTaxIncentive`). 0.12.0 added **`govSpend`** (AusTender).
-> 0.11.0 added **derived signals**. 0.10.0 added `charity.financials`. 0.9.0 added the
-> **regulated & risk** bundle. 0.6.0 added optional **Parquet**.
+> 0.16.0 adds **`smsfAuditor`** (additive, minor): the entity is an ASIC-approved SMSF
+> auditor, plus `flags.isSmsfAuditor`. 0.15.0 added **`wgeaReporter`** (WGEA). 0.14.0
+> added the **ASIC representative** pair (`afsAuthorisedRep`, `creditRep`). 0.13.0
+> added the **financial-depth** ATO pair (`taxTransparency`, `rdTaxIncentive`). 0.12.0
+> added **`govSpend`** (AusTender). 0.11.0 added **derived signals**. 0.10.0 added
+> `charity.financials`. 0.9.0 added the **regulated & risk** bundle. 0.6.0 added
+> optional **Parquet**.
 
 One NDJSON document per ABN. This document is the contract: `src/schema.ts`,
 this file, and `fixtures/expected-output.ndjson` move together (additive field =
@@ -59,6 +59,7 @@ exercise the join seam (see `fixtures/edge-cases.md`).
 | `afsAuthorisedRep`         | `AfsAuthorisedRep`\|null              | yes      | ASIC AFS authorised representative record; null otherwise            | ASIC AFS Authorised Representatives                   |
 | `creditRep`                | `CreditRep`\|null                     | yes      | ASIC credit representative record; null otherwise                    | ASIC Credit Representatives                           |
 | `wgeaReporter`             | `WgeaReporter`\|null                  | yes      | WGEA reporting-organisation record (100+-staff employer); else null  | WGEA Reporting Organisations                          |
+| `smsfAuditor`              | `SmsfAuditor`\|null                   | yes      | ASIC-approved SMSF auditor record; null otherwise                    | ASIC SMSF Auditors                                    |
 | `ageYears`                 | number\|null                          | yes      | Whole years since `abnStatusFromDate` vs `_version`; null if no date | derived                                               |
 | `isActive`                 | boolean                               | no       | `abnStatus === 'ACT'`                                                | derived                                               |
 | `flags`                    | `EntityFlags`                         | no       | Derived convenience booleans (see below)                             | derived                                               |
@@ -273,6 +274,23 @@ snapshot is 2022). Shape: `WgeaReporterSchema`.
 | `primaryAbn`          | string | yes      | Submission-group ABN (self when it submits alone) |
 | `primaryOrganisation` | string | yes      | Submission group's organisation name              |
 
+## Nested: `smsfAuditor` (ASIC)
+
+Present when the ABN is an **ASIC-approved SMSF auditor** — a regulated financial
+profession that audits self-managed super funds (1:0..1). A small population: ~613
+distinct auditor ABNs (most approved auditors are individuals with no ABN). The source
+lists auditor×condition rows, deduped to one record per auditor. `suspensionStartDate`
+/ `suspensionEndDate` flag a suspended auditor (an enforcement/risk signal). Shape:
+`SmsfAuditorSchema`.
+
+| Field                 | Type   | Nullable | Description                             |
+| --------------------- | ------ | -------- | --------------------------------------- |
+| `number`              | string | no       | SMSF auditor number (`SMSF_NUM`)        |
+| `status`              | string | yes      | Registration status (e.g. `Registered`) |
+| `registrationDate`    | string | yes      | Registration date (ISO)                 |
+| `suspensionStartDate` | string | yes      | Suspension start (ISO); null if none    |
+| `suspensionEndDate`   | string | yes      | Suspension end (ISO); null if none      |
+
 ## Nested: `flags` (EntityFlags)
 
 Derived convenience booleans — composed in `compose.ts` from the fields above, not a
@@ -295,6 +313,7 @@ no enforcement action"). Shape: `EntityFlagsSchema`. Approximate prevalence on t
 | `isAfsAuthorisedRep`       | boolean | `afsAuthorisedRep != null`                   |
 | `isCreditRep`              | boolean | `creditRep != null`                          |
 | `isWgeaReporter`           | boolean | `wgeaReporter != null` (100+-staff employer) |
+| `isSmsfAuditor`            | boolean | `smsfAuditor != null`                        |
 
 `ageYears` and `isActive` are likewise derived: `ageYears` is whole **calendar**
 years from `abnStatusFromDate` to the `_version` date — computed from date components

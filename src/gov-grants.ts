@@ -138,12 +138,19 @@ async function downloadGaXlsx(jar: CookieJar, startIso: string, endIso: string):
   return Buffer.from(await res.arrayBuffer());
 }
 
-/** Parse a Grant Award Published XLSX → rows (ABN, value cents, publish date). */
-export function parseGaXlsx(buf: Buffer): Promise<GrantRow[]> {
+/**
+ * Parse a Grant Award Published XLSX. Returns the joinable rows (ABN + value + date)
+ * AND `rawCount` — the total number of award rows the report returned, BEFORE dropping
+ * ABN-less recipients. `rawCount` (not `rows.length`) is what the 50k-cap check must
+ * use: a capped 50,000-row report containing any non-ABN recipients would otherwise
+ * leave `rows.length < 50,000` and be wrongly treated as complete, silently losing
+ * every award past the cap.
+ */
+export function parseGaXlsx(buf: Buffer): Promise<{ rows: GrantRow[]; rawCount: number }> {
   // exceljs's load() Buffer typing is stricter than @types/node's generic Buffer.
   return new ExcelJS.Workbook().xlsx.load(buf as unknown as ArrayBuffer).then((wb) => {
     const ws = wb.worksheets[0];
-    if (!ws) return [];
+    if (!ws) return { rows: [], rawCount: 0 };
     const cell = (row: ExcelJS.Row, i: number): unknown => {
       const v = (row.values as unknown[])[i];
       if (v && typeof v === "object") {
@@ -180,11 +187,21 @@ export function parseGaXlsx(buf: Buffer): Promise<GrantRow[]> {
     const abnCol = idx["recipient abn"];
     const valueCol = Object.entries(idx).find(([k]) => k.startsWith("value"))?.[1];
     const dateCol = idx["publish date"];
+    // "GA ID" (or "ga id") identifies every award row — used to count the raw award
+    // total for the cap check, independent of whether a recipient has an ABN.
+    const gaIdCol = idx["ga id"];
     if (!abnCol || !valueCol) throw new Error("GrantConnect XLSX: ABN/Value column missing");
 
     const rows: GrantRow[] = [];
+    let rawCount = 0;
     for (let i = hdr + 1; i <= ws.rowCount; i++) {
       const row = ws.getRow(i);
+      // An award row = one with a GA ID (or, if that column is absent, a value cell).
+      const isAward = gaIdCol
+        ? String(cell(row, gaIdCol) ?? "").trim() !== ""
+        : String(cell(row, valueCol) ?? "").trim() !== "";
+      if (!isAward) continue;
+      rawCount += 1;
       const abn = String(cell(row, abnCol) ?? "").replace(/\D/g, "");
       if (abn.length !== 11) continue; // recipient with no ABN (individual) → can't join
       const rawVal = String(cell(row, valueCol) ?? "").replace(/[,$\s]/g, "");
@@ -200,7 +217,7 @@ export function parseGaXlsx(buf: Buffer): Promise<GrantRow[]> {
       }
       rows.push({ abn, valueCents: cents, publishDate });
     }
-    return rows;
+    return { rows, rawCount };
   });
 }
 
@@ -213,18 +230,29 @@ async function collectRange(
   log: (m: string) => void,
 ): Promise<void> {
   const buf = await downloadGaXlsx(jar, startIso, endIso);
-  const rows = await parseGaXlsx(buf);
-  if (rows.length >= REPORT_CAP && startIso < endIso) {
-    // Capped — the range has ≥50k awards; split in half by date and recurse.
+  // Cap detection uses the RAW award count (all rows the report returned), NOT the
+  // ABN-joinable subset — a capped report with non-ABN recipients would otherwise
+  // slip under REPORT_CAP and silently drop awards past the cap.
+  const { rows, rawCount } = await parseGaXlsx(buf);
+  if (rawCount >= REPORT_CAP) {
+    if (startIso >= endIso) {
+      // A single day still exceeds the cap: the report can't be subdivided further
+      // (its only granularity is a publish-date range), so completing it isn't
+      // possible — fail loudly rather than ship a silently-truncated total.
+      throw new Error(
+        `GrantConnect: ${startIso} alone returned ${rawCount} awards (≥ the ${REPORT_CAP} cap); ` +
+          `the report cannot be subdivided below one day — data would be truncated`,
+      );
+    }
     const mid = new Date((Date.parse(startIso) + Date.parse(endIso)) / 2)
       .toISOString()
       .slice(0, 10);
-    log(`  ${startIso}..${endIso}: capped at ${rows.length}, bisecting at ${mid}`);
+    log(`  ${startIso}..${endIso}: capped at ${rawCount}, bisecting at ${mid}`);
     const next = new Date(Date.parse(mid) + 86400000).toISOString().slice(0, 10);
     await collectRange(jar, startIso, mid, out, log);
     await collectRange(jar, next, endIso, out, log);
   } else {
-    log(`  ${startIso}..${endIso}: ${rows.length} awards`);
+    log(`  ${startIso}..${endIso}: ${rawCount} awards (${rows.length} with an ABN)`);
     out.push(...rows);
   }
 }

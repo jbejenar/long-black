@@ -70,30 +70,38 @@ async function main(): Promise<void> {
   const runGovSpend = requested.length === 0 || requested.includes(GOV_SPEND_KEY);
   const gcUser = process.env.GRANTCONNECT_USERNAME;
   const gcPass = process.env.GRANTCONNECT_PASSWORD;
-  const gcRequested = requested.length === 0 || requested.includes(GOV_GRANTS_KEY);
+  const gcExplicit = requested.includes(GOV_GRANTS_KEY); // named directly on the CLI
+  const gcRequested = requested.length === 0 || gcExplicit; // all-sources run or explicit
   const gcHasCreds = Boolean(gcUser && gcPass);
-  // Run grant-awards only when creds are present. If explicitly requested without
-  // creds, that's a hard error; if part of an all-sources run without creds, skip it
-  // (the production coverage gate then fails the build if grants were expected).
   const runGovGrants = gcRequested && gcHasCreds;
   const xlsxSources =
     requested.length === 0 ? XLSX_SOURCES : XLSX_SOURCES.filter((s) => requested.includes(s.key));
+  // Count grant awards whenever requested — running OR required-but-uncredentialed —
+  // so the total is honest and a missing-creds all-sources run registers as a failure.
   const totalSources =
-    sources.length + (runGovSpend ? 1 : 0) + (runGovGrants ? 1 : 0) + xlsxSources.length;
+    sources.length + (runGovSpend ? 1 : 0) + (gcRequested ? 1 : 0) + xlsxSources.length;
 
-  if (requested.includes(GOV_GRANTS_KEY) && !gcHasCreds) {
+  // An explicit single/multi-source request that names gov_grants but has no creds is a
+  // usage error → hard exit (nothing to fall back to).
+  if (gcExplicit && !gcHasCreds) {
     console.error(
       `[enrich] ${GOV_GRANTS_LABEL}: FAILED — GRANTCONNECT_USERNAME/PASSWORD not set (required for this source)`,
     );
     process.exit(2);
   }
-  if (gcRequested && !gcHasCreds) {
-    console.error(
-      `[enrich] ${GOV_GRANTS_LABEL}: skipped — no GrantConnect creds (set GRANTCONNECT_USERNAME/PASSWORD to include it)`,
-    );
-  }
 
   let failures = 0;
+  // In an all-sources run without creds, grant awards is a REQUIRED source that did not
+  // load → count it as a failure so `enrich-cli` exits non-zero. The build wrapper then
+  // decides consistently: abort by default, or (with allow_partial_enrichment=true)
+  // disable the coverage gate and ship degraded — the documented emergency path. Never
+  // a silent success that leaves the coverage gate to fail an intentional partial run.
+  if (gcRequested && !gcHasCreds) {
+    failures++;
+    console.error(
+      `[enrich] ${GOV_GRANTS_LABEL}: FAILED — no GrantConnect creds (set GRANTCONNECT_USERNAME/PASSWORD, or allow_partial_enrichment to ship without grants)`,
+    );
+  }
   for (const source of sources) {
     try {
       console.error(`[enrich] ${source.label}: downloading…`);

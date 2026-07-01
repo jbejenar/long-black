@@ -458,11 +458,11 @@ jobs:
         run: |
           set -euo pipefail
           mkdir s3-staging
-          # The per-state shards (the data) + the release manifest (which the S3 manifest
-          # is derived from). metadata.json stays Release-only; the manifest carries the
-          # counts + provenance the S3 side needs.
+          # The per-state shards (the data), metadata.json (per-source CC-BY attribution —
+          # a licence requirement that must travel with EVERY distribution channel), and
+          # the release manifest (which the S3 manifest is derived from).
           gh release download "$TAG" --repo "$REPO" --dir s3-staging \
-            --pattern 'long-black-*.ndjson.gz' --pattern 'manifest.json'
+            --pattern 'long-black-*.ndjson.gz' --pattern 'metadata.json' --pattern 'manifest.json'
           ls -lh s3-staging
 
       - name: Configure AWS credentials (OIDC)
@@ -487,11 +487,20 @@ jobs:
           echo "all.ndjson.gz: $(du -h s3-staging/all.ndjson.gz | cut -f1) from" \
             "$(ls s3-staging/long-black-*.ndjson.gz | wc -l | tr -d ' ') shards"
 
+          # Licence guard: the CC-BY attribution must travel with every distribution
+          # channel, so metadata.json (its per-source sources[] with licence + attribution)
+          # must be present and complete BEFORE anything is published to S3.
+          jq -e '(.sources | length) > 0 and all(.sources[]; (.attribution // "") != "" and (.licence // "") != "")' \
+            s3-staging/metadata.json > /dev/null \
+            || { echo "::error::metadata.json missing per-source licence/attribution — refusing to publish to S3"; exit 1; }
+
           # Immutable, product-namespaced DATA (matches flat-white's data/<product>/<ver>/):
-          # the per-state shards + the full all.ndjson.gz. The manifest goes to a SEPARATE
-          # manifests/ prefix, uploaded LAST (after the data it describes is present).
+          # the per-state shards + the full all.ndjson.gz + metadata.json (the attribution
+          # that must accompany the data). The manifest goes to a SEPARATE manifests/
+          # prefix, uploaded LAST (after the data it describes is present).
           aws s3 cp s3-staging/ "${DEST}/" --recursive --no-progress \
-            --exclude '*' --include 'long-black-*.ndjson.gz' --include 'all.ndjson.gz'
+            --exclude '*' --include 'long-black-*.ndjson.gz' --include 'all.ndjson.gz' \
+            --include 'metadata.json'
 
           # A+++ S3 manifest: (1) rewrite each shard's key to its S3 key; (2) add
           # all.ndjson.gz as an AGGREGATE file with its own sha256 + bytes, marked

@@ -139,6 +139,7 @@ flat-white's **product-namespaced layout** so the two coexist:
 ```
 s3://<bucket>/data/abn/<version>/long-black-<version>-<state>.ndjson.gz   # per-state shards
 s3://<bucket>/data/abn/<version>/all.ndjson.gz            # full all-ABN bundle (S3 only)
+s3://<bucket>/data/abn/<version>/metadata.json           # per-source CC-BY attribution
 s3://<bucket>/manifests/abn-<version>.json               # manifest (files[].key → the S3 keys)
 
 s3://<bucket>/data/address/<version>/…   # flat-white (product "address"), for reference

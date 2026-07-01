@@ -180,6 +180,13 @@
           "endDate": { "type": "date", "format": "yyyy-MM-dd", "ignore_malformed": true }
         }
       },
+      "wgeaReporter": {
+        "type": "object",
+        "properties": {
+          "primaryAbn": { "type": "keyword" },
+          "primaryOrganisation": { "type": "keyword" }
+        }
+      },
       "ageYears": { "type": "integer" },
       "isActive": { "type": "boolean" },
       "flags": {
@@ -195,7 +202,8 @@
           "isLargeCorporateTaxpayer": { "type": "boolean" },
           "claimsRdTaxIncentive": { "type": "boolean" },
           "isAfsAuthorisedRep": { "type": "boolean" },
-          "isCreditRep": { "type": "boolean" }
+          "isCreditRep": { "type": "boolean" },
+          "isWgeaReporter": { "type": "boolean" }
         }
       }
     }

@@ -100,6 +100,14 @@ export const CreditRepSchema = z.object({
   endDate: z.string().nullable(),
 });
 
+/** WGEA reporting organisation — a 100+-staff employer that reports gender-equality data. */
+export const WgeaReporterSchema = z.object({
+  /** The submission-group ABN this entity reports under (itself, when it submits alone). */
+  primaryAbn: z.string().nullable(),
+  /** The submission group's organisation name. */
+  primaryOrganisation: z.string().nullable(),
+});
+
 /** An ASIC banning/disqualification action against an organisation (0..N, joined via ACN). */
 export const BannedDisqualifiedSchema = z.object({
   type: z.string().nullable(),
@@ -167,6 +175,8 @@ export const EntityFlagsSchema = z.object({
   isAfsAuthorisedRep: z.boolean(),
   /** Is an ASIC credit representative (`creditRep != null`). */
   isCreditRep: z.boolean(),
+  /** Reports to WGEA — a 100+-staff employer (`wgeaReporter != null`). */
+  isWgeaReporter: z.boolean(),
 });
 
 export const AbnDocumentSchema = z.object({
@@ -212,6 +222,8 @@ export const AbnDocumentSchema = z.object({
   afsAuthorisedRep: AfsAuthorisedRepSchema.nullable(),
   /** ASIC credit representative record; null if not a credit rep. */
   creditRep: CreditRepSchema.nullable(),
+  /** WGEA reporting-organisation record (100+-staff employer); null otherwise. */
+  wgeaReporter: WgeaReporterSchema.nullable(),
   /** Whole years since `abnStatusFromDate` relative to `_version`; null if no date. */
   ageYears: z.number().nullable(),
   /** `abnStatus === 'ACT'` — a convenience boolean. */
@@ -227,6 +239,7 @@ export type TaxTransparency = z.infer<typeof TaxTransparencySchema>;
 export type RdTaxIncentive = z.infer<typeof RdTaxIncentiveSchema>;
 export type AfsAuthorisedRep = z.infer<typeof AfsAuthorisedRepSchema>;
 export type CreditRep = z.infer<typeof CreditRepSchema>;
+export type WgeaReporter = z.infer<typeof WgeaReporterSchema>;
 export type DgrEndorsement = z.infer<typeof DgrSchema>;
 export type RegisteredBusinessName = z.infer<typeof RegisteredBusinessNameSchema>;
 export type CompanyEnrichment = z.infer<typeof CompanyEnrichmentSchema>;

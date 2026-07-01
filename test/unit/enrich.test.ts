@@ -9,7 +9,7 @@ import type { CkanResource } from "crema";
 import { ENRICHMENT_SOURCES, selectEnrichmentResource } from "../../src/enrich.js";
 
 describe("ENRICHMENT_SOURCES config", () => {
-  it("covers the nine enrichment sources with distinct staging tables", () => {
+  it("covers the ten enrichment sources with distinct staging tables", () => {
     expect(ENRICHMENT_SOURCES.map((s) => s.key).sort()).toEqual([
       "acnc_ais",
       "acnc_charity",
@@ -20,6 +20,7 @@ describe("ENRICHMENT_SOURCES config", () => {
       "asic_company",
       "asic_credit_licence",
       "asic_credit_rep",
+      "wgea_reporter",
     ]);
   });
 
@@ -36,6 +37,7 @@ describe("ENRICHMENT_SOURCES config", () => {
     expect(byKey.asic_afs_licence).toMatchObject({ delimiter: ",", quoting: true });
     expect(byKey.asic_credit_licence).toMatchObject({ delimiter: ",", quoting: true });
     expect(byKey.asic_credit_rep).toMatchObject({ delimiter: ",", quoting: true });
+    expect(byKey.wgea_reporter).toMatchObject({ delimiter: ",", quoting: true });
   });
 
   it("sets a positive completeness floor (minRows) below the real volume", () => {

@@ -36,7 +36,8 @@ export interface EnrichmentSource {
     | "asic_credit_licence"
     | "asic_banned_disqualified"
     | "asic_afs_rep"
-    | "asic_credit_rep";
+    | "asic_credit_rep"
+    | "wgea_reporter";
   /** Human label for logs. */
   label: string;
   /** Stable data.gov.au package id. */
@@ -164,6 +165,22 @@ export const ENRICHMENT_SOURCES: EnrichmentSource[] = [
     resourceMatch: "credit_rep",
     normalizeSqlFile: "normalize-asic-credit-rep.sql",
     minRows: 5_000, // real 2026.06: ~17.7k ABN/ACN
+  },
+  {
+    // WGEA — the list of organisations (by ABN) that report to the Workplace Gender
+    // Equality Agency: employers with 100+ staff (a size + gender-equality-reporting
+    // signal). The dataset has many resources; we select the dedicated per-ABN CSV
+    // (`..._included_organisations_per_abn.csv`) — a real comma CSV with
+    // `Primary ABN, Primary Organisation, ABN, Company Name`. Latest per-ABN list is
+    // the 2022 snapshot (later years ship only as ZIPs without a standalone per-ABN CSV).
+    key: "wgea_reporter",
+    label: "WGEA Reporting Organisations",
+    packageId: "wgea-dataset",
+    delimiter: ",",
+    quoting: true,
+    resourceMatch: "included_organisations_per_abn",
+    normalizeSqlFile: "normalize-wgea-reporter.sql",
+    minRows: 5_000, // real: ~11k organisations
   },
 ];
 

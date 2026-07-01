@@ -33,6 +33,7 @@ const ZERO: CoverageFloors = {
   rdTaxIncentive: 0,
   afsAuthorisedRep: 0,
   creditRep: 0,
+  wgeaReporter: 0,
 };
 
 // A document with all enrichment present.
@@ -49,6 +50,7 @@ const full = {
   rdTaxIncentive: { incomeYear: "2022-23", totalRdExpenditure: 50 },
   afsAuthorisedRep: { number: "R1" },
   creditRep: { number: "CR1" },
+  wgeaReporter: { primaryAbn: "51000000761", primaryOrganisation: "ACME GROUP" },
   businessNames: ["B"],
   dgr: [{ name: "D", statusFromDate: "2020-01-01" }],
 };
@@ -66,6 +68,7 @@ const bare = {
   rdTaxIncentive: null,
   afsAuthorisedRep: null,
   creditRep: null,
+  wgeaReporter: null,
   businessNames: [],
   dgr: [],
 };
@@ -94,6 +97,7 @@ describe("checkEnrichmentCoverage", () => {
     expect(cov.rdTaxIncentive).toBe(2);
     expect(cov.afsAuthorisedRep).toBe(2);
     expect(cov.creditRep).toBe(2);
+    expect(cov.wgeaReporter).toBe(2);
     expect(cov.businessNames).toBe(2);
     expect(cov.dgr).toBe(2);
     expect(cov.ok).toBe(true);
@@ -141,9 +145,10 @@ describe("checkEnrichmentCoverage", () => {
       rdTaxIncentive: 5,
       afsAuthorisedRep: 5,
       creditRep: 5,
+      wgeaReporter: 5,
     };
     const cov = await checkEnrichmentCoverage(ndjson([full, bare]), floors);
     expect(cov.ok).toBe(false);
-    expect(cov.shortfalls).toHaveLength(12);
+    expect(cov.shortfalls).toHaveLength(13);
   });
 });

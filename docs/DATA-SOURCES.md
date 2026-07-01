@@ -23,6 +23,7 @@ rather than a direct XML→NDJSON stream.
 | **ATO R&D Tax Incentive**          | `research-and-development-tax-incentive` | XLSX             | ~660 KB, ~13k companies             | Annual       | **ABN** or ACN          | `rdTaxIncentive{}` — notional R&D expenditure for the year                               |
 | **ASIC AFS Authorised Reps**       | `asic-afs-authorised-representative`     | CSV (tab)        | ~40 MB, ~233k rows                  | Monthly      | **ABN** or ACN          | `afsAuthorisedRep{}` — rep number, AFS licensee, status, dates (~126k ABNs)              |
 | **ASIC Credit Reps**               | `asic-credit-representative`             | CSV (comma)      | ~4 MB, ~18k rows                    | Monthly      | **ABN** or ACN          | `creditRep{}` — rep number, credit licensee, dates                                       |
+| **WGEA Reporting Organisations**   | `wgea-dataset`                           | CSV (comma)      | ~1 MB, ~11k orgs                    | Annual       | **ABN**                 | `wgeaReporter{}` — 100+-staff employer, submission group (primary ABN + org)             |
 
 **Why the regulated & risk bundle.** AFS and credit licences are the two
 ASIC-issued permissions that gate who may legally provide financial or consumer-
@@ -311,6 +312,27 @@ foreign type). `DISTINCT ON` keeps the latest authorisation per entity.
 > misalignment. Excluded under the data-completeness policy (don't ship a source that
 > can't be loaded cleanly and completely).
 
+**WGEA reporting organisations** (`src/enrich.ts`, comma CSV) — the list of employers
+(by ABN) that report to the Workplace Gender Equality Agency: businesses with 100+
+staff that lodge a gender-equality report. The `wgea-dataset` package has many
+resources; the loader selects the dedicated per-ABN CSV
+(`..._included_organisations_per_abn.csv`, cols `Primary ABN, Primary Organisation,
+ABN, Company Name`). The join key is the entity's own `ABN`; `Primary ABN` /
+`Primary Organisation` name the submission group. The latest ABN-keyed list is the
+**2022** snapshot (later years ship only as ZIP archives without a standalone per-ABN
+CSV). `Company Name` is dropped — the entity's name already comes from the ABR.
+
+| Output (`wgeaReporter.*`) | WGEA column          |
+| ------------------------- | -------------------- |
+| _join key_                | ABN                  |
+| `primaryAbn`              | Primary ABN          |
+| `primaryOrganisation`     | Primary Organisation |
+
+> **Not integrated — Modern Slavery Statements Register:** the register moved to a
+> web application (transparency.gov.au) with no bulk CSV/API export keyed on ABN
+> (probes 404). No reliable bulk ABN-keyed source exists to load, so it is excluded
+> until one does — same data-completeness policy as FAR above.
+
 ## Attribution (required by CC-BY)
 
 - © Commonwealth of Australia (Australian Business Register) — CC-BY 3.0 AU
@@ -321,5 +343,6 @@ foreign type). `DISTINCT ON` keeps the latest authorisation per entity.
   file)
 - © Commonwealth of Australia (Australian Taxation Office) — Corporate Tax
   Transparency **CC-BY 3.0 AU**; R&D Tax Incentive **CC-BY 2.5 AU**
+- © Commonwealth of Australia (Workplace Gender Equality Agency) — CC-BY 3.0 AU
 
 These appear in every build's `metadata.json` (`sources[].attribution`).

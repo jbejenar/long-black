@@ -132,19 +132,23 @@ ships, and consumers never see a partial or changing public release:
 
 GitHub Releases are the primary distribution; `build.yml` can also mirror each
 published release's assets (per-state `*.ndjson.gz`, the all-ABN `.parquet`,
-`metadata.json`, `manifest.json`) to S3. The two mirror steps are **dormant until
-configured** — they run only when a published, non-anomalous release was cut **and**
-the repo **variable** `S3_BUCKET` is set. Layout:
+`metadata.json`, `manifest.json`) to S3. This runs as a **separate `mirror-s3` job**
+(not a step in the build job) so that the AWS OIDC `id-token` permission is scoped to
+the mirror alone — the pipeline/build job never gets assume-role rights. It is
+**dormant until configured** — it runs only when the build **published a non-anomalous
+release** _and_ the repo **variable** `S3_BUCKET` is set. Layout:
 
 ```
-s3://<bucket>/long-black/v<version>/…   # immutable, per release (cp)
-s3://<bucket>/long-black/latest/…       # rolling pointer, synced with --delete
+s3://<bucket>/long-black/v<version>/…   # immutable, per release
+s3://<bucket>/long-black/latest/…       # rolling pointer, reconciled with --delete
 ```
 
-The assets are staged into a clean dir first; `latest/` is updated with
-`aws s3 sync --delete`, so it always mirrors exactly one release (the previous
-release's version-named shards are removed) — `metadata.json`/`manifest.json` and the
-data shards under `latest/` can never describe different releases.
+The `mirror-s3` job **re-downloads the immutable published release** into a clean dir,
+so a partial-mirror failure is repaired by simply **re-running that job** (no rebuild).
+Within each prefix, data shards + Parquet are uploaded **before** `metadata.json` /
+`manifest.json`, so those never describe data that isn't present yet; `latest/` is then
+reconciled with `aws s3 sync --delete`, so it always mirrors exactly one release (the
+previous version's stale shards are removed).
 
 **Auth is GitHub OIDC — no long-lived keys.** To enable, set three repo **variables**
 (Settings → Secrets and variables → Actions → Variables):

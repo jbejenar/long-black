@@ -36,7 +36,8 @@ on:
 permissions:
   contents: write # create the GitHub Release
   actions: write # dispatch docker-publish.yml for the resolved tag
-  id-token: write # assume the AWS OIDC role for the optional S3 mirror (no long-lived keys)
+  # NB: id-token (AWS OIDC) is granted ONLY to the separate mirror-s3 job below, not to
+  # the build job that runs the pipeline — least privilege.
 
 concurrency:
   group: build-${{ github.ref }}
@@ -52,6 +53,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    # Exposed to the separate mirror-s3 job (which downloads the published release and
+    # pushes it to S3 under its own scoped id-token permission).
+    outputs:
+      tag: ${{ steps.ver.outputs.tag }}
+      published: ${{ steps.publish.outputs.published }}
+      anomalies: ${{ steps.compare.outputs.anomalies }}
     services:
       db:
         image: postgres:16
@@ -259,6 +266,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Publish GitHub Release
+        id: publish
         working-directory: long-black
         env:
           GH_TOKEN: ${{ github.token }}
@@ -380,56 +388,73 @@ jobs:
           # docker-publish re-asserts the tag resolves to it before pushing.
           FINAL_DRAFT=$(gh release view "$TAG" --json isDraft --jq '.isDraft')
           if [ "$FINAL_DRAFT" = "false" ]; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
             echo "dispatching docker-publish for $TAG @ $GITHUB_SHA"
             gh workflow run docker-publish.yml -f tag="$TAG" -f expected_sha="$GITHUB_SHA" \
               || echo "::warning::could not dispatch docker-publish.yml; run it manually with -f tag=$TAG -f expected_sha=$GITHUB_SHA"
           else
+            echo "published=false" >> "$GITHUB_OUTPUT"
             echo "release left as a draft → skipping docker-publish"
           fi
 
-      # --- Optional S3 mirror -------------------------------------------------------
-      # Dormant until configured: both steps run only when a published (non-draft,
-      # non-anomalous) release was cut AND the repo VARIABLE `S3_BUCKET` is set. Auth is
-      # GitHub OIDC — set repo variable `AWS_ROLE_ARN` to an IAM role that trusts this
-      # repo's Actions OIDC and grants s3:PutObject/ListBucket/DeleteObject (the last is
-      # needed by the latest/ `sync --delete`) on the bucket (no
-      # long-lived keys). See docs/RELEASING.md for the trust policy + setup.
-      - name: Configure AWS credentials (OIDC) for the S3 mirror
-        if: >-
-          vars.S3_BUCKET != '' && github.event.inputs.publish != 'false' &&
-          steps.compare.outputs.anomalies != 'true'
+  # --- Optional S3 mirror (separate least-privilege job) -------------------------------
+  # Dormant until configured: runs only when the repo VARIABLE `S3_BUCKET` is set AND the
+  # build job actually published a non-anomalous release. It is a SEPARATE job (not a step
+  # in build) so that `id-token: write` (AWS OIDC assume-role) is granted ONLY here, never
+  # to the build job that runs the pipeline. It re-downloads the immutable published
+  # release assets into a clean dir, so a partial-mirror failure is repaired by simply
+  # re-running THIS job (no rebuild). Auth is GitHub OIDC — set repo variable `AWS_ROLE_ARN`
+  # to an IAM role trusting this repo's Actions OIDC with s3:PutObject/ListBucket/
+  # DeleteObject on `long-black/*`. See docs/RELEASING.md § "S3 mirror".
+  mirror-s3:
+    needs: build
+    if: >-
+      vars.S3_BUCKET != '' && needs.build.outputs.published == 'true' &&
+      needs.build.outputs.anomalies != 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # assume the AWS OIDC role (this job only)
+      contents: read # gh release download
+    steps:
+      - name: Download the published release assets (clean staging)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.build.outputs.tag }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir s3-staging
+          gh release download "$TAG" --repo "$REPO" --dir s3-staging \
+            --pattern 'long-black-*.ndjson.gz' --pattern 'long-black-*.parquet' \
+            --pattern 'metadata.json' --pattern 'manifest.json'
+          ls -lh s3-staging
+
+      - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION || 'ap-southeast-2' }}
 
-      - name: Mirror release assets to S3
-        if: >-
-          vars.S3_BUCKET != '' && github.event.inputs.publish != 'false' &&
-          steps.compare.outputs.anomalies != 'true'
-        working-directory: long-black
+      - name: Mirror to S3 (versioned + rolling latest/)
         env:
           BUCKET: ${{ vars.S3_BUCKET }}
-          TAG: ${{ steps.ver.outputs.tag }}
+          TAG: ${{ needs.build.outputs.tag }}
         run: |
           set -euo pipefail
-          # Stage EXACTLY the publishable asset set in a clean dir, then push that set.
-          # This is what makes `latest/` a true rolling pointer: shard/Parquet filenames
-          # carry the version, so a plain `cp` would pile new-version files on top of the
-          # old ones in latest/ (mixed releases). Staging + `sync --delete` guarantees
-          # latest/ mirrors ONE release; the versioned prefix stays immutable via `cp`.
-          rm -rf s3-staging && mkdir s3-staging
-          cp output/long-black-*.ndjson.gz output/long-black-*.parquet \
-             output/metadata.json output/manifest.json s3-staging/
-
-          # Versioned prefix — immutable. Refuse to overwrite a DIFFERENT prior upload of
-          # this tag (an identical re-run of the same release is fine — same objects).
-          if aws s3 ls "s3://${BUCKET}/long-black/${TAG}/" | grep -q .; then
-            echo "::notice::s3://${BUCKET}/long-black/${TAG}/ already exists — re-uploading identical release assets"
-          fi
-          aws s3 cp s3-staging/ "s3://${BUCKET}/long-black/${TAG}/" --recursive --no-progress
-
-          # latest/ — rolling pointer: --delete removes the PREVIOUS release's objects so
-          # metadata/manifest and the data shards always describe the same (newest) release.
+          # Upload data shards + Parquet FIRST, then metadata/manifest LAST, so at no
+          # point does metadata/manifest describe data that isn't present yet. Applied to
+          # both the immutable versioned prefix and the rolling latest/ pointer.
+          put_ordered() {  # $1 = destination s3 prefix
+            aws s3 cp s3-staging/ "$1" --recursive --no-progress \
+              --exclude 'metadata.json' --exclude 'manifest.json'
+            aws s3 cp s3-staging/metadata.json "$1/metadata.json" --no-progress
+            aws s3 cp s3-staging/manifest.json "$1/manifest.json" --no-progress
+          }
+          put_ordered "s3://${BUCKET}/long-black/${TAG}"    # immutable per-release
+          put_ordered "s3://${BUCKET}/long-black/latest"    # data+metadata for the new release
+          # Finally reconcile latest/ to EXACTLY this release — removes the previous
+          # version's now-stale shards. New objects are already present, so this pass only
+          # deletes leftovers; a failure here leaves the new release complete + consistent
+          # in latest/ (just with some old shards), and re-running this job fixes it.
           aws s3 sync s3-staging/ "s3://${BUCKET}/long-black/latest/" --delete --no-progress
-          echo "mirrored ${TAG} → s3://${BUCKET}/long-black/{${TAG},latest}/ (latest/ synced with --delete)"
+          echo "mirrored ${TAG} → s3://${BUCKET}/long-black/{${TAG},latest}/"

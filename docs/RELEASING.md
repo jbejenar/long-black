@@ -184,10 +184,27 @@ objects that aren't present yet. The mirror **re-downloads the immutable publish
 release**, so a partial-mirror failure is fixed by simply **re-running that job** (no
 rebuild).
 
-It runs as a **separate `mirror-s3` job** so the AWS OIDC `id-token` permission is
-scoped to the mirror alone — the pipeline/build job never gets assume-role rights. It is
-**dormant until configured** — it runs only when the build **published a non-anomalous
-release** _and_ the repo **variable** `AWS_ROLE_ARN` is set.
+The mirror is a **reusable workflow** (`.github/workflows/mirror-s3.yml`) with two entry
+points, so its merge/manifest logic lives in one place:
+
+- **After a build** — `build.yml`'s `mirror-s3` job calls it once the build published a
+  non-anomalous release. The AWS OIDC `id-token` permission is scoped to that job alone —
+  the pipeline/build job never gets assume-role rights.
+- **On demand, no rebuild** — `mirror-release.yml` (`workflow_dispatch`) calls the same
+  reusable workflow for any existing release tag:
+
+  ```bash
+  gh workflow run mirror-release.yml -f tag=v2026.06.30
+  ```
+
+  Use this to publish the S3 mirror for a release cut **before** the mirror was
+  configured, or to repair/refresh a partial mirror — it re-downloads the immutable
+  release and rebuilds the S3 side from scratch, so it's safely idempotent and costs a
+  minute, not a full ~2 h rebuild.
+
+The mirror is **dormant until configured** — it no-ops unless the repo **variable**
+`AWS_ROLE_ARN` is set (and, for the post-build path, the build published a non-anomalous
+release).
 
 **Auth is GitHub OIDC — no long-lived keys, and long-black needs its OWN role**
 (flat-white's `flat-white-role` trusts only `jbejenar/flat-white`). Create a new role,

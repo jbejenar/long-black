@@ -1,0 +1,27 @@
+name: Mirror release to S3 (on-demand)
+
+# Mirror an already-published release to S3 WITHOUT a rebuild. Use this to publish the S3
+# mirror for a release cut before the mirror was configured, or to repair/refresh a
+# partial mirror. It calls the SAME reusable workflow build.yml uses (mirror-s3.yml), so
+# the merge/manifest logic never drifts between the two entry points.
+#
+#   gh workflow run mirror-release.yml -f tag=v2026.06.30
+#
+# Dormant until configured: no-ops unless the repo variable AWS_ROLE_ARN is set.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to mirror (vYYYY.MM.DD)"
+        required: true
+        type: string
+
+jobs:
+  mirror:
+    permissions:
+      id-token: write # assume the AWS OIDC role (scoped to this job)
+      contents: read # gh release download
+    uses: ./.github/workflows/mirror-s3.yml
+    with:
+      tag: ${{ inputs.tag }}

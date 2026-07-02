@@ -1,4 +1,4 @@
--- seed-postgres.sql — long-black fixture rows (~20 representative ABNs).
+-- seed-postgres.sql — long-black fixture rows (22 representative ABNs).
 --
 -- Hand-authored STAGING rows (not XML): the schema + tables are created first by
 -- sql/staging-schema.sql, then these INSERTs run, then sql/abn-finalize.sql adds
@@ -99,7 +99,16 @@ INSERT INTO abn___SCHEMA_VERSION__.abn (
 -- 20. Trading name only
 ('51000001846','ACT',DATE '2019-01-01','PRV','Australian Private Company',
  'TRADING ONLY PTY LTD',NULL,NULL,'000001846','ACN','ACT',DATE '2019-07-01','QLD','4002',
- NULL,'["JUST TRADING"]'::jsonb,NULL,NULL,20260601);
+ NULL,'["JUST TRADING"]'::jsonb,NULL,NULL,20260601),
+-- 21. Company in external administration (ASIC status EXAD → isExternalAdministration).
+-- ABN still ACT — cancellation lags the ASIC status, the real-data shape.
+('51000002381','ACT',DATE '2013-01-01','PRV','Australian Private Company',
+ 'IN ADMIN PTY LTD',NULL,NULL,'000002381','ACN','ACT',DATE '2013-07-01','NSW','2004',
+ NULL,NULL,NULL,NULL,20260601),
+-- 22. Company with a strike-off action in progress (ASIC status SOFF → isStrikeOffInProgress).
+('51000002430','ACT',DATE '2014-01-01','PRV','Australian Private Company',
+ 'STRIKE OFF PTY LTD',NULL,NULL,'000002430','ACN','ACT',DATE '2014-07-01','VIC','3003',
+ NULL,NULL,NULL,NULL,20260601);
 
 -- ASIC Company enrichment fixtures (1:1 on ABN). Populate company{} for a few
 -- entities; all other ABNs keep company:null (proving the LEFT JOIN seam).
@@ -114,7 +123,15 @@ INSERT INTO abn___SCHEMA_VERSION__.asic_company (
 ('51000000793','000000793','BIGCORP LIMITED','BIGCORP LIMITED','APUB','LMPL',NULL,
  'Registered',DATE '1995-01-01',NULL,'VIC','C12345',DATE '2005-03-01'),
 ('51000001846','000001846','TRADING ONLY PTY LTD','TRADING ONLY PTY LTD','APTY','LMSH','PROP',
- 'Deregistered',DATE '2019-01-01',DATE '2024-05-01',NULL,NULL,DATE '2019-01-01');
+ 'Deregistered',DATE '2019-01-01',DATE '2024-05-01',NULL,NULL,DATE '2019-01-01'),
+-- External administration (EXAD) and strike-off in progress (SOFF) — the raw ASIC
+-- status codes (ASIC ships "Deregistered" as text but EXAD/SOFF as codes). These
+-- drive isExternalAdministration / isStrikeOffInProgress. Still registered (no
+-- deregistration_date) — the company exists but is in distress.
+('51000002381','000002381','IN ADMIN PTY LTD','IN ADMIN PTY LTD','APTY','LMSH','PROP',
+ 'EXAD',DATE '2013-01-01',NULL,NULL,NULL,DATE '2013-01-01'),
+('51000002430','000002430','STRIKE OFF PTY LTD','STRIKE OFF PTY LTD','APTY','LMSH','PROP',
+ 'SOFF',DATE '2014-01-01',NULL,NULL,NULL,DATE '2014-01-01');
 
 -- ASIC Business Names enrichment fixtures (1:N on ABN; authoritative, distinct
 -- from ABR's OtherEntity business names). 51000001571 has TWO (the 1:N aggregation

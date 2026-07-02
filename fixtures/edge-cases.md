@@ -31,6 +31,8 @@ the flatten + schema + verify must handle.
 | 51000001797 | **ARBN** sharing the banned/licence ACN digits                  | `acnType=ARBN`; ACN-path joins must NOT attach (type guard)                                                      |
 | 51000001814 | Minimal record: no names, no address                            | all-null tolerance                                                                                               |
 | 51000001846 | Trading name only                                               | `tradingNames[]` populated, others empty                                                                         |
+| 51000002381 | Company in **external administration** (ASIC `EXAD`)            | `flags.isExternalAdministration` — distress signal (ABN still ACT: cancellation lags)                            |
+| 51000002430 | Company with a **strike-off in progress** (ASIC `SOFF`)         | `flags.isStrikeOffInProgress` — ASIC moving to deregister                                                        |
 
 ## Enrichment-source edge cases (the multi-source join seam)
 
@@ -41,7 +43,9 @@ and lands in the nullable nested objects of `expected-output.ndjson`.
 | ----------- | ------------------------ | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
 | 51000000761 | ASIC Company             | Company matched on ABN (active)                                                                             | `company{}` populated (1:1 via `DISTINCT ON`)                                         |
 | 51000000793 | ASIC Company             | Public company match                                                                                        | `company{}` populated for a second entity type                                        |
-| 51000001846 | ASIC Company             | Deregistered company (deregistrationDate set)                                                               | `company{}` carries the deregistration path                                           |
+| 51000001846 | ASIC Company             | Deregistered company (deregistrationDate set + `flags.isDeregistered`)                                      | `company{}` carries the deregistration path + distress flag                           |
+| 51000002381 | ASIC Company             | Company in external administration (status `EXAD`)                                                          | raw ASIC code → `flags.isExternalAdministration`                                      |
+| 51000002430 | ASIC Company             | Company with strike-off in progress (status `SOFF`)                                                         | raw ASIC code → `flags.isStrikeOffInProgress`                                         |
 | 51000000761 | ASIC Business Names      | One registered business name (incl. a cancelled)                                                            | `registeredBusinessNames[]` (1:N agg) + cancellation date                             |
 | 51000001571 | ASIC Business Names      | **Multiple** registered names for one ABN                                                                   | fan-out guard (1:N `json_agg`, ordered)                                               |
 | 51000000810 | ACNC                     | Charity on a discretionary-trust ABN; **no AIS filed**                                                      | `charity{}` populated (1:0..1) with `financials: null`                                |

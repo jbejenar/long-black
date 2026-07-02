@@ -317,22 +317,25 @@ filter without digging into nested null/empty objects (e.g. "licensed charities 
 no enforcement action"). Shape: `EntityFlagsSchema`. Approximate prevalence on the
 2026.06.24 extract in parentheses.
 
-| Field                      | Type    | Derivation                                   |
-| -------------------------- | ------- | -------------------------------------------- |
-| `isIndividual`             | boolean | `entityTypeCode === 'IND'` (~54%)            |
-| `isCompany`                | boolean | `company != null` (~12%)                     |
-| `isCharity`                | boolean | `charity != null` (~0.3%)                    |
-| `isLicensed`               | boolean | holds an AFS **or** credit licence (~0.05%)  |
-| `hasEnforcementAction`     | boolean | `bannedDisqualified` non-empty (12 entities) |
-| `isDgr`                    | boolean | `dgr` non-empty (~0.16%)                     |
-| `hasGovContracts`          | boolean | `govSpend != null` (won ≥1 govt contract)    |
-| `receivesGovGrants`        | boolean | `govGrants != null` (received ≥1 govt grant) |
-| `isLargeCorporateTaxpayer` | boolean | `taxTransparency != null` (≥$100M income)    |
-| `claimsRdTaxIncentive`     | boolean | `rdTaxIncentive != null`                     |
-| `isAfsAuthorisedRep`       | boolean | `afsAuthorisedRep != null`                   |
-| `isCreditRep`              | boolean | `creditRep != null`                          |
-| `isWgeaReporter`           | boolean | `wgeaReporter != null` (100+-staff employer) |
-| `isSmsfAuditor`            | boolean | `smsfAuditor != null`                        |
+| Field                      | Type    | Derivation                                            |
+| -------------------------- | ------- | ----------------------------------------------------- |
+| `isIndividual`             | boolean | `entityTypeCode === 'IND'` (~54%)                     |
+| `isCompany`                | boolean | `company != null` (~12%)                              |
+| `isCharity`                | boolean | `charity != null` (~0.3%)                             |
+| `isLicensed`               | boolean | holds an AFS **or** credit licence (~0.05%)           |
+| `hasEnforcementAction`     | boolean | `bannedDisqualified` non-empty (12 entities)          |
+| `isDgr`                    | boolean | `dgr` non-empty (~0.16%)                              |
+| `hasGovContracts`          | boolean | `govSpend != null` (won ≥1 govt contract)             |
+| `receivesGovGrants`        | boolean | `govGrants != null` (received ≥1 govt grant)          |
+| `isLargeCorporateTaxpayer` | boolean | `taxTransparency != null` (≥$100M income)             |
+| `claimsRdTaxIncentive`     | boolean | `rdTaxIncentive != null`                              |
+| `isAfsAuthorisedRep`       | boolean | `afsAuthorisedRep != null`                            |
+| `isCreditRep`              | boolean | `creditRep != null`                                   |
+| `isWgeaReporter`           | boolean | `wgeaReporter != null` (100+-staff employer)          |
+| `isSmsfAuditor`            | boolean | `smsfAuditor != null`                                 |
+| `isExternalAdministration` | boolean | `company.status == "EXAD"` (receivership/liquidation) |
+| `isStrikeOffInProgress`    | boolean | `company.status == "SOFF"` (ASIC strike-off pending)  |
+| `isDeregistered`           | boolean | `company.status == "Deregistered"`                    |
 
 `ageYears` and `isActive` are likewise derived: `ageYears` is whole **calendar**
 years from `abnStatusFromDate` to the `_version` date — computed from date components

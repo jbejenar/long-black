@@ -203,6 +203,12 @@ export const EntityFlagsSchema = z.object({
   isWgeaReporter: z.boolean(),
   /** Is an ASIC-approved SMSF auditor (`smsfAuditor != null`). */
   isSmsfAuditor: z.boolean(),
+  /** ASIC company is in external administration — receivership/liquidation (`company.status == "EXAD"`). */
+  isExternalAdministration: z.boolean(),
+  /** ASIC strike-off action is in progress — ASIC is moving to deregister the company (`company.status == "SOFF"`). */
+  isStrikeOffInProgress: z.boolean(),
+  /** ASIC company has been deregistered — no longer a registered company (`company.status == "Deregistered"`). */
+  isDeregistered: z.boolean(),
 });
 
 export const AbnDocumentSchema = z.object({

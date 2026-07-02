@@ -12,6 +12,16 @@ The NDJSON document is the contract (`docs/DOCUMENT-SCHEMA.md`).
 
 ## [Unreleased]
 
+### Added
+
+- **Company distress/lifecycle flags** — three derived booleans in `flags`:
+  `isExternalAdministration` (ASIC `company.status == "EXAD"` — receivership/
+  liquidation), `isStrikeOffInProgress` (`"SOFF"` — ASIC moving to deregister), and
+  `isDeregistered` (`"Deregistered"`). No new source — derived from the ASIC company
+  status already carried on every document, so it's a free open "is this business in
+  distress / dead" screen (the adverse-event signal paid credit bureaus charge for;
+  the credit _score_ itself remains proprietary/unobtainable). Additive, minor bump.
+
 ### Removed
 
 - **Parquet output** — dropped the optional all-ABN `.parquet` asset

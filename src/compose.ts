@@ -175,6 +175,12 @@ export function composeAbnDocument(row: Record<string, unknown>, version: string
       isCreditRep: creditRep !== null,
       isWgeaReporter: wgeaReporter !== null,
       isSmsfAuditor: smsfAuditor !== null,
+      // Distress/lifecycle signals derived from the ASIC company status (no extra
+      // source). ASIC ships these as raw values — "Deregistered" as text, "EXAD"/"SOFF"
+      // as codes — so match the exact values the loader passes through.
+      isExternalAdministration: company?.status === "EXAD",
+      isStrikeOffInProgress: company?.status === "SOFF",
+      isDeregistered: company?.status === "Deregistered",
     },
   };
 }

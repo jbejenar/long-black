@@ -23,7 +23,7 @@ const NAME_TYPE_CODES = new Set(["MN", "TRD", "BN", "OTN", "DGR", "LGL", "IND"])
 
 describe("expected-output.ndjson regression", () => {
   it("has the expected line count", () => {
-    expect(lines.length).toBe(20);
+    expect(lines.length).toBe(22);
   });
 
   it("validates every line against AbnDocumentSchema", () => {

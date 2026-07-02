@@ -82,4 +82,27 @@ describe("composeAbnDocument derived fields", () => {
     const doc = composeAbnDocument({ ...baseRow, abn_status_from_date: null }, "2026.06.28");
     expect(doc.ageYears).toBeNull();
   });
+
+  it("derives distress flags from the ASIC company status (EXAD/SOFF/Deregistered)", () => {
+    const flagsFor = (status: string | null) =>
+      composeAbnDocument({ ...baseRow, company: status === null ? null : { status } }, "2026.06.28")
+        .flags;
+
+    const exad = flagsFor("EXAD");
+    expect(exad.isExternalAdministration).toBe(true);
+    expect(exad.isStrikeOffInProgress).toBe(false);
+    expect(exad.isDeregistered).toBe(false);
+
+    expect(flagsFor("SOFF").isStrikeOffInProgress).toBe(true);
+    expect(flagsFor("Deregistered").isDeregistered).toBe(true);
+
+    // A healthy registered company and a no-company entity trip none of them.
+    const healthy = flagsFor("Registered");
+    expect(healthy.isExternalAdministration).toBe(false);
+    expect(healthy.isStrikeOffInProgress).toBe(false);
+    expect(healthy.isDeregistered).toBe(false);
+    const none = flagsFor(null);
+    expect(none.isExternalAdministration).toBe(false);
+    expect(none.isDeregistered).toBe(false);
+  });
 });

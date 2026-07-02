@@ -228,7 +228,10 @@
           "isAfsAuthorisedRep": { "type": "boolean" },
           "isCreditRep": { "type": "boolean" },
           "isWgeaReporter": { "type": "boolean" },
-          "isSmsfAuditor": { "type": "boolean" }
+          "isSmsfAuditor": { "type": "boolean" },
+          "isExternalAdministration": { "type": "boolean" },
+          "isStrikeOffInProgress": { "type": "boolean" },
+          "isDeregistered": { "type": "boolean" }
         }
       }
     }

@@ -58,6 +58,9 @@ function validDoc(overrides: Partial<AbnDocument> = {}): AbnDocument {
       isCreditRep: false,
       isWgeaReporter: false,
       isSmsfAuditor: false,
+      isExternalAdministration: false,
+      isStrikeOffInProgress: false,
+      isDeregistered: false,
     },
     ...overrides,
   };
@@ -203,6 +206,9 @@ describe("AbnDocumentSchema", () => {
         isCreditRep: false,
         isWgeaReporter: false,
         isSmsfAuditor: false,
+        isExternalAdministration: false,
+        isStrikeOffInProgress: false,
+        isDeregistered: false,
       },
     });
     expect(AbnDocumentSchema.safeParse(doc).success).toBe(true);

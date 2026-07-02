@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-01",
+  "generatedAt": "2026-07-02",
   "schemas": {
     "AbnDocument": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1062,6 +1062,15 @@
             },
             "isSmsfAuditor": {
               "type": "boolean"
+            },
+            "isExternalAdministration": {
+              "type": "boolean"
+            },
+            "isStrikeOffInProgress": {
+              "type": "boolean"
+            },
+            "isDeregistered": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -1078,7 +1087,10 @@
             "isAfsAuthorisedRep",
             "isCreditRep",
             "isWgeaReporter",
-            "isSmsfAuditor"
+            "isSmsfAuditor",
+            "isExternalAdministration",
+            "isStrikeOffInProgress",
+            "isDeregistered"
           ],
           "additionalProperties": false
         }

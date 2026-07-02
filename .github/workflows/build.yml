@@ -93,10 +93,10 @@ jobs:
             /usr/local/share/boost "$AGENT_TOOLSDIRECTORY" || true
           df -h /
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: long-black
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: jbejenar/crema
           ref: ${{ env.CREMA_REF }} # pinned — see env.CREMA_REF above

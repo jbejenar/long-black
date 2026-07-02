@@ -1,6 +1,6 @@
 # Fixture edge cases — long-black
 
-The fixture (`fixtures/seed-postgres.sql`) seeds ~20 representative ABNs into the
+The fixture (`fixtures/seed-postgres.sql`) seeds 22 representative ABNs into the
 `abn` staging table, plus example rows into the fifteen enrichment stub tables
 (`asic_company`, `asic_business_name`, `acnc_charity`, `acnc_ais`,
 `asic_afs_licence`, `asic_credit_licence`, `asic_banned_disqualified`, `gov_spend`,

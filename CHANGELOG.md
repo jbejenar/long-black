@@ -14,13 +14,23 @@ The NDJSON document is the contract (`docs/DOCUMENT-SCHEMA.md`).
 
 ### Added
 
-- **Company distress/lifecycle flags** — three derived booleans in `flags`:
+- **0.18.0** — **Company distress/lifecycle flags** — three derived booleans in `flags`:
   `isExternalAdministration` (ASIC `company.status == "EXAD"` — receivership/
   liquidation), `isStrikeOffInProgress` (`"SOFF"` — ASIC moving to deregister), and
   `isDeregistered` (`"Deregistered"`). No new source — derived from the ASIC company
   status already carried on every document, so it's a free open "is this business in
   distress / dead" screen (the adverse-event signal paid credit bureaus charge for;
-  the credit _score_ itself remains proprietary/unobtainable). Additive, minor bump.
+  the credit _score_ itself remains proprietary/unobtainable). Additive, minor bump
+  (0.17.0 → 0.18.0).
+
+### Fixed
+
+- **schemaVersion drift** — `src/index.ts` `VERSION` (the source of `metadata.json`
+  `schemaVersion`) had silently frozen at `0.6.0` while `package.json` advanced to
+  0.17.x, so shipped releases under-reported the schema version. VERSION is now `0.18.0`
+  and a new `version.test.ts` asserts it always equals `package.json` "version", so the
+  changelog, `DOCUMENT-SCHEMA.md`, schema baseline, and shipped metadata now agree on
+  one version boundary.
 
 ### Removed
 

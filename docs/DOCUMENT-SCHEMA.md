@@ -1,9 +1,12 @@
 # Document Schema Reference — long-black
 
-> **Schema version:** 0.17.0
+> **Schema version:** 0.18.0
 > **Runtime validation:** `src/schema.ts` (`AbnDocumentSchema`, Zod)
 > **Breaking changes:** require a major version bump.
 
+> 0.18.0 adds three **company distress flags** (additive, minor):
+> `flags.isExternalAdministration` / `isStrikeOffInProgress` / `isDeregistered`, derived
+> from the ASIC `company.status` already carried on every document — no new source.
 > 0.17.0 adds **`govGrants`** (additive, minor): GrantConnect grant awards received per
 > recipient ABN (the grants complement to `govSpend` contracts), plus
 > `flags.receivesGovGrants`. 0.16.0 added **`smsfAuditor`**. 0.15.0 added
